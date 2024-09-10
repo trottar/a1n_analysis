@@ -1,0 +1,8 @@
+label,path,line_style,line_width,fill_style,color
+Cheng et al.,Cheng_et_al/herein_dqq.dat,42,1,1,1
+LFHQCD,LFHQCD/fig3_pred2.dat,1,2,1001,857
+Statistical,Stat/polud_bbs.dat,1,4,-1,801
+LSS (BBS),LSS/polud_lss.dat,2,5,-1,813
+LSS2001,LSS/polud_lss2001_1.dat,6,7,0,1
+LSS2001,LSS/polud_lss2001_2.dat,6,7,0,1
+BBS+OAM,NA,4,5,-1,9

@@ -14,6 +14,10 @@
 Tmp*
 *.log
 
+# Plots
+*.png
+*.pdf
+
 # Directories
 __pycache__
 data

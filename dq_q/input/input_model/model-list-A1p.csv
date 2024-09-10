@@ -1,0 +1,11 @@
+label,path,line_style,color
+Statistical,Stat/a1p4gev2.dat,1,801
+NJL,NJL/a1p_cloet-bentz-thomas.dat,5,418
+World Fit,Stat/a1p4gev2_world_fit.dat,3,28
+CLAS (F1F221 Q2=5),CLAS/A1p23_5.0.out,1,1
+CLAS (F1F221 Q2=6),CLAS/A1p23_6.0.out,1,2
+CLAS (F1F221 Q2=7),CLAS/A1p23_7.0.out,1,3
+CLAS (F1F221 Q2=8),CLAS/A1p23_8.0.out,1,4
+CLAS (F1F221 Q2=9),CLAS/A1p23_9.0.out,1,6
+CLAS (F1F221 Q2=10),CLAS/A1p23_10.0.out,1,7
+Cheng et al.,Cheng_et_al/herein_a1p.dat,42,1

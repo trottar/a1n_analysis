@@ -1,0 +1,11 @@
+label,path,line_style,color
+Statistical,Stat/a1n4gev2_12_8_15.dat,1,801
+CQM,CQM/a1n_cqm_mod.dat,1,632
+AdS/CFT,AdS-CFT/a1n_ads-cft_mod.dat,1,429
+Upper AdS/CFT,AdS-CFT/a1n_ads-cft_upper_mod.dat,1,429
+Lower AdS/CFT,AdS-CFT/a1n_ads-cft_lower_mod.dat,1,429
+NJL,NJL/a1n_cloet-bentz-thomas.dat,5,418
+PQCD (w/angMom),pQCD/avakian.dat,3,6
+pQCD,pQCD/bbs_Q2_4.dat,7,4
+DSE (realistic),DSE/realistic.dat,42,1
+DSE (contact),DSE/contact.dat,28,1

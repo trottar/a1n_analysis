@@ -1,0 +1,21 @@
+# File extensions
+*~
+*#*#*
+*.d
+*.so
+*.pcm
+*.ps
+*.eps
+.nfs*
+*.root
+*.root*
+*_-1_0_-1
+*_0_-1
+Tmp*
+*.log
+
+# Directories
+__pycache__
+data
+
+$HOME

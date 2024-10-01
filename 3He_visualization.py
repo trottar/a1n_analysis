@@ -22,6 +22,13 @@ from matplotlib.backends.backend_pdf import PdfPages
 #from google.colab import drive
 #drive.mount('/mnt/drive') # mount google drive - MUST AGREE TO POPUPS
 
+##################################################################################################################################################
+# Importing utility functions
+
+from utility import show_pdf_with_evince, most_common_combination
+
+##################################################################################################################################################
+
 
 # In[2]:
 
@@ -69,7 +76,7 @@ from functions import x_to_W, W_to_x, breit_wigner_res, breit_wigner_wrapper, li
     cubic_curve, exp_curve, cub_exp_curve, quadconstr_exp_curve, nucl_potential, quad_nucl_curve, g1f1_quad_DIS, \
     g1f1_quad2_DIS, g1f1_cubic_DIS, fit, red_chi_sqr, fit_with_dynamic_params, weighted_avg, partial_a2, partial_a3, partial_b2, \
     partial_b3, partial_c2, partial_c3, partial_beta2, partial_beta3, partial_d3, partial_x0, partial_y0, partial_c4, partial_beta4, \
-    g1f1_quad_DIS, g1f1_quad2_DIS, g1f1_cubic_DIS
+    g1f1_quad_DIS, g1f1_quad2_DIS, g1f1_cubic_DIS, residual_function, damping_function, gaussian_peak
 
 def quad_nucl_curve_constp(x, a, b, c, y0):
   """
@@ -79,6 +86,15 @@ def quad_nucl_curve_constp(x, a, b, c, y0):
   y0: term to have curve end at a constant value
   """  
   return quad_nucl_curve(x, a, b, c, y0, P0, P1, P2, Y1)
+
+def lin_nucl_curve_constp(x, a, b):
+  """
+  linear * nucl potential form
+  x: independent data
+  a, b, c: linear curve parameters
+  y0: term to have curve end at a constant value
+  """  
+  return lin_nucl_curve(x, a, b)
 
 # # Model Building
 
@@ -434,29 +450,30 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # plot all the parameters vs Q2
     for i, exp_name in enumerate(delta_par_df["Experiment"].unique()):
       axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==exp_name]["M"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["M.err"], fmt=m_type,
-                      color=colors[i], markersize=m_size, capsize=cap_size,
-                      label=exp_name, capthick=cap_thick)
-
-      axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
                       delta_par_df[delta_par_df["Experiment"]==exp_name]["k"],
                       yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["k.err"], fmt=m_type,
                       color=colors[i], markersize=m_size, capsize=cap_size,
                       label=exp_name, capthick=cap_thick)
 
-      axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
+      axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
                       delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma"],
                       yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma.err"], fmt=m_type,
                       color=colors[i], markersize=m_size, capsize=cap_size,
                       label=exp_name, capthick=cap_thick)
+      
+      axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
+                      delta_par_df[delta_par_df["Experiment"]==exp_name]["M"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["M.err"], fmt=m_type,
+                      color=colors[i], markersize=m_size, capsize=cap_size,
+                      label=exp_name, capthick=cap_thick)
 
-    axs[0].set_ylabel("M")
-    axs[1].set_ylabel("k")
-    axs[2].set_ylabel("$\Gamma$")
+    axs[0].set_ylabel("k")
+    axs[1].set_ylabel("$\Gamma$")
+    axs[2].set_ylabel("M")
 
+    axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
     axs[1].axhline(y=0,color="black", linestyle='--', alpha=0.5)
-    axs[2].axhline(y=0, color="black", linestyle='--', alpha=0.5)
+    axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
 
     axs[0].legend()
     axs[1].legend()
@@ -482,15 +499,15 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # # weight = 1/err
     # for Q2 in x:
     #   # average k's and their errors
-    #   k_avg = weighted_avg(df[df["Q2"]==Q2]["k_constM"], w=1/df[df["Q2"]==Q2]["k_constM.err"])
+    #   k_avg = weighted_avg(df[df["Q2"]==Q2]["k"], w=1/df[df["Q2"]==Q2]["k.err"])
     #   k_unique.append(k_avg)
-    #   k_avg_err = (1/len(df[df["Q2"]==Q2]["k_constM.err"])) * np.sqrt(np.sum(df[df["Q2"]==Q2]["k_constM.err"]**2))
+    #   k_avg_err = (1/len(df[df["Q2"]==Q2]["k.err"])) * np.sqrt(np.sum(df[df["Q2"]==Q2]["k.err"]**2))
     #   k_err_unique.append(k_avg_err)
 
     #   # average gammas and their errors
-    #   gam_avg = weighted_avg(df[df["Q2"]==Q2]["gamma_constM"], w=(1/df[df["Q2"]==Q2]["gamma_constM.err"]))
+    #   gam_avg = weighted_avg(df[df["Q2"]==Q2]["gamma"], w=(1/df[df["Q2"]==Q2]["gamma.err"]))
     #   gam_unique.append(gam_avg)
-    #   gam_avg_err = (1/len(df[df["Q2"]==Q2]["gamma_constM.err"])) * np.sqrt(np.sum(df[df["Q2"]==Q2]["gamma_constM.err"]**2))
+    #   gam_avg_err = (1/len(df[df["Q2"]==Q2]["gamma.err"])) * np.sqrt(np.sum(df[df["Q2"]==Q2]["gamma.err"]**2))
     #   gam_err_unique.append(gam_avg_err)
 
     #   # print(Q2)
@@ -514,21 +531,28 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     k_err_unique = []
     gam_unique = []
     gam_err_unique = []
+    mass_unique = []
+    mass_err_unique = []    
     
     #   # go through each unique Q2 value and do weighted average of the points
     for Q2 in x:
         #   # average k's and their errors
-        k_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["k_constM"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["k_constM.err"])
+        k_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["k"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])
         k_unique.append(k_avg)
-        k_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["k_constM.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["k_constM.err"]**2))
+        k_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"]**2))
         k_err_unique.append(k_avg_err)
 
         #   # average gammas and their errors
-        gam_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["gamma_constM"], w=(1/delta_par_df[delta_par_df["Q2"]==Q2]["gamma_constM.err"]))
+        gam_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["gamma"], w=(1/delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]))
         gam_unique.append(gam_avg)
-        gam_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["gamma_constM.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["gamma_constM.err"]**2))
+        gam_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]**2))
         gam_err_unique.append(gam_avg_err)
 
+        mass_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["M"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])
+        mass_unique.append(mass_avg)
+        mass_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"]**2))
+        mass_err_unique.append(mass_avg_err)
+        
     #   # print(Q2)
     #   # print(f"  {k_avg:.5f}±{k_avg_err:.5f}")
     #   # print(f"  {gam_avg:.5f}±{gam_avg_err:.5f}")
@@ -537,21 +561,37 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     for i in range(7):
       x.append(x0+i)
       k_unique.append(0.0)
-      k_err_unique.append(.001)
-      gam_unique.append(0.2)
-      gam_err_unique.append(.1)
-
+      k_err_unique.append(k_avg_err)
+      gam_unique.append(0.25)
+      gam_err_unique.append(gam_avg_err)
+      mass_unique.append(1.232)
+      mass_err_unique.append(mass_avg_err)
 
     # In[13]:
 
+    # try spline fit of the points for k and gamma
+    N = len(k_unique)
+    #print(N-np.sqrt(2*N), N+np.sqrt(2*N)) #ideal s range
+    sk = 4.0
+    sg = 4.0
+    sm = 4.0
+    tck_k = splrep(x=x, y=k_unique, w=1/np.array(k_err_unique), s=sk, k=3)
+    tck_gamma = splrep(x=x, y=gam_unique, w=1/np.array(gam_err_unique), s=sg, k=3)
+    tck_mass = splrep(x=x, y=mass_unique, w=1/np.array(mass_err_unique), s=sm, k=3)
+
+    # Generate fitted curves using the fitted parameters
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
+    q2_low = np.linspace(0.0, 1.0, 1000, dtype=np.double)    
 
     # plot k and gamma vs Q2 from variable M fit
 
-    fig, axs = plt.subplots(1, 2, figsize=(18,10))
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
     k_list = []
     k_err_list = []
     gamma_list = []
     gamma_err_list = []
+    mass_list = []
+    mass_err_list = []    
     q2_list = []
     label_list = []
 
@@ -564,17 +604,23 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # plot all the parameters vs Q2
     for i, exp_name in enumerate(delta_par_df["Experiment"].unique()):
       axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==exp_name]["k_constM"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["k_constM.err"], fmt=m_type,
+                      delta_par_df[delta_par_df["Experiment"]==exp_name]["k"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["k.err"], fmt=m_type,
                       color=colors[i], markersize=m_size, capsize=cap_size,
                       label=exp_name, capthick=cap_thick)
 
       axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma_constM"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma_constM.err"], fmt=m_type,
+                      delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma.err"], fmt=m_type,
                       color=colors[i], markersize=m_size, capsize=cap_size,
                       label=exp_name, capthick=cap_thick)
 
+      axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
+                      delta_par_df[delta_par_df["Experiment"]==exp_name]["M"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["M.err"], fmt=m_type,
+                      color=colors[i], markersize=m_size, capsize=cap_size,
+                      label=exp_name, capthick=cap_thick)
+      
     axs[0].errorbar(x[0:], k_unique[0:], yerr=k_err_unique[0:], fmt=m_type,
                     markersize=m_size, capsize=cap_size,
                     label="Combined for Spline", capthick=cap_thick, alpha=0.35)
@@ -583,20 +629,27 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                     markersize=m_size, capsize=cap_size,
                     label="Combined for Spline", capthick=cap_thick, alpha=0.35)
 
+    axs[2].errorbar(x[0:], mass_unique[0:], yerr=mass_err_unique[0:], fmt=m_type,
+                    markersize=m_size, capsize=cap_size,
+                    label="Combined for Spline", capthick=cap_thick, alpha=0.35)
+    
     axs[0].set_ylabel("k")
     axs[1].set_ylabel("$\Gamma$")
+    axs[2].set_ylabel("M")
 
     axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
     axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
+    axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
     # axs[0].set_xlim(-.1, 1.0)
 
     # # plot splines - run next cell before uncommenting this part
-    # q2 = np.linspace(0, 10.0, 1000, dtype=np.double)
-    # axs[0].plot(q2, BSpline(*tck_k)(q2), '-', label=f'Spline s={sk}')
-    # axs[1].plot(q2, BSpline(*tck_gamma)(q2), '-', label=f'Spline s={sg}')
-
+    axs[0].plot(q2, BSpline(*tck_k)(q2), '-', label=f'Spline s={sk}')
+    axs[1].plot(q2, BSpline(*tck_gamma)(q2), '-', label=f'Spline s={sg}')
+    axs[2].plot(q2, BSpline(*tck_mass)(q2), '-', label=f'Spline s={sg}')
+    
     axs[0].legend()
     axs[1].legend()
+    axs[2].legend()
 
     fig.tight_layout()
     fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center')
@@ -605,37 +658,43 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     pdf.savefig(fig,bbox_inches="tight")
 
 
-    # A bunch of different fits I tried... just keep Quad*Nucl Potential (I say nuclear potential but it's Woods-Saxon). TODO: fit M, k, gamma from the floating Delta fits
+    # A bunch of different fits I tried... just keep Quad*Nucl Potential (I say nuclear potential but it's Woods-Saxon). TODO (DONE): fit M, k, gamma from the floating Delta fits
 
     # In[14]:
 
 
-    '''
-    # fit k and gamma with line
+    # fit k, gamma, mass with line
     print("K Linear Fit Params")
     k_lin_par, k_lin_cov, k_lin_err, k_lin_chi2 = fit(lin_curve, delta_par_df["Q2"],
-                                                      delta_par_df["k_constM"],
-                                                      delta_par_df["k_constM.err"],
-                                                      params_init=(0,0),
+                                                      delta_par_df["k"],
+                                                      delta_par_df["k.err"],
+                                                      params_init=(0,1),
                                                       param_names=["a", "b"])
     print("Gamma Linear Fit Params")
     gam_lin_par, gam_lin_cov, gam_lin_err, gam_lin_chi2 = fit(lin_curve, delta_par_df["Q2"],
-                                                              delta_par_df["gamma_constM"],
-                                                              delta_par_df["gamma_constM.err"],
-                                                              params_init=(0,0),
+                                                              delta_par_df["gamma"],
+                                                              delta_par_df["gamma.err"],
+                                                              params_init=(0,1),
+                                                              param_names=["a", "b"])
+    print("Mass Linear Fit Params")
+    mass_lin_par, mass_lin_cov, mass_lin_err, mass_lin_chi2 = fit(lin_curve, delta_par_df["Q2"],
+                                                              delta_par_df["M"],
+                                                              delta_par_df["M.err"],
+                                                              params_init=(0,1),
                                                               param_names=["a", "b"])
 
+    '''
     # fit k and gamma with quadratic curve
     print("K Quadratic Fit Params")
     k_quad_par, k_quad_cov, k_quad_err, k_quad_chi2 = fit(quad_curve, delta_par_df["Q2"],
-                                                          delta_par_df["k_constM"],
-                                                          delta_par_df["k_constM.err"],
+                                                          delta_par_df["k"],
+                                                          delta_par_df["k.err"],
                                                           params_init=(0,0,0),
                                                           param_names=["a", "b", "c"])
     print("Gamma Quadratic Fit Params")
     gam_quad_par, gam_quad_cov, gam_quad_err, gam_quad_chi2 = fit(quad_curve, delta_par_df["Q2"],
-                                                                  delta_par_df["gamma_constM"],
-                                                                  delta_par_df["gamma_constM.err"],
+                                                                  delta_par_df["gamma"],
+                                                                  delta_par_df["gamma.err"],
                                                                   params_init=(0,0,0),
                                                                   param_names=["a", "b", "c"])
 
@@ -643,13 +702,13 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # fit k and gamma with cubic curve
     print("K Cubic Fit Params")
     k_cub_par, k_cub_cov, k_cub_err, k_cub_chi2 = fit(cubic_curve, delta_par_df["Q2"],
-                                                      delta_par_df["k_constM"], delta_par_df["k_constM.err"],
+                                                      delta_par_df["k"], delta_par_df["k.err"],
                                                       params_init=(0,0,0,0),
                                                       param_names=["a", "b", "c", "d"])
     print("Gamma Cubic Fit Params")
     gam_cub_par, gam_cub_cov, gam_cub_err, gam_cub_chi2 = fit(cubic_curve, delta_par_df["Q2"],
-                                                              delta_par_df["gamma_constM"],
-                                                              delta_par_df["gamma_constM.err"],
+                                                              delta_par_df["gamma"],
+                                                              delta_par_df["gamma.err"],
                                                               params_init=(0,0,0,0),
                                                               param_names=["a", "b", "c", "d"])
 
@@ -657,7 +716,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     print("K Exponential Fit Params")
     try:
       k_exp_par, k_exp_cov, k_exp_err, k_exp_chi2 = fit(exp_curve, delta_par_df["Q2"],
-                                                        delta_par_df["k_constM"], delta_par_df["k_constM.err"],
+                                                        delta_par_df["k"], delta_par_df["k.err"],
                                                         params_init=(0,0,0),
                                                         param_names=["a", "b", "c"])
     except Exception:
@@ -666,8 +725,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
     print("Gamma Exponential Fit Params")
     gam_exp_par, gam_exp_cov, gam_exp_err, gam_exp_chi2 = fit(exp_curve, delta_par_df["Q2"],
-                                                              delta_par_df["gamma_constM"],
-                                                              delta_par_df["gamma_constM.err"],
+                                                              delta_par_df["gamma"],
+                                                              delta_par_df["gamma.err"],
                                                               params_init=(0,0,0),
                                                               param_names=["a", "b", "c"])
 
@@ -676,7 +735,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                    [.6, -.005, np.inf, np.inf, np.inf])
     print("k Quadratic-Exponential Fit Params")
     k_quadexp_par, k_quadexp_cov, k_quadexp_err, k_quadexp_chi2 = fit(quadconstr_exp_curve, delta_par_df["Q2"],
-                                                                      delta_par_df["k_constM"], delta_par_df["k_constM.err"],
+                                                                      delta_par_df["k"], delta_par_df["k.err"],
                                                                       params_init=(0.5,-.007,1,1,-1),
                                                                       param_names=["x0", "y0", "c", "a", "b"])
 
@@ -684,7 +743,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # fit k with cubic * exp curve
     print("k Cubic-Exponential Fit Params")
     k_cubexp_par, k_cubexp_cov, k_cubexp_err, k_cubexp_chi2 = fit(cub_exp_curve, delta_par_df["Q2"],
-                                                                  delta_par_df["k_constM"], delta_par_df["k_constM.err"],
+                                                                  delta_par_df["k"], delta_par_df["k.err"],
                                                                   params_init=(-.03,-.008,.006,-.001,.95,-1),
                                                                   param_names=["a0", "b0", "c0", "d0", "a1", "b1"])
     '''
@@ -700,7 +759,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     Y1 = 0.0
     k_P_vals = [P0, P1, P2, Y1]
     k_nucl_par, k_nucl_cov, k_nucl_err, k_nucl_chi2 = fit(quad_nucl_curve_constp, delta_par_df["Q2"],
-                                                          delta_par_df["k_constM"], delta_par_df["k_constM.err"],
+                                                          delta_par_df["k"], delta_par_df["k.err"],
                                                           params_init=(-.003, -.003, .002, 0.0007),
                                                           param_names=["a", "b", "c", "y0"],
                                                           constr=bounds)
@@ -715,87 +774,101 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     Y1 = 0.0
     gam_P_vals = [P0, P1, P2, Y1]
     gam_nucl_par, gam_nucl_cov, gam_nucl_err, gam_nucl_chi2 = fit(quad_nucl_curve_constp, delta_par_df["Q2"],
-                                                                  delta_par_df["gamma_constM"],
-                                                                  delta_par_df["gamma_constM.err"],
+                                                                  delta_par_df["gamma"],
+                                                                  delta_par_df["gamma.err"],
                                                                   params_init=(0.17, 0.24, -.08, 0.1),
                                                                   param_names=["a", "b", "c", "y0"],
                                                                   constr=bounds)
     '''
-    
+
+    # Perform fits for k, gamma, and mass
+    print("-"*35)
     print("K Quad-Nucl Potential Fit Params")
-    k_bounds = Bounds(lb=[-np.inf, -np.inf, -np.inf, 0.0004],
-                      ub=[np.inf, np.inf, np.inf, 0.0008])
+    print("-"*35)
+    k_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 1e-3])
     P0 = 0.7
     P1 = 1.7
     P2 = 0.3
     Y1 = 0.0
     k_p_vals_initial = [P0, P1, P2, Y1]
-    k_p_vals_bounds = [(0.5, 1.0), (1.5, 2.0), (0.1, 0.5), (0.0, 0.1)]
-
-    k_best_params, k_best_p_vals, k_best_chi2 = fit_with_dynamic_params(
+    k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
         x_data=delta_par_df["Q2"],
-        y_data=delta_par_df["k_constM"],
-        y_err=delta_par_df["k_constM.err"],
-        initial_params=(-.003, -.003, .002, 0.0007),
+        y_data=delta_par_df["k"],
+        y_err=delta_par_df["k.err"],
         param_bounds=k_bounds,
         p_vals_initial=k_p_vals_initial,
-        p_vals_bounds=k_p_vals_bounds,
-        fit_function=quad_nucl_curve_constp
+        fit_function=quad_nucl_curve_constp,
+        N=1,
     )
 
     # Unpack the results
     k_nucl_par = k_best_params
     k_P_vals = k_best_p_vals
     k_nucl_chi2 = k_best_chi2
-
     print("Best fit parameters (a, b, c, y0):", k_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", k_P_vals)
     print("Best chi-squared:", k_nucl_chi2)
+    print("P value uncertainties:", k_p_val_uncertainties)
+    print("\n")
 
-    # Replace the existing gamma fit section with:
-    print("\nGamma Quad-Nucl Potential Fit Params")
-    gam_bounds = Bounds(lb=[-np.inf, -np.inf, -np.inf, 0.0],
-                        ub=[np.inf, np.inf, np.inf, 0.3])
+    print("-"*35)
+    print("Gamma Quad-Nucl Potential Fit Params")
+    print("-"*35)
+    gam_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 0.3])
     P0 = 1.3
     P1 = 2.0
     P2 = 0.5
     Y1 = 0.0    
     gam_p_vals_initial = [P0, P1, P2, Y1]
-    gam_p_vals_bounds = [(1.0, 1.5), (1.8, 2.2), (0.3, 0.7), (0.0, 0.1)]
-
-    gam_best_params, gam_best_p_vals, gam_best_chi2 = fit_with_dynamic_params(
+    gam_best_params, gam_best_p_vals, gam_best_chi2, gam_param_uncertainties, gam_p_val_uncertainties = fit_with_dynamic_params(
         x_data=delta_par_df["Q2"],
-        y_data=delta_par_df["gamma_constM"],
-        y_err=delta_par_df["gamma_constM.err"],
-        initial_params=(0.17, 0.24, -.08, 0.1),
+        y_data=delta_par_df["gamma"],
+        y_err=delta_par_df["gamma.err"],
         param_bounds=gam_bounds,
         p_vals_initial=gam_p_vals_initial,
-        p_vals_bounds=gam_p_vals_bounds,
-        fit_function=quad_nucl_curve_constp
+        fit_function=quad_nucl_curve_constp,
+        N=1,
     )
 
     # Unpack the results
     gam_nucl_par = gam_best_params
     gam_P_vals = gam_best_p_vals
     gam_nucl_chi2 = gam_best_chi2
-
     print("Best fit parameters (a, b, c, y0):", gam_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", gam_P_vals)
     print("Best chi-squared:", gam_nucl_chi2)
+    print("P value uncertainties:", gam_p_val_uncertainties)
+    print("\n")
 
+    print("-"*35)
+    print("Mass Quad-Nucl Potential Fit Params")
+    print("-"*35)
+    mass_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 2.0])
+    P0 = 0.7
+    P1 = 1.7
+    P2 = 0.3
+    Y1 = 0.0
+    mass_p_vals_initial = [P0, P1, P2, Y1]
+    mass_best_params, mass_best_p_vals, mass_best_chi2, mass_param_uncertainties, mass_p_val_uncertainties = fit_with_dynamic_params(
+        x_data=delta_par_df["Q2"],
+        y_data=delta_par_df["M"],
+        y_err=delta_par_df["M.err"],
+        param_bounds=mass_bounds,
+        p_vals_initial=mass_p_vals_initial,
+        fit_function=quad_nucl_curve_constp,
+        N=1,
+    )
 
+    # Unpack the results
+    mass_nucl_par = mass_best_params
+    mass_P_vals = mass_best_p_vals
+    mass_nucl_chi2 = mass_best_chi2
+    print("Best fit parameters (a, b, c, y0):", mass_nucl_par)
+    print("Best P values (P0, P1, P2, Y1):", mass_P_vals)
+    print("Best chi-squared:", mass_nucl_chi2)
+    print("P value uncertainties:", mass_p_val_uncertainties)
+    print("\n")    
     
-    # try spline fit of the points for k and gamma
-    N = len(k_unique)
-    # print(N-np.sqrt(2*N), N+np.sqrt(2*N)) #ideal s range
-    sk = 4.0
-    sg = 4.0
-    tck_k = splrep(x=x, y=k_unique, w=1/np.array(k_err_unique), s=sk, k=3)
-    tck_gamma = splrep(x=x, y=gam_unique, w=1/np.array(gam_err_unique), s=sg, k=3)
-
-    # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
-
     '''
     k_lin = lin_curve(q2, k_lin_par[0], k_lin_par[1])
     gamma_lin = lin_curve(q2, gam_lin_par[0], gam_lin_par[1])
@@ -818,24 +891,39 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     k_nucl = quad_nucl_curve(*k_nucl_args)
     gam_nucl_args = [q2] + [p for p in gam_nucl_par] + [P for P in gam_P_vals]
     gamma_nucl = quad_nucl_curve(*gam_nucl_args)
+    mass_nucl_args = [q2] + [p for p in mass_nucl_par] + [P for P in mass_P_vals]
+    mass_nucl = quad_nucl_curve(*mass_nucl_args)    
+
+    k_lin_args = [q2_low] + [p for p in k_lin_par]
+    k_lin = lin_curve(*k_lin_args)
+    gam_lin_args = [q2_low] + [p for p in gam_lin_par]
+    gamma_lin = lin_curve(*gam_lin_args)
+    mass_lin_args = [q2_low] + [p for p in mass_lin_par]
+    mass_lin = lin_curve(*mass_lin_args)    
     
     # plot the fits with the data
-    fig, axs = plt.subplots(1, 2, figsize=(18,10))
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
 
     # plot all the parameters vs Q2
     for i, label in enumerate(delta_par_df["Experiment"].unique()):
         axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==label]["k_constM"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==label]["k_constM.err"], fmt=m_type,
+                      delta_par_df[delta_par_df["Experiment"]==label]["k"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], fmt=m_type,
                       color=colors[i], markersize=m_size, capsize=cap_size,
                       label=label, capthick=cap_thick)
 
         axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["gamma_constM"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma_constM.err"], fmt=m_type,
+                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], fmt=m_type,
                         color=colors[i], markersize=m_size, capsize=cap_size,
                         label=label, capthick=cap_thick)
 
+        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                      delta_par_df[delta_par_df["Experiment"]==label]["M"],
+                      yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], fmt=m_type,
+                      color=colors[i], markersize=m_size, capsize=cap_size,
+                      label=label, capthick=cap_thick)
+        
     '''
     axs[0].plot(q2, k_lin, label="Linear Fit $\chi_v^2$=" + f"{k_lin_chi2:.2f}")
     axs[1].plot(q2, gamma_lin, label="Linear Fit $\chi_v^2$=" + f"{gam_lin_chi2:.2f}")
@@ -854,28 +942,39 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
     axs[0].plot(q2, k_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}")
     axs[1].plot(q2, gamma_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{gam_nucl_chi2:.2f}")
+    axs[2].plot(q2, mass_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}")    
 
+    axs[0].plot(q2_low, k_lin, label="Linear Fit $\chi_v^2$=" + f"{k_lin_chi2:.2f}")
+    axs[1].plot(q2_low, gamma_lin, label="Linear Fit $\chi_v^2$=" + f"{gam_lin_chi2:.2f}")
+    axs[2].plot(q2_low, mass_lin, label="Linear Fit $\chi_v^2$=" + f"{mass_lin_chi2:.2f}")    
+    
     # plot splines    
-    q2 = np.linspace(0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
+    q2_low = np.linspace(0.0, 1.0, 1000, dtype=np.double)
     
     k_spline = BSpline(*tck_k)
     gamma_spline = BSpline(*tck_gamma)
+    mass_spline = BSpline(*tck_mass)
     
     axs[0].plot(q2, k_spline(q2), '-', label=f'Spline s={sk}')
     axs[1].plot(q2, gamma_spline(q2), '-', label=f'Spline s={sg}')
+    axs[2].plot(q2, mass_spline(q2), '-', label=f'Spline s={sm}')
     
     fig.tight_layout()
 
     axs[0].set_ylabel("k")
     axs[1].set_ylabel("$\Gamma$")
+    axs[2].set_ylabel("M")
 
     axs[0].legend()
     axs[1].legend()
+    axs[2].legend()
 
     #axs[0].set_xlim(-.25, 4.0)
     #axs[1].set_xlim(-.25, 4.0)
     axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
     axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
+    axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
 
     fig.tight_layout()
     fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center')
@@ -897,8 +996,10 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     n_rows = num_plots//n_col + 1
     fig, axs = plt.subplots(num_plots//n_col + 1, n_col, figsize=(n_col*6.5,n_rows*6))
 
-    w = np.linspace(1.0, 1.5, 1000, dtype=np.double)
+    w = np.linspace(1.1, 1.5, 1000, dtype=np.double)
+    w_low = np.linspace(0.0, 1.1, 1000, dtype=np.double)
 
+    best_combo = []    
     # make fit curves and plot with data|
     for i,l in enumerate(res_df['Q2_labels'].unique()):
       row = i//n_col
@@ -906,6 +1007,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
+      best_chi = (-1, -1, -1, 10.0) # Initialize
+      
       '''
       k_fit_params = [k_nucl_par]
       gamma_fit_params = [gam_nucl_par]
@@ -915,9 +1018,11 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       
       k_fit_params = [k_nucl_par, k_spline]
       gamma_fit_params = [gam_nucl_par, gamma_spline]
+      mass_fit_params = [mass_nucl_par, mass_spline]
       fit_funcs = [quad_nucl_curve, BSpline]
-      fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
-
+      #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
+      fit_names = ["Quad*W-S", f"Spline, s={sk}"]
+      
       # use the 4 following lines if you want to plot all the other types of fits I tried (don't forget to uncomment the other fits first!)
       # k_fit_params = [k_lin_par, k_quad_par, k_cub_par, k_nucl_par]
       # gamma_fit_params = [gam_lin_par, gam_quad_par, gam_cub_par, gam_nucl_par]
@@ -927,8 +1032,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
       # select desired k, gamma fits to be used by index
       # [(i, j),...] where i=index for k fit, j=index for gamma fit
-      # 0 = linear, 1 = quadratic, 2 = cubic, 3=quad-nucl_potential
-      chosen_fits=[(0,0), (1,0), (1,1)]
+      # # 0 = linear, 1 = quadratic, 2 = cubic, 3=quad-nucl_potential
+      # 0 = quad-nucl, 1 = spline
+      chosen_fits=[(0,0,0), (1,1,1), (1,0,0), (1,1,0), (1,0,1)]
 
       # have a 3 fits for both k and gamma -> 9 possible combinations
       for i in range(len(k_fit_params)):
@@ -938,55 +1044,75 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
         for j in range(len(gamma_fit_params)):
 
-          if (i, j) not in chosen_fits:
-            # skip combinations that aren't desired
-            continue
-
           gam_params = gamma_fit_params[j]
 
-          if i==1:
-            # spline k
-            k = k_fit_params[i](q2)
-          else:
-            k_args = args + [p for p in k_params]
-            if i==0:
-              # add constant parameters P0, P1, P2 for Woods-Saxon
-              k_args += [P for P in k_P_vals]
-            k = fit_funcs[i](*k_args)
+          for ij in range(len(mass_fit_params)):
+                    
+              if (i, j, ij) not in chosen_fits:
+                  # skip combinations that aren't desired
+                  continue
 
+              mass_params = mass_fit_params[ij]
 
-          if j==1:
-            # spline gamma
-            gamma = gamma_fit_params[j](q2)
-          else:
-            gamma_args = args + [p for p in gam_params]
-            if j==0:
-              # add constant parameters P0, P1, P2 for Woods-Saxon
-              gamma_args += [P for P in gam_P_vals]
-            gamma = fit_funcs[j](*gamma_args)
+              if i==1:
+                # spline k
+                k = k_fit_params[i](q2)
+              else:
+                k_args = args + [p for p in k_params]
+                if i==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  k_args += [P for P in k_P_vals]
+                k = fit_funcs[i](*k_args)
 
-          # calculate fitted curve
-          y = breit_wigner_res(w, 1.232, k, gamma)
+              if j==1:
+                # spline gamma
+                gamma = gamma_fit_params[j](q2)
+              else:
+                gamma_args = args + [p for p in gam_params]
+                if j==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  gamma_args += [P for P in gam_P_vals]
+                gamma = fit_funcs[j](*gamma_args)
 
-          # try getting a chi squared for this curve for 1.0<W<1.5
-          W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          y_cal = breit_wigner_res(W, 1.232, k, gamma)
-          y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          nu = len(y_act)-2 # n points minus 2 fitted parameters (k and gamma)
-          chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
+              if ij==1:
+                # spline mass
+                mass = mass_fit_params[ij](q2)
+              else:
+                mass_args = args + [p for p in mass_params]
+                if ij==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  mass_args += [P for P in mass_P_vals]
+                mass = fit_funcs[ij](*mass_args)
+                
+              # calculate fitted curve
+              y = breit_wigner_res(w, mass, k, gamma)
 
-          axs[row, col].plot(w, y, markersize=m_size,
-                            label=f"$k$ {fit_names[i]}, $\Gamma$ {fit_names[j]} Global Fit $\chi_v^2$={chi2:.2f}",
-                             linestyle='dashed')
+              # try getting a chi squared for this curve for 1.1<W<1.5
+              W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_cal = breit_wigner_res(W, mass, k, gamma)
+              y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              nu = len(y_act)-3 # n points minus 3 fitted parameters (k, gamma, mass)
+              chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
 
+              if abs(chi2-1) < abs(best_chi[-1]-1):
+                  best_chi = (i, j, ij, chi2)
+              
+              axs[row, col].plot(w, y, markersize=m_size,
+                                 label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} | $\chi_v^2$={chi2:.2f}",
+                                 #label=f"$k$ {i}, $\Gamma$ {j} M {ij} $\chi_v^2$={chi2:.2f}",
+                                 linestyle='dashed')
 
+              
       # plot the data
       axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
                     res_df['G1F1'][res_df['Q2_labels']==l],
                     yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
                     fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
                     capthick=cap_thick)
+
+      # Save best combination for k, gamma, and mass
+      best_combo.append(best_chi)
 
       axs[row,col].legend()
       # set axes limits
@@ -1000,9 +1126,10 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', size=16)
 
     # Save figures
-    pdf.savefig(fig,bbox_inches="tight")
+    pdf.savefig(fig,bbox_inches="tight")    
 
-
+    most_common = most_common_combination(best_combo)
+    
     # ### Try extending DIS Fit to resonance region and see how it looks
 
     # In[16]:
@@ -1013,9 +1140,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots//n_col + 1
     fig, axs = plt.subplots(num_plots//n_col + 1, n_col, figsize=(n_col*6.5,n_rows*6))
-
-    w = np.linspace(1.0, 1.5, 1000, dtype=np.double)
-
 
     # make fit curves and plot with data
     for i,l in enumerate(res_df['Q2_labels'].unique()):
@@ -1034,64 +1158,134 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       
       k_fit_params = [k_nucl_par, k_spline]
       gamma_fit_params = [gam_nucl_par, gamma_spline]
+      mass_fit_params = [mass_nucl_par, mass_spline]      
       fit_funcs = [quad_nucl_curve, BSpline]
-      fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
+      #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
+      fit_names = ["Quad*W-S", f"Spline, s={sk}"]
       
-
       # select desired k, gamma fits to be used by index
-      # [(i, j),...] where i=index for k fit, j=index for gamma fit
-      chosen_fits=[(0,0), (1,0), (1,1)]
+      # [(i, j, l),...] where i=index for k fit, j=index for gamma fit, l=index for M fit
+      chosen_fits=[most_common]
+      #chosen_fits=[(0, 1, 0)] # k Quad, gamma spline, M Quad
 
       for i in range(len(k_fit_params)):
 
         k_params = k_fit_params[i]
         args = [q2]
 
-        for j in range(len(gamma_fit_params)):
 
-          if (i, j) not in chosen_fits:
-            # skip combinations that aren't desired
-            continue
+        for j in range(len(gamma_fit_params)):
 
           gam_params = gamma_fit_params[j]
 
-          if i==1:
-            # spline k
-              k = k_fit_params[i](q2)
-          else:
-            k_args = args + [p for p in k_params]
-            if i==0:
-              # add constant parameters P0, P1, P2 for Woods-Saxon
-              k_args +=  [P for P in k_P_vals]
-            k = fit_funcs[i](*k_args)
+          for ij in range(len(mass_fit_params)):
+                    
+              if (i, j, ij) not in chosen_fits:
+                  # skip combinations that aren't desired
+                  continue
 
+              mass_params = mass_fit_params[ij]
 
-          if j==1:
-            # spline gamma
-            gamma = gamma_fit_params[j](q2)
-          else:
-            gamma_args = args + [p for p in gam_params]
-            if j==0:
-              # add constant parameters P0, P1, P2 for Woods-Saxon
-              gamma_args +=  [P for P in gam_P_vals]
-            gamma = fit_funcs[j](*gamma_args)
+              if i==1:
+                # spline k
+                k = k_fit_params[i](q2)
+              else:
+                k_args = args + [p for p in k_params]
+                if i==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  k_args += [P for P in k_P_vals]
+                k = fit_funcs[i](*k_args)
 
-          # calculate fitted curve
-          y = breit_wigner_res(w, 1.232, k, gamma)
+              if j==1:
+                # spline gamma
+                gamma = gamma_fit_params[j](q2)
+              else:
+                gamma_args = args + [p for p in gam_params]
+                if j==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  gamma_args += [P for P in gam_P_vals]
+                gamma = fit_funcs[j](*gamma_args)
 
-          # try getting a chi squared for this curve for 1.0<W<1.5
-          W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          y_cal = breit_wigner_res(W, 1.232, k, gamma)
-          y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.0]
-          nu = len(y_act)-2 # n points minus 2 fitted parameters (k and gamma)
-          chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
+              if ij==1:
+                # spline mass
+                mass = mass_fit_params[ij](q2)
+              else:
+                mass_args = args + [p for p in mass_params]
+                if ij==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  mass_args += [P for P in mass_P_vals]
+                mass = fit_funcs[ij](*mass_args)
+                
+              # calculate fitted curve
+              y = breit_wigner_res(w, mass, k, gamma)
 
-          axs[row, col].plot(w, y, markersize=m_size,
-                            label=f"$k$ {fit_names[i]}, $\Gamma$ {fit_names[j]} Global Fit $\chi_v^2$={chi2:.2f}",
-                             linestyle='dashed')
+              # try getting a chi squared for this curve for 1.1<W<1.5
+              W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_cal = breit_wigner_res(W, mass, k, gamma)
+              y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              nu = len(y_act)-3 # n points minus 3 fitted parameters (k, gamma, mass)
+              chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
 
+              axs[row, col].plot(w, y, markersize=m_size,
+                                 label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} | $\chi_v^2$={chi2:.2f}",
+                                 #label=f"$k$ {i}, $\Gamma$ {j} M {ij} $\chi_v^2$={chi2:.2f}",
+                                 linestyle='dashed')
 
+      q2_low = res_df[(res_df['Q2_labels'] == l) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]['Q2'].unique()
+
+      if len(q2_low) > 0:
+          q2_low = q2_low[0]
+
+          best_chi = (-1, -1, -1, 10.0) # Initialize
+
+          k_fit_low_params = [k_lin_par]
+          gamma_fit_low_params = [gam_lin_par]
+          mass_fit_low_params = [mass_lin_par]
+          fit_low_funcs = [lin_curve]
+          fit_low_names = ["Linear"]
+
+          # Low Q2, have a 3 fit_lows for both k and gamma -> 9 possible combinations
+          for i in range(len(k_fit_low_params)):
+
+            k_params = k_fit_low_params[i]
+            args = [q2_low]
+
+            for j in range(len(gamma_fit_low_params)):
+
+              gam_params = gamma_fit_low_params[j]
+
+              for ij in range(len(mass_fit_low_params)):
+
+                  mass_params = mass_fit_low_params[ij]
+
+                  k_args = args + [p for p in k_params]
+                  k = fit_low_funcs[i](*k_args)
+
+                  gamma_args = args + [p for p in gam_params]
+                  gamma = fit_low_funcs[j](*gamma_args)
+
+                  mass_args = args + [p for p in mass_params]
+                  mass = fit_low_funcs[ij](*mass_args)
+
+                  # calculate fitted curve
+                  #y = breit_wigner_res(w_low, mass, k, gamma)
+                  y = gaussian_peak(w_low, mu=1e-1, sigma=1.0)
+
+                  # try getting a chi squared for this curve for 0.0<W<1.1
+                  W = res_df['W'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  #y_cal = breit_wigner_res(W, mass, k, gamma)
+                  y_cal = gaussian_peak(W, mu=1e-1, sigma=1.0)
+                  y_act = res_df['G1F1'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  y_act_err = res_df['G1F1.err'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  nu = len(y_act)-3 # n points minus 3 fitted parameters (k, gamma, mass)
+                  chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
+
+                  axs[row, col].plot(w_low, y, markersize=m_size,
+                                     label=f"$k$ {fit_low_names[i]} | $\Gamma$ {fit_low_names[j]} | M {fit_low_names[ij]} | $\chi_v^2$={chi2:.2f}",
+                                     #label=f"$k$ {i}, $\Gamma$ {j} M {ij} $\chi_v^2$={chi2:.2f}",
+                                     linestyle='dashed')              
+              
       # extend DIS model to W=2 GeV and plot
       # original DIS fit params x0, y0, c, beta
       quad2_dis_par = [0.16424, -.02584, 0.16632, 0.11059]
@@ -1101,14 +1295,14 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       y_dis = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
                             quad2_dis_par[2], quad2_dis_par[3])
 
-      axs[row, col].plot(w_dis, y_dis, color="r", label="Quad DIS Fit", linestyle="--")
+      axs[row, col].plot(w_dis, y_dis, color="r", label="Quad DIS Fit, $\\beta$ = 0.11059", linestyle="--")
 
       # quadratic DIS fit using mingyu fit beta value
       quad2_dis_par = [0.16424, -.02584, 0.16632, 0.04469]
       y_dis_new = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
                             quad2_dis_par[2], quad2_dis_par[3])
 
-      axs[row, col].plot(w_dis, y_dis_new, color="violet", label="Quad DIS Fit, new beta", linestyle="--")
+      axs[row, col].plot(w_dis, y_dis_new, color="violet", label="Quad DIS Fit, $\\beta$ = 0.04469", linestyle="--")
 
       # mingyu cubic DIS fit params a, b, c, d, beta
       cube_dis_par = [-.0171, -.16611, 0.68161, -.56782, 0.04469]
@@ -1116,15 +1310,341 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                             cube_dis_par[2], cube_dis_par[3], cube_dis_par[4])
 
       axs[row, col].plot(w_dis, y_cube_dis, color="b", label="Mingyu Cubic DIS Fit", linestyle="--")
-
-
+      
       # plot the data
       axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
                     res_df['G1F1'][res_df['Q2_labels']==l],
                     yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
                     fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
                     capthick=cap_thick)
+      
+      axs[row,col].legend()
+      # set axes limits
+      axs[row,col].axhline(0, color="black", linestyle="--")
+      axs[row,col].set_ylim(-.15,0.1)
+      axs[row,col].set_xlim(0.9,2.5)
+      axs[row,col].set_title(l)
+      
+    fig.tight_layout()
+    fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', size = 14)
+    fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', size=16)
 
+    # Save figure
+    pdf.savefig(fig,bbox_inches="tight")
+
+    # make figure
+    n_col = 5
+    num_plots = len(res_df['Q2_labels'].unique())
+    n_rows = num_plots//n_col + 1
+    fig, axs = plt.subplots(num_plots//n_col + 1, n_col, figsize=(n_col*6.5,n_rows*6))
+
+    # make fit curves and plot with data
+    for i,l in enumerate(res_df['Q2_labels'].unique()):
+      row = i//n_col
+      col = i%n_col
+
+      q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
+
+
+      '''
+      k_fit_params = [k_nucl_par]
+      gamma_fit_params = [gam_nucl_par]
+      fit_funcs = [quad_nucl_curve]
+      fit_names = ["Quad*Woods-Saxon"]
+      '''
+      
+      k_fit_params = [k_nucl_par, k_spline]
+      gamma_fit_params = [gam_nucl_par, gamma_spline]
+      mass_fit_params = [mass_nucl_par, mass_spline]      
+      fit_funcs = [quad_nucl_curve, BSpline]
+      #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
+      fit_names = ["Quad*W-S", f"Spline, s={sk}"]
+      
+
+      # select desired k, gamma fits to be used by index
+      # [(i, j, l),...] where i=index for k fit, j=index for gamma fit, l=index for M fit
+      chosen_fits=[most_common]
+      #chosen_fits=[(0, 1, 0)] # k Quad, gamma spline, M Quad
+
+      for i in range(len(k_fit_params)):
+
+        k_params = k_fit_params[i]
+        args = [q2]
+
+        for j in range(len(gamma_fit_params)):
+
+          gam_params = gamma_fit_params[j]
+
+          for ij in range(len(mass_fit_params)):
+                    
+              if (i, j, ij) not in chosen_fits:
+                  # skip combinations that aren't desired
+                  continue
+
+              mass_params = mass_fit_params[ij]
+
+              if i==1:
+                # spline k
+                k = k_fit_params[i](q2)
+              else:
+                k_args = args + [p for p in k_params]
+                if i==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  k_args += [P for P in k_P_vals]
+                k = fit_funcs[i](*k_args)
+
+              if j==1:
+                # spline gamma
+                gamma = gamma_fit_params[j](q2)
+              else:
+                gamma_args = args + [p for p in gam_params]
+                if j==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  gamma_args += [P for P in gam_P_vals]
+                gamma = fit_funcs[j](*gamma_args)
+
+              if ij==1:
+                # spline mass
+                mass = mass_fit_params[ij](q2)
+              else:
+                mass_args = args + [p for p in mass_params]
+                if ij==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  mass_args += [P for P in mass_P_vals]
+                mass = fit_funcs[ij](*mass_args)
+                
+              # calculate fitted curve
+              y = breit_wigner_res(w, mass, k, gamma)
+
+              # try getting a chi squared for this curve for 1.1<W<1.5
+              W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_cal = breit_wigner_res(W, mass, k, gamma)
+              y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=1.5][res_df['W']>=1.1]
+              nu = len(y_act)-3 # n points minus 3 fitted parameters (k, gamma, mass)
+              chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
+
+              axs[row, col].plot(w, y, markersize=m_size,
+                                 label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} | $\chi_v^2$={chi2:.2f}",
+                                 #label=f"$k$ {i}, $\Gamma$ {j} M {ij} $\chi_v^2$={chi2:.2f}",
+                                 linestyle='dashed')
+
+      q2_low = res_df[(res_df['Q2_labels'] == l) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]['Q2'].unique()
+
+      if len(q2_low) > 0:
+          q2_low = q2_low[0]
+
+          best_chi = (-1, -1, -1, 10.0) # Initialize
+
+          k_fit_low_params = [k_lin_par]
+          gamma_fit_low_params = [gam_lin_par]
+          mass_fit_low_params = [mass_lin_par]
+          fit_low_funcs = [lin_curve]
+          fit_low_names = ["Linear"]
+
+          # Low Q2, have a 3 fit_lows for both k and gamma -> 9 possible combinations
+          for i in range(len(k_fit_low_params)):
+
+            k_params = k_fit_low_params[i]
+            args = [q2_low]
+
+            for j in range(len(gamma_fit_low_params)):
+
+              gam_params = gamma_fit_low_params[j]
+
+              for ij in range(len(mass_fit_low_params)):
+
+                  mass_params = mass_fit_low_params[ij]
+
+                  k_args = args + [p for p in k_params]
+                  k = fit_low_funcs[i](*k_args)
+
+                  gamma_args = args + [p for p in gam_params]
+                  gamma = fit_low_funcs[j](*gamma_args)
+
+                  mass_args = args + [p for p in mass_params]
+                  mass = fit_low_funcs[ij](*mass_args)
+
+                  # calculate fitted curve
+                  #y = breit_wigner_res(w_low, mass, k, gamma)
+                  y = gaussian_peak(w_low, mu=1e-1, sigma=1.0)
+
+                  # try getting a chi squared for this curve for 0.0<W<1.1
+                  W = res_df['W'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  #y_cal = breit_wigner_res(W, mass, k, gamma)
+                  y_cal = gaussian_peak(W, mu=1e-1, sigma=1.0)
+                  y_act = res_df['G1F1'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  y_act_err = res_df['G1F1.err'][(res_df['Q2_labels'] == l) & (res_df['W'] <= 1.1) & (res_df['W'] >= 0.0) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]
+                  nu = len(y_act)-3 # n points minus 3 fitted parameters (k, gamma, mass)
+                  chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
+
+                  axs[row, col].plot(w_low, y, markersize=m_size,
+                                     label=f"$k$ {fit_low_names[i]} | $\Gamma$ {fit_low_names[j]} | M {fit_low_names[ij]} | $\chi_v^2$={chi2:.2f}",
+                                     #label=f"$k$ {i}, $\Gamma$ {j} M {ij} $\chi_v^2$={chi2:.2f}",
+                                     linestyle='dashed')              
+
+      w_dis = np.linspace(2.0,3.0,1000)
+      q2_array = np.ones(w_dis.size)*q2
+      x_dis = W_to_x(w_dis, q2_array)
+
+      # quadratic DIS fit using mingyu fit beta value
+      quad2_dis_par = [0.16424, -.02584, 0.16632, 0.04469]
+      y_dis_new = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
+                            quad2_dis_par[2], quad2_dis_par[3])
+
+      axs[row, col].plot(w_dis, y_dis_new, color="violet", label="Quad DIS Fit, $\\beta$ = 0.04469", linestyle="--")
+      
+      for i in range(len(k_fit_params)):
+
+        k_params = k_fit_params[i]
+        args = [q2]
+
+        for j in range(len(gamma_fit_params)):
+
+          gam_params = gamma_fit_params[j]
+
+          for ij in range(len(mass_fit_params)):
+                    
+              if (i, j, ij) not in chosen_fits:
+                  # skip combinations that aren't desired
+                  continue
+
+              mass_params = mass_fit_params[ij]
+
+              if i==1:
+                # spline k
+                k = k_fit_params[i](q2)
+              else:
+                k_args = args + [p for p in k_params]
+                if i==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  k_args += [P for P in k_P_vals]
+                k = fit_funcs[i](*k_args)
+
+              if j==1:
+                # spline gamma
+                gamma = gamma_fit_params[j](q2)
+              else:
+                gamma_args = args + [p for p in gam_params]
+                if j==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  gamma_args += [P for P in gam_P_vals]
+                gamma = fit_funcs[j](*gamma_args)
+
+              if ij==1:
+                # spline mass
+                mass = mass_fit_params[ij](q2)
+              else:
+                mass_args = args + [p for p in mass_params]
+                if ij==0:
+                  # add constant parameters P0, P1, P2 for Woods-Saxon
+                  mass_args += [P for P in mass_P_vals]
+                mass = fit_funcs[ij](*mass_args)
+
+              # Redefine W-range
+              w_min = 0.0
+              w_max = 3.0
+              w_transition = 1.5
+              w_dis_region = 1.8
+              w_low_region = 0.9
+              damping_width = 0.1
+              w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
+                
+              # Calculate Breit-Wigner fit
+              y_bw = breit_wigner_res(w_res, mass, k, gamma)
+              damping = damping_function(w_res, w_transition, damping_width)
+              y_bw_damped = y_bw * damping              
+
+              # Calculate DIS fit
+              y_dis = g1f1_quad2_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], quad2_dis_par[0], quad2_dis_par[1],
+                             quad2_dis_par[2], quad2_dis_par[3])
+
+              # Calculate residual
+              residual_at_transition = y_dis[w_res >= w_transition][0] - y_bw[w_res >= w_transition][0]
+
+              # Fit residual function
+              w_fit = w_res[(w_res >= w_transition - 0.05) & (w_res <= w_transition + 0.05)]
+              residual_fit = y_dis[(w_res >= w_transition - 0.05) & (w_res <= w_transition + 0.05)]\
+                             - y_bw_damped[(w_res >= w_transition - 0.05) & (w_res <= w_transition + 0.05)]
+              popt, pcov = curve_fit(lambda W, a, b, c: residual_function(W, a, b, c, w_dis_region), w_fit, residual_fit, p0=[0, 0, 0])
+
+              # Calculate the complete fit
+              y_transition = y_bw_damped + (1 - damping) * (y_dis - residual_function(w_res, *popt, w_dis_region))
+              
+              # Ensure smooth transition to DIS
+              dis_transition = damping_function(w_res, w_dis_region, damping_width)                
+
+      q2_low = res_df[(res_df['Q2_labels'] == l) & (res_df['Q2'] >= 0.0) & (res_df['Q2'] <= 1.0)]['Q2'].unique()
+
+      if len(q2_low) > 0:
+          q2_low = q2_low[0]
+
+          best_chi = (-1, -1, -1, 10.0) # Initialize
+
+          k_fit_low_params = [k_lin_par]
+          gamma_fit_low_params = [gam_lin_par]
+          mass_fit_low_params = [mass_lin_par]
+          fit_low_funcs = [lin_curve]
+          fit_low_names = ["Linear"]
+
+          # Low Q2, have a 3 fit_lows for both k and gamma -> 9 possible combinations
+          for i in range(len(k_fit_low_params)):
+
+            k_params = k_fit_low_params[i]
+            args = [q2_low]
+
+            for j in range(len(gamma_fit_low_params)):
+
+              gam_params = gamma_fit_low_params[j]
+
+              for ij in range(len(mass_fit_low_params)):
+
+                  mass_params = mass_fit_low_params[ij]
+
+                  k_args = args + [p for p in k_params]
+                  k = fit_low_funcs[i](*k_args)
+
+                  gamma_args = args + [p for p in gam_params]
+                  gamma = fit_low_funcs[j](*gamma_args)
+
+                  mass_args = args + [p for p in mass_params]
+                  mass = fit_low_funcs[ij](*mass_args)
+
+              # Calculate Breit-Wigner fit
+              #y_low = breit_wigner_res(w_low, mass, k, gamma)
+              y_low = gaussian_peak(w_low, mu=1e-1, sigma=1.0)
+              
+              # Combine linear fit, transition, and DIS regions
+              y_complete = np.where(w_res < w_low_region, y_low, 
+                                    np.where(w_res < w_dis_region, y_transition, y_dis))
+
+              # Apply smooth transitions
+              linear_to_bw = damping_function(w_low, w_low_region, damping_width)
+              y_complete = y_low * (1 - linear_to_bw) + y_complete * linear_to_bw
+              y_complete = y_complete * dis_transition + y_dis * (1 - dis_transition)
+              
+              # Plot the connected curve
+              axs[row, col].plot(w_res, y_complete, markersize=m_size,
+                                 label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} Full Fit",
+                                 linestyle='dashdot')
+
+      else:
+
+          y_complete = y_transition * dis_transition + y_dis * (1 - dis_transition)
+              
+          # Plot the connected curve
+          axs[row, col].plot(w_res, y_complete, markersize=m_size,
+                             label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} Full Fit",
+                             linestyle='dashdot')
+
+              
+      # plot the data
+      axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
+                    res_df['G1F1'][res_df['Q2_labels']==l],
+                    yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
+                    fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
+                    capthick=cap_thick)
+              
       axs[row,col].legend()
       # set axes limits
       axs[row,col].axhline(0, color="black", linestyle="--")
@@ -1139,6 +1659,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # Save figure
     pdf.savefig(fig,bbox_inches="tight")
 
+    
     ###
 
     # ## Fit $g_1/F_1$ DIS data with neutron form from Xiaochao's thesis
@@ -1302,3 +1823,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
     # Save figure
     pdf.savefig(fig,bbox_inches="tight")
+
+show_pdf_with_evince("plots/g1f1_fits.pdf")
+    

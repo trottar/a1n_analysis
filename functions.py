@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-09-24 03:30:09 trottar"
+# Time-stamp: "2024-10-01 15:52:24 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -16,7 +16,15 @@ from scipy.interpolate import griddata
 from scipy.optimize import curve_fit
 from scipy.optimize import Bounds
 from scipy.optimize import minimize, differential_evolution
+from scipy.stats import chi2
 from tabulate import tabulate
+
+##################################################################################################################################################
+# Importing utility functions
+
+#from utility import custom_map
+
+##################################################################################################################################################
 
 def x_to_W(x, Q2):
   """ convert x to W for constant Q2"""
@@ -97,6 +105,14 @@ def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
   """
   return quad_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 
+def lin_nucl_curve(x, a, b):
+  """
+  linear * nucl potential form
+  x: independent data
+  a, b: linear curve parameters
+  """
+  return lin_curve(x, a, b)
+
 # from Xiaochao's thesis
 def g1f1_quad_DIS(x_q2, a, b , c, beta):
   return (a+b*x_q2[0]+c*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
@@ -116,77 +132,85 @@ def red_chi_sqr(y_calc, y_obs, y_err, nu):
   """
   return np.sum(np.square((y_obs-y_calc)/y_err))/nu
 
-def fit_with_dynamic_params(x_data, y_data, y_err, initial_params, param_bounds, p_vals_initial, p_vals_bounds, fit_function, N=10, global_opt=False):
-    """
-    Enhanced fitting function to find optimal parameters for a given model.
-
-    :param x_data: Independent variable data
-    :param y_data: Dependent variable data
-    :param y_err: Error in y_data
-    :param initial_params: Initial guess for the model parameters
-    :param param_bounds: Bounds for model parameters
-    :param p_vals_initial: Initial guess for P-values
-    :param p_vals_bounds: Bounds for P-values
-    :param fit_function: The function to fit (e.g., quad_nucl_curve_constp)
-    :param N: Number of iterations to perform the fit
-    :param global_opt: Use global optimization if set to True
-    :return: Best fit parameters, best P-values, and best reduced chi-squared value
-    """
+def fit_with_dynamic_params(x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10):
+    num_params = len(p_vals_initial)
     
-    # Calculate the number of total parameters
-    num_params = len(initial_params) + len(p_vals_initial)
-
     def chi_squared(params):
         P_vals = params[:len(p_vals_initial)]
         model_params = params[len(p_vals_initial):]
-        model = fit_function(x_data, *model_params)
+        model = fit_function(x_data, *model_params, *P_vals)
         
         residuals = (y_data - model) / y_err
         chi2 = np.sum(residuals ** 2)
         degrees_of_freedom = len(y_data) - num_params
         
-        # Return reduced chi-squared, handling potential divide by zero
         return chi2 / degrees_of_freedom if degrees_of_freedom > 0 else np.inf
+    
+    def optimize_fit(combined_bounds):
 
-    def optimize_fit(p_vals):
-        combined_bounds = p_vals_bounds + [(lb, ub) for lb, ub in zip(param_bounds.lb, param_bounds.ub)]
-        
-        if global_opt:
-            result = differential_evolution(chi_squared, bounds=combined_bounds)
-        else:
-            result = minimize(chi_squared, x0=np.concatenate([p_vals, initial_params]), 
-                              bounds=combined_bounds, method='L-BFGS-B',
-                              options={'ftol': 1e-6, 'gtol': 1e-6})
-        
-        return result.fun, result.x[len(p_vals_initial):]  # Return reduced chi-squared and model parameters
+        print("Using differential evolution...")
+        result = differential_evolution(chi_squared, bounds=combined_bounds, popsize=10, 
+                                        mutation=(0.5, 1.5), recombination=0.7, 
+                                        strategy='best1bin', tol=1e-7, maxiter=10000)
 
-    best_params = None
-    best_p_vals = None
+        print("Optimization result:", result)
+        return result.fun, result.x
+    
     best_reduced_chi_squared = np.inf
+    best_params = None
 
+    # Print the combined bounds to ensure they're correct
+    combined_bounds = [(lb, ub) for lb, ub in zip(param_bounds.lb, param_bounds.ub)]
+    print(f"Combined bounds: {combined_bounds}")
+    
     for i in range(N):
         print(f"Iteration {i + 1}/{N}")
         
-        # Use structured initialization instead of random offsets
-        #p_vals_initial_random = p_vals_initial + np.random.uniform(-0.5, 0.5, size=len(p_vals_initial))
-        p_vals_initial_random = p_vals_initial
-        
-        # Optimize
-        result = minimize(lambda params: optimize_fit(params)[0], 
-                          x0=p_vals_initial_random,
-                          bounds=p_vals_bounds, method='L-BFGS-B')
-        
-        current_p_vals = result.x
-        current_reduced_chi_squared, current_params = optimize_fit(current_p_vals)
+        current_reduced_chi_squared, current_params = optimize_fit(combined_bounds)
+        print(f"Iteration {i + 1} - Reduced chi-squared: {current_reduced_chi_squared:.5f}")
 
-        print(f"Iteration {i + 1} - Reduced chi-squared: {current_reduced_chi_squared}, Parameters: {current_params}, P-Values: {current_p_vals}")
+        current_p_vals = p_vals_initial
         
-        if abs(current_reduced_chi_squared - 1) < abs(best_reduced_chi_squared - 1):
+        if current_reduced_chi_squared < best_reduced_chi_squared:
             best_reduced_chi_squared = current_reduced_chi_squared
             best_params = current_params
             best_p_vals = current_p_vals
-
-    return best_params, best_p_vals, best_reduced_chi_squared
+    
+    final_params = best_params[:len(p_vals_initial)]
+    final_p_vals = best_p_vals[:len(p_vals_initial)]
+    
+    # Calculate confidence intervals
+    dof = len(y_data) - num_params
+    delta_chi2 = chi2.ppf(0.68, dof) - chi2.ppf(0.32, dof)
+    hessian = np.zeros((num_params, num_params))
+    step = 1e-5
+    for i in range(num_params):
+        for j in range(num_params):
+            params_plus_i = best_p_vals.copy()
+            params_plus_i[i] += step
+            params_plus_j = best_p_vals.copy()
+            params_plus_j[j] += step
+            params_plus_ij = best_p_vals.copy()
+            params_plus_ij[i] += step
+            params_plus_ij[j] += step
+            
+            f = chi_squared(best_p_vals)
+            f_i = chi_squared(params_plus_i)
+            f_j = chi_squared(params_plus_j)
+            f_ij = chi_squared(params_plus_ij)
+            
+            hessian[i, j] = (f_ij - f_i - f_j + f) / (step * step)
+    
+    try:
+        covariance = np.linalg.inv(hessian)
+        uncertainties = np.sqrt(np.diag(covariance) * delta_chi2)
+    except np.linalg.LinAlgError:
+        uncertainties = np.full(num_params, np.nan)
+    
+    param_uncertainties = uncertainties[len(p_vals_initial):]
+    p_val_uncertainties = uncertainties[:len(p_vals_initial)]
+    
+    return final_params, final_p_vals, best_reduced_chi_squared, param_uncertainties, p_val_uncertainties
 
 def fit(func, x, y, y_err, params_init, param_names, constr=None, silent=False):
   """
@@ -306,5 +330,25 @@ def g1f1_quad2_DIS(x_q2, x0, y0, c, beta):
 def g1f1_cubic_DIS(x_q2, a, b , c, d, beta):
   return (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
 
+def residual_function(W, a, b, c, W_transition):
+    """A simple polynomial function to fit the residual"""
+    return a * (W - W_transition)**2 + b * (W - W_transition) + c
 
+def damping_function(W, W_transition, width):
+    """Woods-Saxon function for smooth damping"""
+    return 1 / (1 + np.exp((W - W_transition) / width))
 
+def gaussian_peak(x, mu=0.0, sigma=1.0):
+    """
+    Gaussian function that peaks at 1.0 when x == mu.
+    
+    Parameters:
+    x (float or array-like): Input value(s) for the function.
+    mu (float): The center of the peak (default is 0.0).
+    sigma (float): The width of the peak (default is 1.0).
+    
+    Returns:
+    float: The value of the Gaussian function at x.
+    """
+    #return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+    return (2*x-1.0)/10

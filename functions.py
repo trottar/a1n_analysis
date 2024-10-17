@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-10-01 15:52:24 trottar"
+# Time-stamp: "2024-10-16 13:26:48 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -337,18 +337,3 @@ def residual_function(W, a, b, c, W_transition):
 def damping_function(W, W_transition, width):
     """Woods-Saxon function for smooth damping"""
     return 1 / (1 + np.exp((W - W_transition) / width))
-
-def gaussian_peak(x, mu=0.0, sigma=1.0):
-    """
-    Gaussian function that peaks at 1.0 when x == mu.
-    
-    Parameters:
-    x (float or array-like): Input value(s) for the function.
-    mu (float): The center of the peak (default is 0.0).
-    sigma (float): The width of the peak (default is 1.0).
-    
-    Returns:
-    float: The value of the Gaussian function at x.
-    """
-    #return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
-    return (2*x-1.0)/10

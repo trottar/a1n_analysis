@@ -482,11 +482,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
       return params_df
 
-
     # ### Fit and Plot 1232 MeV "Delta" Resonance - outputs fit parameters for each bin and plots them
 
     # In[9]:
-
 
     param_names = ["M", "k", "gamma"]
     n_params = len(param_names)
@@ -1049,7 +1047,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     
     # plot splines    
     q2 = np.linspace(1e-2, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
-    
+
+    '''
     k_spline = BSpline(*tck_k)
     gamma_spline = BSpline(*tck_gamma)
     mass_spline = BSpline(*tck_mass)
@@ -1057,6 +1056,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     axs[0].plot(q2, k_spline(q2), '-', label=f'Spline s={sk}')
     axs[1].plot(q2, gamma_spline(q2), '-', label=f'Spline s={sg}')
     axs[2].plot(q2, mass_spline(q2), '-', label=f'Spline s={sm}')
+    '''
     
     fig.tight_layout()
 
@@ -1186,6 +1186,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
+              w_res_min = w_lims[i][0]
+              w_res_max = w_lims[i][1]
               W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -1318,6 +1320,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
+              w_res_min = w_lims[i][0]
+              w_res_max = w_lims[i][1]              
               W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -1462,6 +1466,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
+              w_res_min = w_lims[i][0]
+              w_res_max = w_lims[i][1]              
               W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -1532,6 +1538,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 mass = fit_funcs[ij](*mass_args)
 
               w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
+
+              w_res_min = w_lims[i][0]
+              w_res_max = w_lims[i][1]
               
               # Calculate Breit-Wigner fit
               y_bw = breit_wigner_res(w_res, mass, k, gamma)

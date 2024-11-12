@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-10-16 13:26:48 trottar"
+# Time-stamp: "2024-11-12 16:10:52 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -41,7 +41,7 @@ def breit_wigner_res(w, M, k, gamma):
   """fit for constant Q2"""
   #return k/((w*w - M*M)**2 + M*M*gamma*gamma)
   # RLT (9/23/2024): Updated k_new=k/(M^2*gamma^2)
-  k_new = k/((M**2)*(gamma**2))
+  k_new = k*((M**2)*(gamma**2))
   return k_new/((w*w - M*M)**2 + M*M*gamma*gamma)
 
 def breit_wigner_wrapper(M_test):

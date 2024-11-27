@@ -5,8 +5,6 @@
 # check for TODO comments to help you get started
 
 # In[1]:
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 import math
@@ -20,6 +18,9 @@ from scipy.interpolate import splrep, BSpline
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.lines import Line2D
 from scipy.stats import probplot
+import re
+import ast
+import os
 
 #from google.colab import drive
 #drive.mount('/mnt/drive') # mount google drive - MUST AGREE TO POPUPS
@@ -35,47 +36,13 @@ from utility import show_pdf_with_evince, most_common_combination
 w_min = 1.1
 w_max = 3.0
 
-# Option 1, (k Quad, gamma Quad, M Quad)
-#w_res_min = 1.1
-#w_res_max = 1.45
-#w_dis_transition = 1.5
-#w_dis_region = 1.65
-#damping_dis_width = 0.1
-
-# Option 2, (k Quad, gamma Quad, M Quad)
-#w_res_min = 1.1
-#w_res_max = 1.5
-#w_dis_transition = 1.65
-#w_dis_region = 1.85
-#damping_dis_width = 0.1
-
-# Option 3, (k Spline, gamma Spline, M Quad)
-#w_res_min = 1.1
-#w_res_max = 1.45
-#w_dis_transition = 1.5
-#w_dis_region = 1.65
-#damping_dis_width = 0.1
-
-# Option 4, (k Spline, gamma Spline, M Quad)
-#w_res_min = 1.1
-#w_res_max = 1.5
-#w_dis_transition = 1.65
-#w_dis_region = 1.85
-#damping_dis_width = 0.1
-
-# Option 5, (k Spline, gamma Spline, M Quad)
-#w_res_min = 1.1
-#w_res_max = 1.45
-#w_dis_transition = 1.6
-#w_dis_region = 1.65
-#damping_dis_width = 0.15
-
-# Option 6, (k Quad, gamma Quad, M Quad)
+# Option 1, (k New, gamma New, M New)
 w_res_min = 1.1
-w_res_max = 1.45
-w_dis_transition = 1.6
-w_dis_region = 1.65
-damping_dis_width = 0.15
+w_res_max = 1.4
+w_dis_transition = 1.45
+w_dis_region = 1.75
+damping_res_width = 0.05
+damping_dis_width = 0.1
 
 ##################################################################################################################################################
 
@@ -122,7 +89,7 @@ a2_df = pd.read_csv(dir + 'a2_comb.csv')
 # # Useful Functions
 
 from functions import x_to_W, W_to_x, breit_wigner_res, breit_wigner_wrapper, lin_curve, quad_curve, quadconstr_curve, \
-    cubic_curve, exp_curve, cub_exp_curve, quadconstr_exp_curve, nucl_potential, quad_nucl_curve, g1f1_quad_DIS, \
+    cubic_curve, exp_curve, cub_exp_curve, quadconstr_exp_curve, nucl_potential, quad_nucl_curve, quad_nucl_curve2, quad_nucl_curve3, g1f1_quad_DIS, \
     g1f1_quad2_DIS, g1f1_cubic_DIS, fit, red_chi_sqr, fit_with_dynamic_params, weighted_avg, partial_a2, partial_a3, partial_b2, \
     partial_b3, partial_c2, partial_c3, partial_beta2, partial_beta3, partial_d3, partial_x0, partial_y0, partial_c4, partial_beta4, \
     g1f1_quad_DIS, g1f1_quad2_DIS, g1f1_cubic_DIS, residual_function, damping_function
@@ -135,6 +102,22 @@ def quad_nucl_curve_constp(x, a, b, c, y0):
   y0: term to have curve end at a constant value
   """  
   return quad_nucl_curve(x, a, b, c, y0, P0, P1, P2, Y1)
+def quad_nucl_curve_constp2(x, a, b, c, y0):
+  """
+  quadratic * nucl potential form
+  x: independent data
+  a, b, c: quadratic curve parameters
+  y0: term to have curve end at a constant value
+  """  
+  return quad_nucl_curve2(x, a, b, c, y0, P0, P1, P2, Y1)
+def quad_nucl_curve_constp3(x, a, b, c, y0):
+  """
+  quadratic * nucl potential form
+  x: independent data
+  a, b, c: quadratic curve parameters
+  y0: term to have curve end at a constant value
+  """  
+  return quad_nucl_curve3(x, a, b, c, y0, P0, P1, P2, Y1)
 
 def lin_nucl_curve_constp(x, a, b):
   """
@@ -474,7 +457,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                                 "M.err": par_err_lists[0],
                                 "k": par_lists[1],
                                 "k.err": par_err_lists[1],
-                                "gamma": par_lists[2],
+                                "gamma": [abs(par) for par in par_lists[2]],
                                 "gamma.err": par_err_lists[2]})
 
       # plot
@@ -686,7 +669,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     tck_mass = splrep(x=x, y=mass_unique, w=1/np.array(mass_err_unique), s=sm, k=3)
 
     # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(1e-2, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
 
     # plot k and gamma vs Q2 from variable M fit
 
@@ -696,7 +679,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     gamma_list = []
     gamma_err_list = []
     mass_list = []
-    mass_err_list = []    
+    mass_err_list = []
     q2_list = []
     label_list = []
 
@@ -767,7 +750,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
     # In[14]:
 
-
+    '''
     # fit k, gamma, mass with line
     print("K Linear Fit Params")
     k_lin_par, k_lin_cov, k_lin_err, k_lin_chi2 = fit(lin_curve, delta_par_df["Q2"],
@@ -788,7 +771,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                                                               params_init=(0,1),
                                                               param_names=["a", "b"])
 
-    '''
+
     # fit k and gamma with quadratic curve
     print("K Quadratic Fit Params")
     k_quad_par, k_quad_cov, k_quad_err, k_quad_chi2 = fit(quad_curve, delta_par_df["Q2"],
@@ -886,28 +869,160 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                                                                   constr=bounds)
     '''
 
-    # Perform fits for k, gamma, and mass
-    print("-"*35)
-    print("K Quad-Nucl Potential Fit Params")
-    print("-"*35)
-    #k_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 1e-3])
-    k_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 0.0])
-    P0 = 0.7
-    P1 = 1.7
-    P2 = 0.3
-    Y1 = 0.0
-    k_p_vals_initial = [P0, P1, P2, Y1]
-    k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
-        x_data=delta_par_df["Q2"],
-        y_data=delta_par_df["k"],
-        y_err=delta_par_df["k.err"],
-        param_bounds=k_bounds,
-        p_vals_initial=k_p_vals_initial,
-        fit_function=quad_nucl_curve_constp,
-        N=1,
-    )
+    fit_results_csv = "fit_results.csv"
+    
+    if not os.path.exists(fit_results_csv):
+        print(f"File '{fit_results_csv}' does not exist. Finding best fits!")
+    
+        # Initialize an empty list to store results
+        fit_results = []
+
+        # Perform fits for k, gamma, and mass
+        print("-"*35)
+        print("K Quad-Nucl Potential Fit Params")
+        print("-"*35)
+        k_bounds = Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
+        P0 = 0.7
+        P1 = 1.7
+        P2 = 0.3
+        Y1 = 0.0
+        k_p_vals_initial = [P0, P1, P2, Y1]        
+        k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
+            "k",
+            x_data=delta_par_df["Q2"],
+            y_data=delta_par_df["k"],
+            y_err=delta_par_df["k.err"],
+            param_bounds=k_bounds,
+            p_vals_initial=k_p_vals_initial,
+            fit_function=quad_nucl_curve_constp2,
+            N=50,
+        )
+
+        # Store results
+        fit_results.append({
+            "Parameter": "k",
+            "Best Fit Parameters": k_best_params,
+            "Best P Values": k_best_p_vals,
+            "Chi-Squared": k_best_chi2,
+            "P Value Uncertainties": k_p_val_uncertainties,
+        })
+
+        # Repeat for gamma
+        print("-"*35)
+        print("Gamma Quad-Nucl Potential Fit Params")
+        print("-"*35)
+        gam_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 0.3])
+        P0 = 0.7
+        P1 = 1.7
+        P2 = 0.3
+        Y1 = 0.0
+        gam_p_vals_initial = [P0, P1, P2, Y1]        
+        gam_best_params, gam_best_p_vals, gam_best_chi2, gam_param_uncertainties, gam_p_val_uncertainties = fit_with_dynamic_params(
+            "gamma",
+            x_data=delta_par_df["Q2"],
+            y_data=delta_par_df["gamma"],
+            y_err=delta_par_df["gamma.err"],
+            param_bounds=gam_bounds,
+            p_vals_initial=gam_p_vals_initial,
+            fit_function=quad_nucl_curve_constp,
+            N=50,
+        )
+
+        # Store results
+        fit_results.append({
+            "Parameter": "gamma",
+            "Best Fit Parameters": gam_best_params,
+            "Best P Values": gam_best_p_vals,
+            "Chi-Squared": gam_best_chi2,
+            "P Value Uncertainties": gam_p_val_uncertainties,
+        })
+
+        # Repeat for mass
+        print("-"*35)
+        print("Mass Quad-Nucl Potential Fit Params")
+        print("-"*35)
+        mass_bounds = Bounds(lb=[0.0, -1e10, 0.0, 0.0], ub=[1e10, 1e10, 1e10, 2.0])
+        P0 = 0.7
+        P1 = 1.7
+        P2 = 0.3
+        Y1 = 0.0
+        mass_p_vals_initial = [P0, P1, P2, Y1]        
+        mass_best_params, mass_best_p_vals, mass_best_chi2, mass_param_uncertainties, mass_p_val_uncertainties = fit_with_dynamic_params(
+            "mass",
+            x_data=delta_par_df["Q2"],
+            y_data=delta_par_df["M"],
+            y_err=delta_par_df["M.err"],
+            param_bounds=mass_bounds,
+            p_vals_initial=mass_p_vals_initial,
+            fit_function=quad_nucl_curve_constp3,
+            N=50,
+        )
+
+        # Store results
+        fit_results.append({
+            "Parameter": "mass",
+            "Best Fit Parameters": mass_best_params,
+            "Best P Values": mass_best_p_vals,
+            "Chi-Squared": mass_best_chi2,
+            "P Value Uncertainties": mass_p_val_uncertainties,
+        })
+
+        # Save results to a CSV
+        df_results = pd.DataFrame(fit_results)
+        df_results.to_csv(fit_results_csv, index=False)
+
+        print("Results saved to fit_results.csv")
+
+    else:
+        print(f"File '{fit_results_csv}' exists. Loading variables from CSV.")
+
+        # Load the CSV file
+        fit_results_df = pd.read_csv(fit_results_csv)
+
+        # Define a function to parse list-like strings with irregular formatting
+        def parse_list(value):
+            if pd.isna(value):  # Handle NaN values
+                return []
+            # Remove extra spaces and split by spaces or commas
+            value = re.sub(r'\s+', ',', value.strip())  # Replace spaces with commas
+            value = value.replace('[,', '[').replace(',]', ']')  # Clean up misplaced commas
+            try:
+                return ast.literal_eval(value)
+            except Exception:
+                print(f"Error parsing value: {value}")
+                return []
+
+        # Apply parsing to the relevant columns
+        columns_to_parse = ["Best Fit Parameters", "P Value Uncertainties"]
+        for col in columns_to_parse:
+            fit_results_df[col] = fit_results_df[col].apply(parse_list)
+
+        # Extract variables from the parsed dataframe
+        for _, row in fit_results_df.iterrows():
+            if row["Parameter"] == "k":
+                k_best_params = row["Best Fit Parameters"]
+                k_best_p_vals = ast.literal_eval(row["Best P Values"])  # Parse normally formatted column
+                k_best_chi2 = row["Chi-Squared"]
+                k_p_val_uncertainties = row["P Value Uncertainties"]
+
+            elif row["Parameter"] == "gamma":
+                gam_best_params = row["Best Fit Parameters"]
+                gam_best_p_vals = ast.literal_eval(row["Best P Values"])
+                gam_best_chi2 = row["Chi-Squared"]
+                gam_p_val_uncertainties = row["P Value Uncertainties"]
+
+            elif row["Parameter"] == "mass":
+                mass_best_params = row["Best Fit Parameters"]
+                mass_best_p_vals = ast.literal_eval(row["Best P Values"])
+                mass_best_chi2 = row["Chi-Squared"]
+                mass_p_val_uncertainties = row["P Value Uncertainties"]
+
+        print("Variables successfully loaded from the CSV.")
+
 
     # Unpack the results
+    print("k Parameters")
+    print("-"*50)
     k_nucl_par = k_best_params
     k_P_vals = k_best_p_vals
     k_nucl_chi2 = k_best_chi2
@@ -917,26 +1032,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     print("P value uncertainties:", k_p_val_uncertainties)
     print("\n")
 
-    print("-"*35)
-    print("Gamma Quad-Nucl Potential Fit Params")
-    print("-"*35)
-    gam_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 0.3])
-    P0 = 1.3
-    P1 = 2.0
-    P2 = 0.5
-    Y1 = 0.0    
-    gam_p_vals_initial = [P0, P1, P2, Y1]
-    gam_best_params, gam_best_p_vals, gam_best_chi2, gam_param_uncertainties, gam_p_val_uncertainties = fit_with_dynamic_params(
-        x_data=delta_par_df["Q2"],
-        y_data=delta_par_df["gamma"],
-        y_err=delta_par_df["gamma.err"],
-        param_bounds=gam_bounds,
-        p_vals_initial=gam_p_vals_initial,
-        fit_function=quad_nucl_curve_constp,
-        N=1,
-    )
-
     # Unpack the results
+    print("Gamma Parameters")
+    print("-"*50)
     gam_nucl_par = gam_best_params
     gam_P_vals = gam_best_p_vals
     gam_nucl_chi2 = gam_best_chi2
@@ -944,28 +1042,11 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     print("Best P values (P0, P1, P2, Y1):", gam_P_vals)
     print("Best chi-squared:", gam_nucl_chi2)
     print("P value uncertainties:", gam_p_val_uncertainties)
-    print("\n")
-
-    print("-"*35)
-    print("Mass Quad-Nucl Potential Fit Params")
-    print("-"*35)
-    mass_bounds = Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 2.0])
-    P0 = 0.7
-    P1 = 1.7
-    P2 = 0.3
-    Y1 = 0.0
-    mass_p_vals_initial = [P0, P1, P2, Y1]
-    mass_best_params, mass_best_p_vals, mass_best_chi2, mass_param_uncertainties, mass_p_val_uncertainties = fit_with_dynamic_params(
-        x_data=delta_par_df["Q2"],
-        y_data=delta_par_df["M"],
-        y_err=delta_par_df["M.err"],
-        param_bounds=mass_bounds,
-        p_vals_initial=mass_p_vals_initial,
-        fit_function=quad_nucl_curve_constp,
-        N=1,
-    )
+    print("\n")    
 
     # Unpack the results
+    print("Mass Parameters")
+    print("-"*50)    
     mass_nucl_par = mass_best_params
     mass_P_vals = mass_best_p_vals
     mass_nucl_chi2 = mass_best_chi2
@@ -973,8 +1054,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     print("Best P values (P0, P1, P2, Y1):", mass_P_vals)
     print("Best chi-squared:", mass_nucl_chi2)
     print("P value uncertainties:", mass_p_val_uncertainties)
-    print("\n")    
-
+    print("\n")
+    
     '''    
     k_lin = lin_curve(q2, k_lin_par[0], k_lin_par[1])
     gamma_lin = lin_curve(q2, gam_lin_par[0], gam_lin_par[1])
@@ -995,11 +1076,11 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     '''
 
     k_nucl_args = [q2] + [p for p in k_nucl_par] + [P for P in k_P_vals]
-    k_nucl = quad_nucl_curve(*k_nucl_args)
+    k_nucl = quad_nucl_curve2(*k_nucl_args)
     gam_nucl_args = [q2] + [p for p in gam_nucl_par] + [P for P in gam_P_vals]
     gamma_nucl = quad_nucl_curve(*gam_nucl_args)
     mass_nucl_args = [q2] + [p for p in mass_nucl_par] + [P for P in mass_P_vals]
-    mass_nucl = quad_nucl_curve(*mass_nucl_args)    
+    mass_nucl = quad_nucl_curve3(*mass_nucl_args)    
     
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -1041,18 +1122,18 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     axs[0].plot(q2, k_quadexp, label="Quadratic-Exponential Fit $\chi_v^2$=" + f"{k_quadexp_chi2:.2f}")
     '''
 
-    axs[0].plot(q2, k_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}")
-    axs[1].plot(q2, gamma_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{gam_nucl_chi2:.2f}")
-    axs[2].plot(q2, mass_nucl, label="Quad*Woods-Saxon Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}")    
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}")
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gam_nucl_chi2:.2f}")
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}")    
     
     # plot splines    
-    q2 = np.linspace(1e-2, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double)
 
-    '''
     k_spline = BSpline(*tck_k)
     gamma_spline = BSpline(*tck_gamma)
     mass_spline = BSpline(*tck_mass)
-    
+
+    '''
     axs[0].plot(q2, k_spline(q2), '-', label=f'Spline s={sk}')
     axs[1].plot(q2, gamma_spline(q2), '-', label=f'Spline s={sg}')
     axs[2].plot(q2, mass_spline(q2), '-', label=f'Spline s={sm}')
@@ -1068,8 +1149,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     axs[1].legend()
     axs[2].legend()
 
-    #axs[0].set_xlim(-.25, 4.0)
-    #axs[1].set_xlim(-.25, 4.0)
+    axs[0].set_ylim(-.12, 0.02)
+    axs[1].set_ylim(-.5, 0.5)
+    axs[2].set_ylim(1.1, 1.5)
     axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
     axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
     axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
@@ -1117,10 +1199,13 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       k_fit_params = [k_nucl_par, k_spline]
       gamma_fit_params = [gam_nucl_par, gamma_spline]
       mass_fit_params = [mass_nucl_par, mass_spline]
-      fit_funcs = [quad_nucl_curve, BSpline]
+      fit_funcs_k = [quad_nucl_curve2, BSpline]
+      fit_funcs_gamma = [quad_nucl_curve, BSpline]
+      fit_funcs_mass = [quad_nucl_curve3, BSpline]
       #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
-      fit_names = ["Quad*W-S", f"Spline, s={sk}"]
-      
+      #fit_names = ["Quad*W-S", f"Spline, s={sk}"]
+      fit_names = ["New", f"Spline, s={sk}"]
+
       # use the 4 following lines if you want to plot all the other types of fits I tried (don't forget to uncomment the other fits first!)
       # k_fit_params = [k_lin_par, k_quad_par, k_cub_par, k_nucl_par]
       # gamma_fit_params = [gam_lin_par, gam_quad_par, gam_cub_par, gam_nucl_par]
@@ -1154,33 +1239,36 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
               if i==1:
                 # spline k
+                args = [q2]
                 k = k_fit_params[i](q2)
               else:
                 k_args = args + [p for p in k_params]
                 if i==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   k_args += [P for P in k_P_vals]
-                k = fit_funcs[i](*k_args)
+                k = fit_funcs_k[i](*k_args)
 
               if j==1:
                 # spline gamma
+                args = [q2]
                 gamma = gamma_fit_params[j](q2)
               else:
                 gamma_args = args + [p for p in gam_params]
                 if j==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   gamma_args += [P for P in gam_P_vals]
-                gamma = fit_funcs[j](*gamma_args)
+                gamma = fit_funcs_gamma[j](*gamma_args)
 
               if ij==1:
                 # spline mass
+                args = [q2]
                 mass = mass_fit_params[ij](q2)
               else:
                 mass_args = args + [p for p in mass_params]
                 if ij==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   mass_args += [P for P in mass_P_vals]
-                mass = fit_funcs[ij](*mass_args)
+                mass = fit_funcs_mass[ij](*mass_args)
                 
               # calculate fitted curve
               y = breit_wigner_res(w, mass, k, gamma)
@@ -1259,7 +1347,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       k_fit_params = [k_nucl_par, k_spline]
       gamma_fit_params = [gam_nucl_par, gamma_spline]
       mass_fit_params = [mass_nucl_par, mass_spline]      
-      fit_funcs = [quad_nucl_curve, BSpline]
+      fit_funcs_k = [quad_nucl_curve2, BSpline]
+      fit_funcs_gamma = [quad_nucl_curve, BSpline]
+      fit_funcs_mass = [quad_nucl_curve3, BSpline]
       #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
       fit_names = ["Quad*W-S", f"Spline, s={sk}"]
       
@@ -1294,7 +1384,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if i==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   k_args += [P for P in k_P_vals]
-                k = fit_funcs[i](*k_args)
+                k = fit_funcs_k[i](*k_args)
 
               if j==1:
                 # spline gamma
@@ -1304,7 +1394,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if j==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   gamma_args += [P for P in gam_P_vals]
-                gamma = fit_funcs[j](*gamma_args)
+                gamma = fit_funcs_gamma[j](*gamma_args)
 
               if ij==1:
                 # spline mass
@@ -1314,7 +1404,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if ij==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   mass_args += [P for P in mass_P_vals]
-                mass = fit_funcs[ij](*mass_args)
+                mass = fit_funcs_mass[ij](*mass_args)
                 
               # calculate fitted curve
               y = breit_wigner_res(w, mass, k, gamma)
@@ -1405,7 +1495,9 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       k_fit_params = [k_nucl_par, k_spline]
       gamma_fit_params = [gam_nucl_par, gamma_spline]
       mass_fit_params = [mass_nucl_par, mass_spline]      
-      fit_funcs = [quad_nucl_curve, BSpline]
+      fit_funcs_k = [quad_nucl_curve2, BSpline]
+      fit_funcs_gamma = [quad_nucl_curve, BSpline]
+      fit_funcs_mass = [quad_nucl_curve3, BSpline]
       #fit_names = ["Quad*Woods-Saxon", f"Spline, s={sk}"]
       fit_names = ["Quad*W-S", f"Spline, s={sk}"]
       
@@ -1440,7 +1532,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if i==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   k_args += [P for P in k_P_vals]
-                k = fit_funcs[i](*k_args)
+                k = fit_funcs_k[i](*k_args)
 
               if j==1:
                 # spline gamma
@@ -1450,7 +1542,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if j==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   gamma_args += [P for P in gam_P_vals]
-                gamma = fit_funcs[j](*gamma_args)
+                gamma = fit_funcs_gamma[j](*gamma_args)
 
               if ij==1:
                 # spline mass
@@ -1460,7 +1552,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if ij==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   mass_args += [P for P in mass_P_vals]
-                mass = fit_funcs[ij](*mass_args)
+                mass = fit_funcs_mass[ij](*mass_args)
                 
               # calculate fitted curve
               y = breit_wigner_res(w, mass, k, gamma)
@@ -1515,7 +1607,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if i==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   k_args += [P for P in k_P_vals]
-                k = fit_funcs[i](*k_args)
+                k = fit_funcs_k[i](*k_args)
 
               if j==1:
                 # spline gamma
@@ -1525,7 +1617,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if j==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   gamma_args += [P for P in gam_P_vals]
-                gamma = fit_funcs[j](*gamma_args)
+                gamma = fit_funcs_gamma[j](*gamma_args)
 
               if ij==1:
                 # spline mass
@@ -1535,7 +1627,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                 if ij==0:
                   # add constant parameters P0, P1, P2 for Woods-Saxon
                   mass_args += [P for P in mass_P_vals]
-                mass = fit_funcs[ij](*mass_args)
+                mass = fit_funcs_mass[ij](*mass_args)
 
               w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
@@ -1544,7 +1636,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               
               # Calculate Breit-Wigner fit
               y_bw = breit_wigner_res(w_res, mass, k, gamma)
-              damping = damping_function(w_res, w_dis_transition, damping_dis_width)
+              damping = damping_function(w_res, w_dis_transition, damping_res_width)
               y_bw_damped = y_bw * damping              
               
               # Calculate DIS fit

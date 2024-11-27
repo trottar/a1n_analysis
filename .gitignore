@@ -18,6 +18,9 @@ Tmp*
 *.png
 *.pdf
 
+# Data files
+*.csv
+
 # Directories
 __pycache__
 .ipynb_checkpoints

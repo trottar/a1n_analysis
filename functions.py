@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-11-12 16:10:52 trottar"
+# Time-stamp: "2024-11-26 20:00:45 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -18,7 +18,8 @@ from scipy.optimize import Bounds
 from scipy.optimize import minimize, differential_evolution
 from scipy.stats import chi2
 from tabulate import tabulate
-
+import inspect
+    
 ##################################################################################################################################################
 # Importing utility functions
 
@@ -58,6 +59,19 @@ def quad_curve(x, a, b, c):
   """quadratic fit function"""
   return a + b*x + c*x**2
 
+#HERE
+def k_curve(x, a, b, c):
+  """function"""
+  return -a * np.exp(-x/b) + (c / x) # chi2 = 4.1 Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
+#HERE
+def gamma_curve(x, a, b, c):
+  """function"""
+  return a / (1 + (x / b))**(c)  # chi2 = 2.1 Bounds(lb=[-1e10, -1e10, -1e10, 0.0], ub=[1e10, 1e10, 1e10, 0.3])
+#HERE
+def mass_curve(x, a, b, c):
+  """function"""
+  return 1.232 - a * np.exp(-x/b) - (c / x)  # chi2 = 4.2 Bounds(lb=[0.0, -1e10, 0.0, 0.0], ub=[1e10, 1e10, 1e10, 2.0])
+  
 def quadconstr_curve(x, x0, y0, c):
   """quadratic fit function to constrain minimum"""
   return c*(x-x0)**2 + y0
@@ -90,7 +104,7 @@ def nucl_potential(x, p0, p1, p2, y0):
   """
   return y0 + p0/(1.0 + np.exp((x-p1)/p2))
 
-
+# HERE
 def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
@@ -103,8 +117,34 @@ def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
   p2: width of nucl potential
   y1: final constant value of nuclear potential
   """
-  return quad_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
-
+  return gamma_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+# HERE
+def quad_nucl_curve2(x, a, b, c, y0, p0, p1, p2, y1):
+  """
+  quadratic * nucl potential form
+  x: independent data
+  a, b, c: quadratic curve parameters
+  y0: constant value term for after decay
+  p0: depth of nucl potential
+  p1: jump point of nucl potential
+  p2: width of nucl potential
+  y1: final constant value of nuclear potential
+  """
+  return k_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+# HERE
+def quad_nucl_curve3(x, a, b, c, y0, p0, p1, p2, y1):
+  """
+  quadratic * nucl potential form
+  x: independent data
+  a, b, c: quadratic curve parameters
+  y0: constant value term for after decay
+  p0: depth of nucl potential
+  p1: jump point of nucl potential
+  p2: width of nucl potential
+  y1: final constant value of nuclear potential
+  """
+  return mass_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+  
 def lin_nucl_curve(x, a, b):
   """
   linear * nucl potential form
@@ -132,17 +172,30 @@ def red_chi_sqr(y_calc, y_obs, y_err, nu):
   """
   return np.sum(np.square((y_obs-y_calc)/y_err))/nu
 
-def fit_with_dynamic_params(x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10):
-    num_params = len(p_vals_initial)
+'''
+def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10):
+
+    num_P_vals = len(p_vals_initial)
     
+    if var_name == "gamma" or var_name == "k" or var_name == "mass":
+        num_params = len(p_vals_initial)
+    else:
+        num_params = len(p_vals_initial)-1
+        
     def chi_squared(params):
-        P_vals = params[:len(p_vals_initial)]
-        model_params = params[len(p_vals_initial):]
+        P_vals = params[:num_params]
+        
+        model_params = params[num_P_vals:]
+
+        #print("!!!!!!!",params)
+        #print(P_vals)
+        #print(model_params)
+        
         model = fit_function(x_data, *model_params, *P_vals)
         
         residuals = (y_data - model) / y_err
         chi2 = np.sum(residuals ** 2)
-        degrees_of_freedom = len(y_data) - num_params
+        degrees_of_freedom = len(y_data) - num_P_vals
         
         return chi2 / degrees_of_freedom if degrees_of_freedom > 0 else np.inf
     
@@ -176,15 +229,15 @@ def fit_with_dynamic_params(x_data, y_data, y_err, param_bounds, p_vals_initial,
             best_params = current_params
             best_p_vals = current_p_vals
     
-    final_params = best_params[:len(p_vals_initial)]
-    final_p_vals = best_p_vals[:len(p_vals_initial)]
+    final_params = best_params[:num_params]
+    final_p_vals = best_p_vals[:num_P_vals]
     
     # Calculate confidence intervals
-    dof = len(y_data) - num_params
+    dof = len(y_data) - num_P_vals
     delta_chi2 = chi2.ppf(0.68, dof) - chi2.ppf(0.32, dof)
-    hessian = np.zeros((num_params, num_params))
+    hessian = np.zeros((num_P_vals, num_params))
     step = 1e-5
-    for i in range(num_params):
+    for i in range(num_P_vals):
         for j in range(num_params):
             params_plus_i = best_p_vals.copy()
             params_plus_i[i] += step
@@ -205,12 +258,176 @@ def fit_with_dynamic_params(x_data, y_data, y_err, param_bounds, p_vals_initial,
         covariance = np.linalg.inv(hessian)
         uncertainties = np.sqrt(np.diag(covariance) * delta_chi2)
     except np.linalg.LinAlgError:
-        uncertainties = np.full(num_params, np.nan)
+        uncertainties = np.full(num_P_vals, np.nan)
     
-    param_uncertainties = uncertainties[len(p_vals_initial):]
-    p_val_uncertainties = uncertainties[:len(p_vals_initial)]
+    param_uncertainties = uncertainties[num_P_vals:]
+    p_val_uncertainties = uncertainties[:num_params]
     
     return final_params, final_p_vals, best_reduced_chi_squared, param_uncertainties, p_val_uncertainties
+'''
+
+def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10, 
+                             population_size=15, max_iterations=50000, mutation_range=(0.4, 1.6), 
+                             recombination_rate=0.8, strategy='best1bin', tolerance=1e-8):
+    """
+    Enhanced phase space search function for parameter fitting with more flexible optimization strategies.
+    
+    Args:
+        var_name (str): Name of the variable being fit
+        x_data (array): Independent variable data
+        y_data (array): Dependent variable data
+        y_err (array): Errors in dependent variable
+        param_bounds (object): Bounds for parameters
+        p_vals_initial (array): Initial p-value guesses
+        fit_function (callable): Function to fit data
+        N (int, optional): Number of global search iterations. Defaults to 10.
+        population_size (int, optional): Size of differential evolution population. Defaults to 15.
+        max_iterations (int, optional): Maximum iterations for differential evolution. Defaults to 15000.
+        mutation_range (tuple, optional): Range for mutation factor. Defaults to (0.4, 1.6).
+        recombination_rate (float, optional): Crossover probability. Defaults to 0.8.
+        strategy (str, optional): Differential evolution strategy. Defaults to 'best1bin'.
+        tolerance (float, optional): Optimization tolerance. Defaults to 1e-8.
+    
+    Returns:
+        tuple: Optimized parameters, p-values, reduced chi-squared, parameter uncertainties, p-value uncertainties
+    """
+    
+    # Determine number of parameters and p-values
+    num_params = len(param_bounds.lb)
+    num_P_vals = len(p_vals_initial)
+    
+    # Inspect the fit function to understand its signature
+    sig = inspect.signature(fit_function)
+    param_names = list(sig.parameters.keys())
+    
+    def chi_squared(params):
+        """Calculate reduced chi-squared for the given parameters."""
+        # Prepare arguments for the fit function
+        fit_args = []
+        
+        # Always start with x_data
+        fit_args.append(x_data)
+        
+        # Add model parameters
+        fit_args.extend(params[:num_params])
+        
+        # Add p-values
+        fit_args.extend(p_vals_initial)
+        
+        # Trim arguments to match function signature if needed
+        fit_args = fit_args[:len(param_names)]
+        
+        model = fit_function(*fit_args)
+        
+        residuals = (y_data - model) / y_err
+        chi2_value = np.sum(residuals ** 2)
+        degrees_of_freedom = max(1, len(y_data) - num_params)
+        
+        return chi2_value / degrees_of_freedom
+    
+    def optimize_fit(bounds):
+        """
+        Perform differential evolution optimization with more robust parameters.
+        
+        Args:
+            bounds (list): Parameter bounds for optimization
+        
+        Returns:
+            tuple: Best reduced chi-squared and corresponding parameters
+        """
+        print("Performing advanced differential evolution optimization...")
+        
+        result = differential_evolution(
+            chi_squared, 
+            bounds=bounds, 
+            popsize=population_size, 
+            mutation=mutation_range, 
+            recombination=recombination_rate, 
+            strategy=strategy, 
+            tol=tolerance, 
+            maxiter=max_iterations,
+            seed=np.random.randint(2**32 - 1)  # Ensure reproducibility with random seed
+        )
+        
+        print(f"Optimization result - Success: {result.success}, Message: {result.message}")
+        return result.fun, result.x
+    
+    # Prepare bounds for optimization
+    search_bounds = [(lb, ub) for lb, ub in zip(param_bounds.lb, param_bounds.ub)]
+    
+    print(f"Parameter bounds: {search_bounds}")
+    
+    # Multiple global search iterations
+    best_reduced_chi_squared = np.inf
+    best_params = None
+    
+    for i in range(N):
+        print(f"Global Search Iteration {i + 1}/{N}")
+        
+        current_reduced_chi_squared, current_params = optimize_fit(search_bounds)
+        print(f"Iteration {i + 1} - Reduced chi-squared: {current_reduced_chi_squared:.5f}")
+        
+        if abs(current_reduced_chi_squared-1) < abs(best_reduced_chi_squared-1):
+            best_reduced_chi_squared = current_reduced_chi_squared
+            best_params = current_params
+    
+    # Advanced uncertainty estimation with more robust method
+    def compute_uncertainties(best_solution):
+        """
+        Compute parameter uncertainties using advanced numerical differentiation.
+        
+        Args:
+            best_solution (array): Best-fit parameters
+        
+        Returns:
+            array: Parameter uncertainties
+        """
+        degrees_of_freedom = max(1, len(y_data) - num_params)
+        delta_chi2 = chi2.ppf(0.68, degrees_of_freedom) - chi2.ppf(0.32, degrees_of_freedom)
+        
+        def perturb_params(params, index, step):
+            """Create a perturbed parameter set."""
+            perturbed = params.copy()
+            perturbed[index] += step
+            return perturbed
+        
+        def compute_hessian(params):
+            """Numerically compute Hessian matrix."""
+            hess = np.zeros((len(params), len(params)))
+            step = 1e-4
+            
+            for i in range(len(params)):
+                for j in range(len(params)):
+                    # Compute second-order mixed partial derivatives
+                    base_value = chi_squared(params)
+                    
+                    # Numerical approximation of mixed partial derivative
+                    params_i_plus = perturb_params(params, i, step)
+                    params_j_plus = perturb_params(params, j, step)
+                    params_ij_plus = perturb_params(params_i_plus, j, step)
+                    
+                    mixed_derivative = (chi_squared(params_ij_plus) - chi_squared(params_i_plus) 
+                                         - chi_squared(params_j_plus) + base_value) / (step**2)
+                    
+                    hess[i, j] = mixed_derivative
+            
+            return hess
+        
+        try:
+            hessian = compute_hessian(best_solution)
+            covariance = np.linalg.inv(hessian)
+            uncertainties = np.sqrt(np.abs(np.diag(covariance) * delta_chi2))
+        except (np.linalg.LinAlgError, ValueError):
+            uncertainties = np.full(len(best_solution), np.nan)
+        
+        return uncertainties
+    
+    # Compute parameter uncertainties
+    # Use the p_vals_initial as fixed for this optimization
+    param_uncertainties = compute_uncertainties(best_params)
+    
+    return (best_params, p_vals_initial, best_reduced_chi_squared, 
+            param_uncertainties, np.zeros_like(p_vals_initial))
 
 def fit(func, x, y, y_err, params_init, param_names, constr=None, silent=False):
   """
@@ -337,3 +554,4 @@ def residual_function(W, a, b, c, W_transition):
 def damping_function(W, W_transition, width):
     """Woods-Saxon function for smooth damping"""
     return 1 / (1 + np.exp((W - W_transition) / width))
+

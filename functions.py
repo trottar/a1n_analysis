@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-11-26 20:00:45 trottar"
+# Time-stamp: "2024-12-17 10:46:34 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -60,9 +60,11 @@ def quad_curve(x, a, b, c):
   return a + b*x + c*x**2
 
 #HERE
-def k_curve(x, a, b, c):
+def k_curve(x, a, b, c, d, e, f):
   """function"""
   return -a * np.exp(-x/b) + (c / x) # chi2 = 4.1 Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
+  #return -a * np.exp(-x/b) + (c / (d * x + e * x**2 + f * x**3)) # chi2 = 4.1 Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
+  #return (-a / (1 + b * x**c)) * np.exp(-x / d) + (e / x) # chi2 = XX Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 1e10])
 #HERE
 def gamma_curve(x, a, b, c):
   """function"""
@@ -119,7 +121,7 @@ def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
   """
   return gamma_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 # HERE
-def quad_nucl_curve2(x, a, b, c, y0, p0, p1, p2, y1):
+def quad_nucl_curve2(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
   x: independent data
@@ -130,7 +132,7 @@ def quad_nucl_curve2(x, a, b, c, y0, p0, p1, p2, y1):
   p2: width of nucl potential
   y1: final constant value of nuclear potential
   """
-  return k_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+  return k_curve(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 # HERE
 def quad_nucl_curve3(x, a, b, c, y0, p0, p1, p2, y1):
   """

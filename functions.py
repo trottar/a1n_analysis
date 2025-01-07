@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2024-12-17 10:46:34 trottar"
+# Time-stamp: "2025-01-06 17:24:48 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -60,7 +60,7 @@ def quad_curve(x, a, b, c):
   return a + b*x + c*x**2
 
 #HERE
-def k_curve(x, a, b, c, d, e, f):
+def k_curve(x, a, b, c):
   """function"""
   return -a * np.exp(-x/b) + (c / x) # chi2 = 4.1 Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
   #return -a * np.exp(-x/b) + (c / (d * x + e * x**2 + f * x**3)) # chi2 = 4.1 Bounds(lb=[-1e10, -1e10, -1e10, -1e10], ub=[1e10, 1e10, 1e10, 0.0])
@@ -107,7 +107,7 @@ def nucl_potential(x, p0, p1, p2, y0):
   return y0 + p0/(1.0 + np.exp((x-p1)/p2))
 
 # HERE
-def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
+def quad_nucl_curve_gamma(x, a, b, c, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
   x: independent data
@@ -121,7 +121,7 @@ def quad_nucl_curve(x, a, b, c, y0, p0, p1, p2, y1):
   """
   return gamma_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 # HERE
-def quad_nucl_curve2(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
+def quad_nucl_curve_k(x, a, b, c, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
   x: independent data
@@ -132,9 +132,9 @@ def quad_nucl_curve2(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   p2: width of nucl potential
   y1: final constant value of nuclear potential
   """
-  return k_curve(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+  return k_curve(x, a, b, c) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 # HERE
-def quad_nucl_curve3(x, a, b, c, y0, p0, p1, p2, y1):
+def quad_nucl_curve_mass(x, a, b, c, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
   x: independent data
@@ -155,118 +155,11 @@ def lin_nucl_curve(x, a, b):
   """
   return lin_curve(x, a, b)
 
-# from Xiaochao's thesis
-def g1f1_quad_DIS(x_q2, a, b , c, beta):
-  return (a+b*x_q2[0]+c*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
-
-# different form for quadratic to constrain the minimum
-# y = c*(x-x0)^2 + y0 where (x0, y0) is the minimum
-def g1f1_quad2_DIS(x_q2, x0, y0, c, beta):
-  return (c*(x_q2[0]-x0)**2+y0)*(1+(beta/x_q2[1]))
-
-# guess form for downward trend at high x - a cubic!
-def g1f1_cubic_DIS(x_q2, a, b , c, d, beta):
-  return (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
-
 def red_chi_sqr(y_calc, y_obs, y_err, nu):
   """
   calculates reduced chi squared of fit (nu = n observations - m fitted parameters)
   """
   return np.sum(np.square((y_obs-y_calc)/y_err))/nu
-
-'''
-def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10):
-
-    num_P_vals = len(p_vals_initial)
-    
-    if var_name == "gamma" or var_name == "k" or var_name == "mass":
-        num_params = len(p_vals_initial)
-    else:
-        num_params = len(p_vals_initial)-1
-        
-    def chi_squared(params):
-        P_vals = params[:num_params]
-        
-        model_params = params[num_P_vals:]
-
-        #print("!!!!!!!",params)
-        #print(P_vals)
-        #print(model_params)
-        
-        model = fit_function(x_data, *model_params, *P_vals)
-        
-        residuals = (y_data - model) / y_err
-        chi2 = np.sum(residuals ** 2)
-        degrees_of_freedom = len(y_data) - num_P_vals
-        
-        return chi2 / degrees_of_freedom if degrees_of_freedom > 0 else np.inf
-    
-    def optimize_fit(combined_bounds):
-
-        print("Using differential evolution...")
-        result = differential_evolution(chi_squared, bounds=combined_bounds, popsize=10, 
-                                        mutation=(0.5, 1.5), recombination=0.7, 
-                                        strategy='best1bin', tol=1e-7, maxiter=10000)
-
-        print("Optimization result:", result)
-        return result.fun, result.x
-    
-    best_reduced_chi_squared = np.inf
-    best_params = None
-
-    # Print the combined bounds to ensure they're correct
-    combined_bounds = [(lb, ub) for lb, ub in zip(param_bounds.lb, param_bounds.ub)]
-    print(f"Combined bounds: {combined_bounds}")
-    
-    for i in range(N):
-        print(f"Iteration {i + 1}/{N}")
-        
-        current_reduced_chi_squared, current_params = optimize_fit(combined_bounds)
-        print(f"Iteration {i + 1} - Reduced chi-squared: {current_reduced_chi_squared:.5f}")
-
-        current_p_vals = p_vals_initial
-        
-        if current_reduced_chi_squared < best_reduced_chi_squared:
-            best_reduced_chi_squared = current_reduced_chi_squared
-            best_params = current_params
-            best_p_vals = current_p_vals
-    
-    final_params = best_params[:num_params]
-    final_p_vals = best_p_vals[:num_P_vals]
-    
-    # Calculate confidence intervals
-    dof = len(y_data) - num_P_vals
-    delta_chi2 = chi2.ppf(0.68, dof) - chi2.ppf(0.32, dof)
-    hessian = np.zeros((num_P_vals, num_params))
-    step = 1e-5
-    for i in range(num_P_vals):
-        for j in range(num_params):
-            params_plus_i = best_p_vals.copy()
-            params_plus_i[i] += step
-            params_plus_j = best_p_vals.copy()
-            params_plus_j[j] += step
-            params_plus_ij = best_p_vals.copy()
-            params_plus_ij[i] += step
-            params_plus_ij[j] += step
-            
-            f = chi_squared(best_p_vals)
-            f_i = chi_squared(params_plus_i)
-            f_j = chi_squared(params_plus_j)
-            f_ij = chi_squared(params_plus_ij)
-            
-            hessian[i, j] = (f_ij - f_i - f_j + f) / (step * step)
-    
-    try:
-        covariance = np.linalg.inv(hessian)
-        uncertainties = np.sqrt(np.diag(covariance) * delta_chi2)
-    except np.linalg.LinAlgError:
-        uncertainties = np.full(num_P_vals, np.nan)
-    
-    param_uncertainties = uncertainties[num_P_vals:]
-    p_val_uncertainties = uncertainties[:num_params]
-    
-    return final_params, final_p_vals, best_reduced_chi_squared, param_uncertainties, p_val_uncertainties
-'''
 
 def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10, 
                              population_size=15, max_iterations=50000, mutation_range=(0.4, 1.6), 
@@ -373,55 +266,76 @@ def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_val
             best_reduced_chi_squared = current_reduced_chi_squared
             best_params = current_params
     
-    # Advanced uncertainty estimation with more robust method
     def compute_uncertainties(best_solution):
         """
-        Compute parameter uncertainties using advanced numerical differentiation.
-        
+        Compute parameter uncertainties using advanced numerical differentiation
+        with regularization to stabilize the Hessian inversion.
+
         Args:
             best_solution (array): Best-fit parameters
-        
+
         Returns:
             array: Parameter uncertainties
         """
         degrees_of_freedom = max(1, len(y_data) - num_params)
         delta_chi2 = chi2.ppf(0.68, degrees_of_freedom) - chi2.ppf(0.32, degrees_of_freedom)
-        
+
         def perturb_params(params, index, step):
             """Create a perturbed parameter set."""
             perturbed = params.copy()
             perturbed[index] += step
             return perturbed
-        
-        def compute_hessian(params):
-            """Numerically compute Hessian matrix."""
+
+        def compute_hessian(params, regularization_strength=1e-8):
+            """Numerically compute Hessian matrix with regularization."""
             hess = np.zeros((len(params), len(params)))
-            step = 1e-4
-            
+            #step_sizes = [max(1e-6 * abs(p), 1e-8) for p in params]  # Adaptive step size
+            step_sizes = [max(1e-8 * abs(p), 1e-10) for p in params]  # Adaptive step size
+
             for i in range(len(params)):
                 for j in range(len(params)):
-                    # Compute second-order mixed partial derivatives
+                    # Compute central differences
+                    params_ij_plus = params.copy()
+                    params_ij_minus = params.copy()
+
+                    params_ij_plus[i] += step_sizes[i]
+                    params_ij_plus[j] += step_sizes[j]
+
+                    params_ij_minus[i] -= step_sizes[i]
+                    params_ij_minus[j] -= step_sizes[j]
+
                     base_value = chi_squared(params)
-                    
-                    # Numerical approximation of mixed partial derivative
-                    params_i_plus = perturb_params(params, i, step)
-                    params_j_plus = perturb_params(params, j, step)
-                    params_ij_plus = perturb_params(params_i_plus, j, step)
-                    
-                    mixed_derivative = (chi_squared(params_ij_plus) - chi_squared(params_i_plus) 
-                                         - chi_squared(params_j_plus) + base_value) / (step**2)
-                    
-                    hess[i, j] = mixed_derivative
-            
+                    hess[i, j] = (
+                        chi_squared(params_ij_plus)
+                        - chi_squared(perturb_params(params, i, step_sizes[i]))
+                        - chi_squared(perturb_params(params, j, step_sizes[j]))
+                        + base_value
+                    ) / (4 * step_sizes[i] * step_sizes[j])
+
+            # Regularize the Hessian by adding a small value to the diagonal
+            regularization = regularization_strength * np.eye(len(params))
+            hess += regularization
             return hess
-        
+
         try:
+            # Compute regularized Hessian
             hessian = compute_hessian(best_solution)
+
+            # Check condition number and issue a warning if unstable
+            condition_number = np.linalg.cond(hessian)
+            if condition_number > 1e12:
+                print("Warning: Hessian is ill-conditioned. Regularization applied.")
+
+            # Invert the regularized Hessian
             covariance = np.linalg.inv(hessian)
+
+            # Compute uncertainties from the diagonal elements of covariance matrix
             uncertainties = np.sqrt(np.abs(np.diag(covariance) * delta_chi2))
+
         except (np.linalg.LinAlgError, ValueError):
+            # If inversion fails, return NaNs for all uncertainties
             uncertainties = np.full(len(best_solution), np.nan)
-        
+
         return uncertainties
     
     # Compute parameter uncertainties
@@ -448,7 +362,7 @@ def fit(func, x, y, y_err, params_init, param_names, constr=None, silent=False):
     constr = ([-np.inf for x in param_names],
               [np.inf for x in param_names])
 
-  params, covariance = curve_fit(func, x, y, p0=params_init, sigma=y_err, bounds=constr, maxfev = 10000)
+  params, covariance = curve_fit(func, x, y, p0=params_init, sigma=y_err, bounds=constr, maxfev = 50000)
   param_sigmas = [np.sqrt(covariance[i][i]) for i in range(len(params))]
   table = [
     [f"{params[i]:.5f} ± {param_sigmas[i]:.5f}" for i in range(len(params))]
@@ -536,16 +450,81 @@ def partial_beta4(x, q2, par):
   """(c(x-x0)^2 + y0)(1/Q2)"""
   return (par[2]*(x-par[0])**2 + par[1]) * (1/q2)
 
+def partial_alpha(x, q2, par):
+  """(c(x-x0)^2 + y0)(1/Q2)"""
+  return (par[2]*(x-par[0])**2 + par[1]) * (1/q2)
+
+####
+# Partials of Table F.1 from XZ's thesis
+def partial_alpha_new(x, q2, par):
+    """Partial derivative with respect to alpha."""
+    #alpha, a, b, c, d, beta = par
+    alpha, a, b, c, beta = par
+    
+    #poly = a + b*x + c*x**2 + d*x**3
+    poly = a + b*x + c*x**2
+    term = np.log(x) * x**alpha
+    return term * poly * (1 + beta/q2)
+
+def partial_a_new(x, q2, par):
+    """Partial derivative with respect to a."""
+    #alpha, a, b, c, d, beta = par
+    alpha, a, b, c, beta = par
+    
+    return x**alpha * (1 + beta/q2)
+
+def partial_b_new(x, q2, par):
+    """Partial derivative with respect to b."""
+    #alpha, a, b, c, d, beta = par
+    alpha, a, b, c, beta = par
+    
+    return x**(alpha + 1) * (1 + beta/q2)
+
+def partial_c_new(x, q2, par):
+    """Partial derivative with respect to c."""
+    #alpha, a, b, c, d, beta = par
+    alpha, a, b, c, beta = par
+    
+    return x**(alpha + 2) * (1 + beta/q2)
+
+def partial_d_new(x, q2, par):
+    """Partial derivative with respect to d."""
+    alpha, a, b, c, d, beta = par
+    
+    return x**(alpha + 3) * (1 + beta/q2)
+
+def partial_beta_new(x, q2, par):
+    """Partial derivative with respect to beta."""
+    #alpha, a, b, c, d, beta = par
+    alpha, a, b, c, beta = par
+    
+    #poly = a + b*x + c*x**2 + d*x**3
+    poly = a + b*x + c*x**2
+    return x**alpha * poly / q2
+
+####
+
 # from Xiaochao's thesis
 def g1f1_quad_DIS(x_q2, a, b , c, beta):
   return (a+b*x_q2[0]+c*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
 
-# different form for quad to constrain minimum
+# from Xiaochao's thesis
+def g1f1_quad_DIS(x_q2, a, b , c, beta):
+  return (a+b*x_q2[0]+c*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
+
+# different form for quadratic to constrain the minimum
 # y = c*(x-x0)^2 + y0 where (x0, y0) is the minimum
 def g1f1_quad2_DIS(x_q2, x0, y0, c, beta):
   return (c*(x_q2[0]-x0)**2+y0)*(1+(beta/x_q2[1]))
 
-# guess form for downward trend at high x
+# Table F.1 from XZ's thesis
+#def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, d, beta):
+#    return (x_q2[0]**alpha) * (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0]) * (1+(beta/x_q2[1]))
+def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, beta):
+    return (x_q2[0]**alpha) * (a + b*x_q2[0] + c*x_q2[0]*x_q2[0]) * (1+(beta/x_q2[1]))
+
+
+# guess form for downward trend at high x - a cubic!
 def g1f1_cubic_DIS(x_q2, a, b , c, d, beta):
   return (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
 

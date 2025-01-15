@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-06 17:24:48 trottar"
+# Time-stamp: "2025-01-14 16:23:11 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -392,6 +392,37 @@ def weighted_avg(y, w=1):
 
   return np.sum(y*w)/np.sum(w)
 
+def partial_k(w, M, k, gamma):
+    """
+    Partial derivative of the Breit-Wigner resonance formula with respect to k.
+    """
+    numerator = M**2 * gamma**2
+    denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
+    return numerator / denominator
+
+
+def partial_gamma(w, M, k, gamma):
+    """
+    Partial derivative of the Breit-Wigner resonance formula with respect to gamma.
+    """
+    numerator_1 = k * 2 * M**2 * gamma
+    numerator_2 = k * (M**2 * gamma**2) * 2 * M**2 * gamma
+    denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
+    denominator_squared = denominator**2
+    return (numerator_1 / denominator) - (numerator_2 / denominator_squared)
+
+
+def partial_mass(w, M, k, gamma):
+    """
+    Partial derivative of the Breit-Wigner resonance formula with respect to M.
+    """
+    numerator_1 = k * (2 * M * gamma**2)
+    term1 = -4 * M * (w**2 - M**2)
+    term2 = 2 * M * gamma**2
+    numerator_2 = k * (M**2 * gamma**2) * (term1 + term2)
+    denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
+    denominator_squared = denominator**2
+    return (numerator_1 / denominator) - (numerator_2 / denominator_squared)
 
 # determine uncertainty in the fit
 # partial functions for quadratic and cubic forms
@@ -536,3 +567,250 @@ def damping_function(W, W_transition, width):
     """Woods-Saxon function for smooth damping"""
     return 1 / (1 + np.exp((W - W_transition) / width))
 
+##############################################################
+
+def fit_error(x, q2, par, par_sigmas, pcov, partials):
+  """
+  Equation F.5 from Xiaochao's thesis
+  x: X array
+  q2: Q2 array
+  par: fit parameters
+  par_sigmas: list of errors in parameters
+  pcov: covariance matrix
+  partials: list of partial functions for the fit function
+  return: array of errors in fitted points
+  """
+  # initialize fit variance array
+  y_err = np.zeros(len(x))
+
+  for i in range(len(par)):
+    y_err += (partials[i](x,q2,par)**2) * par_sigmas[i]**2 * pcov[i][i]
+
+    for j in range(i+1, len(par)):
+      if i != j:
+          y_err += 2 * (partials[i](x,q2,par) * partials[j](x,q2,par)) * (par_sigmas[i] * par_sigmas[j]) * pcov[i][j]
+
+  return np.sqrt(y_err)
+
+# Function to propagate errors for Breit-Wigner fit
+def propagate_bw_error(w, mass, mass_err, k, k_err, gamma, gamma_err):
+    """
+    Propagate errors for Breit-Wigner fit.
+
+    Parameters:
+    - w: W values (array)
+    - mass: Mass value from fit
+    - mass_err: Error in mass
+    - k: k value from fit
+    - k_err: Error in k
+    - gamma: Gamma value from fit
+    - gamma_err: Error in gamma
+
+    Returns:
+    - Propagated error for Breit-Wigner fit
+    """
+    # Partial derivatives for each parameter (mass, k, gamma)
+    d_m = (np.gradient(breit_wigner_res(w, mass + mass_err, k, gamma)) - 
+           np.gradient(breit_wigner_res(w, mass - mass_err, k, gamma))) / (2 * mass_err)
+    d_k = (np.gradient(breit_wigner_res(w, mass, k + k_err, gamma)) - 
+           np.gradient(breit_wigner_res(w, mass, k - k_err, gamma))) / (2 * k_err)
+    d_gamma = (np.gradient(breit_wigner_res(w, mass, k, gamma + gamma_err)) - 
+               np.gradient(breit_wigner_res(w, mass, k, gamma - gamma_err))) / (2 * gamma_err)
+    # Propagate errors
+    propagated_error = np.sqrt((d_m * mass_err)**2 + (d_k * k_err)**2 + (d_gamma * gamma_err)**2)
+    return propagated_error
+
+def damping_function_err(w, w_transition, w_transition_err, damping_width, damping_width_err):
+    """
+    Calculate error for the damping function using Jacobian.
+    
+    Parameters:
+    - w: W values (array)
+    - w_transition: Transition value for W
+    - damping_width: Damping resolution width
+    
+    Returns:
+    - Error for damping function
+    """
+
+    # Partial derivatives for each parameter (mass, k, gamma)
+    dw_trans = (np.gradient(damping_function(w, w_transition + w_transition_err, damping_width)) - 
+                 np.gradient(damping_function(w, w_transition - w_transition_err, damping_width))) / (2 * w_transition_err)
+    dwidth = (np.gradient(damping_function(w, w_transition, damping_width + damping_width_err)) - 
+               np.gradient(damping_function(w, w_transition, damping_width - damping_width_err))) / (2 * damping_width_err)
+    
+    # Propagate errors
+    propagated_error = np.sqrt((dw_trans * w_transition_err)**2 + (dwidth * damping_width_err)**2)
+    return propagated_error
+
+def propagate_residual_error(w_res, popt, pcov, residual_function, w_dis_region):
+    """
+    Propagate errors for the residual fit using Jacobian matrix.
+    
+    Parameters:
+    - w_res: W_res values (array) [shape (1000,)]
+    - popt: Optimal parameters from curve fitting [shape (3,)]
+    - pcov: Covariance matrix from curve fitting [shape (3, 3)]
+    - residual_function: Residual function used in the fit
+    - w_dis_region: Region parameter for the residual function
+    
+    Returns:
+    - Propagated errors for residual fit at each w_res point [shape (1000,)]
+    """
+    
+    # Compute the Jacobian matrix (keep original error calculation)
+    def jacobian(x, params):
+        epsilon = np.sqrt(np.finfo(float).eps)
+        return np.array([
+            (residual_function(x, *(params + epsilon * np.eye(len(params))[i]), w_dis_region) - 
+             residual_function(x, *(params - epsilon * np.eye(len(params))[i]), w_dis_region)) / 
+            (2 * epsilon) for i in range(len(params))
+        ]).T
+
+    # Compute fit and error bars
+    fit = residual_function(w_res, *popt, w_dis_region)
+    J = jacobian(w_res, popt)
+    fit_var = np.sum(J @ pcov * J, axis=1)
+    fit_err = np.sqrt(fit_var)    
+
+    return fit_err
+
+def propagate_dis_error(fit_errs):
+    """
+    Propagate errors for the DIS fit, handling NaN values in dx and fit_errs.
+    
+    Parameters:
+    - x: x values (array)
+    - q2: Q^2 values (array)
+    - fit_params: Fit parameters
+    - fit_errs: Fit parameter errors (array)
+    
+    Returns:
+    - Propagated errors for DIS fit
+    """
+
+    return fit_errs
+
+def propagate_transition_error(w, bw_err, residual_err, damping_res_err, w_res_min, w_res_max, w_dis_transition):
+    """
+    Propagate errors for the transition between Breit-Wigner and DIS with region-dependent scaling factors.
+    The sum of alpha and beta is 1.0 for each region.
+
+    Parameters:
+    - w: List of W values (in the region [w_res_min, w_dis_transition])
+    - bw_err: List of errors in Breit-Wigner fit
+    - residual_err: List of errors in residual fit
+    - damping_res_err: List of errors in damping_res function
+    - w_res_min: Minimum value of W for the Breit-Wigner region
+    - w_res_max: Maximum value of W for the Breit-Wigner region
+    - w_dis_transition: W value marking the start of the DIS transition region
+    
+    Returns:
+    - List of propagated errors for the transition
+    """
+    # Ensure all input lists are of the same length
+    if not (len(w) == len(bw_err) == len(residual_err) == len(damping_res_err)):
+        raise ValueError("All input lists must have the same length.")
+    
+    # Initialize the total propagated errors list
+    propagated_errors = []
+
+    # Loop through each W value and calculate the propagated error
+    for i in range(len(w)):
+
+        # Region 1: [w_res_min, w_res_max], where alpha = 1.0 and beta = 0.0
+        if w[i] >= w_res_min and w[i] <= w_res_max:
+            alpha, beta = 1.0, 0.0
+            error = np.sqrt((alpha * bw_err[i])**2)
+
+        # Region 2: [w_res_max, w_dis_transition], where beta = 1.0 and alpha = 0.0
+        elif w[i] > w_res_max and w[i] <= w_dis_transition:
+            alpha, beta = 0.0, 1.0
+            error = np.sqrt(beta * (residual_err[i]**2 + damping_res_err[i]**2))
+
+        # Append the error to the results list
+        propagated_errors.append(error)
+    
+    return propagated_errors
+
+def propagate_complete_error(w, transition_err, damping_dis_err, dis_err, w_res_min, w_dis_transition, w_dis_region, w_max):
+    """
+    Propagate errors for the complete fit over a range of W values, including region-dependent scaling factors.
+    The sum of alpha, beta, and gamma is 1.0 for each region.
+
+    Parameters:
+    - w: List of W values (in the region [w_res_min, w_max])
+    - transition_err: List of transition errors
+    - damping_dis_err: List of damping DIS errors
+    - dis_err: List of DIS errors
+    - w_res_min: Minimum value of W for the transition region
+    - w_dis_region: W value that separates the different regions
+    - w_max: Maximum value of W for the DIS region
+    
+    Returns:
+    - List of propagated errors for the complete fit over all W values
+    """
+    # Ensure all input lists are of the same length
+    if not (len(w) == len(transition_err) == len(damping_dis_err) == len(dis_err)):
+        raise ValueError("All input lists must have the same length.")
+    
+    # Initialize the total propagated errors list
+    propagated_errors = []
+
+    # Loop through each W value and calculate the propagated error
+    for i in range(len(w)):
+
+        # Region-dependent scaling factors
+        if w[i] >= w_res_min and w[i] <= w_dis_transition:
+            alpha, beta, gamma = 1.0, 0.0, 0.0
+        elif w[i] >= w_dis_transition and w[i] <= w_dis_region:
+            alpha, beta, gamma = 0.0, 1.0, 0.0
+        else:
+            alpha, beta, gamma = 0.0, 0.0, 1.0
+
+        # Compute the propagated error for the current W value
+        error = np.sqrt(
+            (alpha * transition_err[i])**2 +
+            (beta * damping_dis_err[i])**2 +
+            (gamma * dis_err[i])**2
+        )
+
+        # Append the error to the results list
+        propagated_errors.append(error)
+    
+    return propagated_errors
+
+def calculate_param_error(fit_func, args, param_errs):
+    """
+    Calculate propagated error for k using numerical differentiation.
+
+    Parameters:
+    - fit_func: Function for k (e.g., fit_funcs_k[i])
+    - args: Complete list of arguments passed to the function
+    - param_errs: Errors in the parameters (same length as args)
+
+    Returns:
+    - Propagated error in k
+    """
+    err_squared = 0.0
+
+    for idx in range(len(param_errs)):
+        # Skip args without defined uncertainties
+        if param_errs[idx] == 0:
+            continue
+
+        # Perturb the current parameter by its uncertainty
+        args_plus = args.copy()
+        args_minus = args.copy()
+        args_plus[idx] += param_errs[idx]
+        args_minus[idx] -= param_errs[idx]
+
+        # Compute the partial derivative numerically
+        f_plus = fit_func(*args_plus)
+        f_minus = fit_func(*args_minus)
+        partial_derivative = (f_plus - f_minus) / (2 * param_errs[idx])
+
+        # Add the squared contribution of this term
+        err_squared += (partial_derivative * param_errs[idx]) ** 2
+
+    return np.sqrt(err_squared)

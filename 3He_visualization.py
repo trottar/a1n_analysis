@@ -88,7 +88,8 @@ from functions import x_to_W, W_to_x, breit_wigner_res, breit_wigner_wrapper, li
     cubic_curve, exp_curve, cub_exp_curve, quadconstr_exp_curve, nucl_potential, quad_nucl_curve_gamma, quad_nucl_curve_k, quad_nucl_curve_mass, g1f1_quad_DIS, \
     g1f1_quad2_DIS, g1f1_cubic_DIS, fit, red_chi_sqr, fit_with_dynamic_params, weighted_avg, partial_a2, partial_a3, partial_b2, \
     partial_b3, partial_c2, partial_c3, partial_beta2, partial_beta3, partial_d3, partial_x0, partial_y0, partial_c4, partial_beta4, partial_alpha, \
-    residual_function, damping_function, g1f1_quad_new_DIS, partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_d_new, partial_beta_new
+    residual_function, damping_function, g1f1_quad_new_DIS, partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_d_new, partial_beta_new, \
+    fit_error, propagate_bw_error, damping_function_err, propagate_dis_error, propagate_residual_error, propagate_transition_error, propagate_complete_error, calculate_param_error
 
 def quad_nucl_curve_constp_gamma(x, a, b, c, y0):
   """
@@ -310,6 +311,127 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     
     plt.tight_layout()
     pdf.savefig(fig, bbox_inches="tight")
+
+    ###
+
+    # ## Fit $g_1/F_1$ DIS data with neutron form from Xiaochao's thesis
+    # $g_1/F_1 = (a+bx+cx^2)(1+β/Q^2)$
+    # 
+    # Downward trend cubic form
+    # $g_1/F_1 = (a+bx+cx^2+dx^3)(1+β/Q^2)$
+
+    # In[17]:
+
+    # In[19]:
+
+
+    # independent variable data to feed to curve fit, X and Q2
+    #indep_data = [dis_df['X'], dis_df['Q2']]
+
+    '''
+    # fit g1f1 DIS data with cubic form
+    # initial guess for a,b,c,d,beta
+    cubic_dis_init = (-.03, -.02, 0.3, -.22, 0.1)
+    par_cub, cov_cub, par_err_cub, chi2_cub = fit(g1f1_cubic_DIS, indep_data,
+                                                  dis_df['G1F1'],
+                                                  dis_df['G1F1.err'],
+                                                  cubic_dis_init,
+                                                  ["a", "b", "c", "d", "beta"])
+    '''
+
+    '''
+    # fit the g1f1 DIS data with constrained quadratic form
+    quad2_init = [0.16424, -.02584, 0.16632, 0.11059]
+    quad2_constr = ([0.12, -.05, 0.10, 0.105],
+                    [0.20, -.00, 0.20, 0.115]) # min and max bounds on x0, y0, c, and beta
+    par_quad, cov_quad, par_err_quad, chi2_quad = fit(g1f1_quad2_DIS, indep_data,
+                                                      dis_df['G1F1'],
+                                                      dis_df['G1F1.err'],
+                                                      quad2_init,
+                                                      ["x0", "y0", "c", "beta"],
+                                                      constr=quad2_constr)
+    '''
+    
+    # In[20]:
+
+
+    # Generate fitted curve using the fitted parameters for constant q2
+    x = np.linspace(0,1.0,1000, dtype=np.double)
+    q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
+
+    #args3 = [[x, q2]] + [p for p in par_cub]
+    #args2 = [[x, q2]] + [p for p in par_quad]
+
+    args_new = [[x, q2]] + [p for p in dis_fit_init]    
+
+    #cubic_fit_curve = g1f1_cubic_DIS(*args3)
+    #quad_fit_curve = g1f1_quad2_DIS(*args2)
+    #quad_fit_curve = g1f1_quad_new_DIS(*args2)
+
+    quad_new_fit_curve = g1f1_quad_new_DIS(*args_new)
+
+    # In[21]:
+
+    # # list of partials for parameters (index 0 is for a -> index 3 is for beta)
+    partials2 = [partial_a2, partial_b2, partial_c2, partial_beta2]
+
+    # list of partials for parameters (index 0 is for a -> index 4 is for beta)
+    partials3 = [partial_a3, partial_b3, partial_c3, partial_d3, partial_beta3]
+
+    # list of partials for constrained quadratic form
+    partials4 = [partial_x0, partial_y0, partial_c4, partial_beta4]
+    
+    # Table F.1 from XZ's thesis
+    #partials_new = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_d_new, partial_beta_new]
+    partials_new = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
+
+    # In[22]:
+
+
+    #cubic_fit_err = fit_error(x, q2, par_cub, par_err_cub, cov_cub, partials3)
+
+    # quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, cov_quad, partials2)
+    ##quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, cov_quad, partials_new)
+    quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, corr_quad, partials_new)
+
+    # In[23]:
+
+
+    # make figure
+    fig, (ax1) = plt.subplots(1, 1, figsize=(18,10))
+
+    # formatting variables
+    m_size = 6
+    cap_size = 2
+    cap_thick = 1
+    m_type = '.'
+    colors = ("red", "darkorange", "limegreen",
+              "darkslategray", "darkblue", "rebeccapurple",
+              "darkmagenta")
+
+    # plot w/ labels
+    for i,l in enumerate(dis_df['Label'].unique()):
+      ax1.errorbar(dis_df['X'][dis_df['Label']==l],
+                    dis_df['G1F1'][dis_df['Label']==l],
+                    yerr=dis_df['G1F1.err'][dis_df['Label']==l],
+                    fmt=m_type, color=colors[i], markersize=m_size, capsize=cap_size,
+                    label=l, capthick=cap_thick)
+
+
+    # plot fit and fit error
+    #ax1.plot(x, cubic_fit_curve, label="Cubic Fit, $Q^2=5\ {GeV}^2$" + f" $\chi_v^2={chi2_cub:.2f}$")
+    #ax1.fill_between(x, cubic_fit_curve-cubic_fit_err, cubic_fit_curve+cubic_fit_err, alpha=0.5)
+    ax1.plot(x, quad_new_fit_curve, label="Quadratic Fit, $Q^2=5\ {GeV}^2$" + f" $\chi_v^2={chi2_quad:.2f}$", color="darkred")
+    ax1.fill_between(x, quad_new_fit_curve-quad_fit_err, quad_new_fit_curve+quad_fit_err, alpha=0.5, color="darkred")
+    ax1.axhline(y=0, color="black", linestyle="dashed")
+
+    ax1.legend()
+    fig.tight_layout()
+    fig.text(0.53, 0.001, "X", ha='center', va='center')
+    fig.text(0.001, 0.56, '$g_1^{^{3}He}/F_1^{^{3}He}$', ha='center', va='center', rotation='vertical')
+
+    # Save figure
+    pdf.savefig(fig,bbox_inches="tight")
     
     # In[5]:
 
@@ -1406,7 +1528,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
         q2_err = np.std(bootstrap_fits_q2, axis=0)
         window_size = min(len(q2) // 3, 10)
         smoothed_q2_err = moving_average(q2_err, window_size)
-
+            
         # Plot
         axs[i].errorbar(x_data, y_data, yerr=y_err, fmt='o', label='Data')
         axs[i].plot(x_data, fit, label='Curve_fit', color='red')
@@ -1517,7 +1639,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
     def optimize_parameters_for_q2_bin(res_df, l, k_nucl_par, gamma_nucl_par, mass_nucl_par, k_P_vals, gamma_P_vals, mass_P_vals, w_lims):
         def objective_function(params):
-            w_res_min, w_res_max, w_dis_transition, w_dis_region, damping_res_width, damping_dis_width = params
+
+            w_dis_transition, w_dis_region, damping_res_width, damping_dis_width = params
 
             q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
@@ -1584,8 +1707,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                       y = breit_wigner_res(w, mass, k, gamma)
 
                       # try getting a chi squared for this curve for w_res_min<W<w_res_max
-                      w_res_min = w_lims[i][0]
-                      w_res_max = w_lims[i][1]              
                       W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
                       y_cal = breit_wigner_res(W, mass, k, gamma)
                       y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -1602,9 +1723,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
             # Table F.1 from XZ's thesis
             quad_new_dis_par = dis_fit_init
-            y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], quad_new_dis_par[0], quad_new_dis_par[1],
-                                          quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4])
-                                       #quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4], quad_new_dis_par[5])
+            y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
 
 
             for i in range(len(k_fit_params)):
@@ -1656,9 +1775,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
 
                     w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
-                    w_res_min = w_lims[i][0]
-                    w_res_max = w_lims[i][1]
-
                     # Calculate Breit-Wigner fit
                     y_bw = breit_wigner_res(w_res, mass, k, gamma)
                     damping = damping_function(w_res, w_dis_transition, damping_res_width)
@@ -1667,9 +1783,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                     # Calculate DIS fit
                     #y_dis = g1f1_quad2_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], quad2_dis_par[0], quad2_dis_par[1],
                     #               quad2_dis_par[2], quad2_dis_par[3])
-                    y_dis = g1f1_quad_new_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], quad_new_dis_par[0], quad_new_dis_par[1],
-                                              quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4])
-                                           #quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4], quad_new_dis_par[5])
+                    y_dis = g1f1_quad_new_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], *quad_new_dis_par)
 
                     # Fit residual function
                     w_fit = w_res[(w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)]
@@ -1697,8 +1811,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     
         # Define parameter bounds
         bounds = [
-            (1.0, 1.2),   # w_res_min
-            (1.3, 1.5),   # w_res_max
             (1.4, 1.6),   # w_dis_transition
             (1.6, 1.9),   # w_dis_region
             (0.01, 0.1),  # damping_res_width
@@ -1845,7 +1957,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     full_results_csv = "full_results.csv"
 
     # Assuming optimize_parameters_for_q2_bin now returns both best_params and uncertainties
-    param_names = ['w_res_min', 'w_res_max', 'w_dis_transition', 'w_dis_region', 'damping_res_width', 'damping_dis_width']
+    param_names = ['w_dis_transition', 'w_dis_region', 'damping_res_width', 'damping_dis_width']
 
     if not os.path.exists(full_results_csv):
         print(f"\n\nFile '{full_results_csv}' does not exist. Finding best parameters!")
@@ -1967,13 +2079,16 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
       # Read all parameters for this specific Q2 bin
-      w_res_min = q2_bin_params[l]['w_res_min']
-      w_res_max = q2_bin_params[l]['w_res_max']
       w_dis_transition = q2_bin_params[l]['w_dis_transition']
       w_dis_region = q2_bin_params[l]['w_dis_region']
       damping_res_width = q2_bin_params[l]['damping_res_width']
       damping_dis_width = q2_bin_params[l]['damping_dis_width']
 
+      w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
+      w_dis_region_err = q2_bin_errors[l]['w_dis_region']
+      damping_res_width_err = q2_bin_errors[l]['damping_res_width']
+      damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
+      
       best_chi = (-1, -1, -1, 10.0) # Initialize
       
       '''
@@ -1994,6 +2109,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       #fit_names = ["Quad*W-S", f"Spline, s={sk}"]
       fit_names = ["New", f"Spline, s={sk}"]
       '''
+      
       k_fit_params = [k_nucl_par]
       gamma_fit_params = [gamma_nucl_par]
       mass_fit_params = [mass_nucl_par]
@@ -2072,8 +2188,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
-              w_res_min = w_lims[i][0]
-              w_res_max = w_lims[i][1]
               W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -2134,12 +2248,15 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
       # Read all parameters for this specific Q2 bin
-      w_res_min = q2_bin_params[l]['w_res_min']
-      w_res_max = q2_bin_params[l]['w_res_max']
       w_dis_transition = q2_bin_params[l]['w_dis_transition']
       w_dis_region = q2_bin_params[l]['w_dis_region']
       damping_res_width = q2_bin_params[l]['damping_res_width']
       damping_dis_width = q2_bin_params[l]['damping_dis_width']      
+
+      w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
+      w_dis_region_err = q2_bin_errors[l]['w_dis_region']
+      damping_res_width_err = q2_bin_errors[l]['damping_res_width']
+      damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
 
       '''
       k_fit_params = [k_nucl_par]
@@ -2225,8 +2342,6 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
-              w_res_min = w_lims[i][0]
-              w_res_max = w_lims[i][1]              
               W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
@@ -2249,9 +2364,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       x_dis = W_to_x(w_dis, q2_array)
       #y_dis = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
       #                      quad2_dis_par[2], quad2_dis_par[3])
-      y_dis = g1f1_quad_new_DIS([x_dis, q2_array], quad_new_dis_par[0], quad_new_dis_par[1],
-                                quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4])
-                             #quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4], quad_new_dis_par[5])
+      y_dis = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
             
       axs[row, col].plot(w_dis, y_dis, color="r", label=f"Quad DIS Fit, $\\beta$ = {beta_val:.4f}", linestyle="--")
 
@@ -2306,12 +2419,15 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
       # Read all parameters for this specific Q2 bin
-      w_res_min = q2_bin_params[l]['w_res_min']
-      w_res_max = q2_bin_params[l]['w_res_max']
       w_dis_transition = q2_bin_params[l]['w_dis_transition']
       w_dis_region = q2_bin_params[l]['w_dis_region']
       damping_res_width = q2_bin_params[l]['damping_res_width']
       damping_dis_width = q2_bin_params[l]['damping_dis_width']      
+
+      w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
+      w_dis_region_err = q2_bin_errors[l]['w_dis_region']
+      damping_res_width_err = q2_bin_errors[l]['damping_res_width']
+      damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
 
       '''
       k_fit_params = [k_nucl_par]
@@ -2368,6 +2484,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                           # add constant parameters P0, P1, P2 for Woods-Saxon
                           k_args += [P for P in k_P_vals]
                       k = fit_funcs_k[i](*k_args)
+                      k_err = calculate_param_error(fit_funcs_k[i], k_args, k_nucl_err)
 
                   if j==1:
                       # spline gamma
@@ -2378,7 +2495,8 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                           # add constant parameters P0, P1, P2 for Woods-Saxon
                           gamma_args += [P for P in gamma_P_vals]
                       gamma = fit_funcs_gamma[j](*gamma_args)
-
+                      gamma_err = calculate_param_error(fit_funcs_gamma[i], gamma_args, gamma_nucl_err)
+                      
                   if ij==1:
                       # spline mass
                       mass = mass_fit_params[ij](q2)
@@ -2388,20 +2506,20 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                           # add constant parameters P0, P1, P2 for Woods-Saxon
                           mass_args += [P for P in mass_P_vals]
                       mass = fit_funcs_mass[ij](*mass_args)
-
-                  # calculate fitted curve
+                      mass_err = calculate_param_error(fit_funcs_mass[i], mass_args, mass_nucl_err)
+                      
+                  # Calculate Breit-Wigner fit
                   y = breit_wigner_res(w, mass, k, gamma)
+                  bw_err = propagate_bw_error(w, mass, mass_err, k, k_err, gamma, gamma_err)  # Error propagation
 
-                  # try getting a chi squared for this curve for w_res_min<W<w_res_max
-                  w_res_min = w_lims[i][0]
-                  w_res_max = w_lims[i][1]              
-                  W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
+                  # Chi-squared calculation for W in [w_res_min, w_res_max]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
                   y_cal = breit_wigner_res(W, mass, k, gamma)
-                  y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
-                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
-                  nu = abs(len(y_act)-3) # n points minus 3 fitted parameters (k, gamma, mass)
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  nu = abs(len(y_act) - 3)  # Number of points minus 3 fit parameters
                   chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
-
+            
                   axs[row, col].plot(w, y, markersize=m_size,
                                     label=f"$k$ {fit_names[i]} | $\Gamma$ {fit_names[j]} | M {fit_names[ij]} | $\chi_v^2$={chi2:.2f}",
                                     linestyle='dashed')
@@ -2416,9 +2534,7 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
       #                        quad2_dis_par[2], quad2_dis_par[3])
       # Table F.1 from XZ's thesis
       quad_new_dis_par = dis_fit_init
-      y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], quad_new_dis_par[0], quad_new_dis_par[1],
-                                    quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4])
-                                 #quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4], quad_new_dis_par[5])
+      y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
       
       axs[row, col].plot(w_dis, y_dis_new, color="violet", label=f"Quad DIS Fit, $\\beta$ = {beta_val:.4f}", linestyle="--")
 
@@ -2463,107 +2579,116 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
                       mass_args = args + [p for p in mass_params]
                       if ij==0:
                           # add constant parameters P0, P1, P2 for Woods-Saxon
+
                           mass_args += [P for P in mass_P_vals]
                       mass = fit_funcs_mass[ij](*mass_args)
 
+                  # Recalculate k, gamma, mass, and Breit-Wigner as in earlier loop
+                  # Calculate Breit-Wigner fit
                   w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
-                  w_res_min = w_lims[i][0]
-                  w_res_max = w_lims[i][1]
-
-                  # Calculate Breit-Wigner fit
                   y_bw = breit_wigner_res(w_res, mass, k, gamma)
+                  bw_err = propagate_bw_error(w_res, mass, mass_err, k, k_err, gamma, gamma_err)  # Error propagation
                   damping = damping_function(w_res, w_dis_transition, damping_res_width)
-                  y_bw_damped = y_bw * damping              
+                  damping_res_err = damping_function_err(w_res, w_dis_transition, w_dis_transition_err, damping_res_width, damping_res_width_err)  # Error propagation
+                  y_bw_damped = y_bw * damping
 
                   # Calculate DIS fit
-                  #y_dis = g1f1_quad2_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], 
-                  #                      quad2_dis_par[0], quad2_dis_par[1], quad2_dis_par[2], quad2_dis_par[3])
-                  y_dis = g1f1_quad_new_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)],
-                                            quad_new_dis_par[0], quad_new_dis_par[1], quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4])
-                                         #quad_new_dis_par[0], quad_new_dis_par[1], quad_new_dis_par[2], quad_new_dis_par[3], quad_new_dis_par[4], quad_new_dis_par[5])
+                  y_dis = g1f1_quad_new_DIS(
+                      [W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)],
+                      *quad_new_dis_par
+                  )
+                  
+                  #dis_fit_err = fit_error(W_to_x(w_res, np.full_like(w_res, q2)), q2, par_quad, par_err_quad, corr_quad, partials_new)
+                  dis_err = propagate_dis_error(
+                      quad_fit_err
+                      #dis_fit_err
+                  )  # Error propagation
 
                   # Fit residual function
                   w_fit = w_res[(w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)]
-                  residual_fit = y_dis[(w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)]\
-                                - y_bw_damped[(w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)]
-                  popt, pcov = curve_fit(lambda W, a, b, c: residual_function(W, a, b, c, w_dis_region), 
-                                       w_fit, residual_fit, p0=[0, 0, 0])
+                  residual_fit = y_dis[
+                      (w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)
+                  ] - y_bw_damped[
+                      (w_res >= w_dis_transition - 0.05) & (w_res <= w_dis_transition + 0.05)
+                  ]
+                  popt, pcov = curve_fit(
+                      lambda W, a, b, c: residual_function(W, a, b, c, w_dis_region),
+                      w_fit,
+                      residual_fit,
+                      p0=[0, 0, 0],
+                  )
+
+                  residual_err = propagate_residual_error(w_res, popt, pcov, residual_function, w_dis_region)
 
                   # Calculate the complete fit
-                  y_dis_transition = y_bw_damped + (1 - damping) * (y_dis - residual_function(w_res, *popt, w_dis_region))
+                  y_dis_transition = y_bw_damped + (1 - damping) * (
+                      y_dis - residual_function(w_res, *popt, w_dis_region)
+                  )
+                  transition_err = propagate_transition_error(
+                      w_res,
+                      bw_err,
+                      residual_err,
+                      damping_res_err,
+                      w_res_min,
+                      w_res_max,
+                      w_dis_transition
+                  ) # Error propagation
 
                   # Ensure smooth transition to DIS
-                  dis_transition = damping_function(w_res, w_dis_region, damping_dis_width)                
+                  dis_transition = damping_function(w_res, w_dis_region, damping_dis_width)
+                  damping_dis_err = damping_function_err(w_res, w_dis_region, w_dis_region_err, damping_dis_width, damping_dis_width_err)  # Error propagation
+                  
                   y_complete = y_dis_transition * dis_transition + y_dis * (1 - dis_transition)
-
-                  # Fit the existing y_complete to get covariance
-                  def fit_func(w, *params):
-                      return np.polyval(params, w)  # Use polynomial to reproduce the shape
-
-                  # Use high degree polynomial to capture the shape accurately
-                  degree = 15
-                  initial_params = np.ones(degree + 1)
-
-                  # Fit y_complete to get covariance matrix
-                  popt_fit, pcov_fit = curve_fit(fit_func, w_res, y_complete, p0=initial_params)
-
-                  perr_fit = np.sqrt(np.diag(pcov_fit))
-
-                  # Compute the Jacobian matrix
-                  def jacobian(x, params):
-                      # Numerical approximation of Jacobian
-                      epsilon = np.sqrt(np.finfo(float).eps)
-                      return np.array([
-                          (fit_func(x, *(params + epsilon * np.eye(len(params))[i])) - 
-                           fit_func(x, *(params - epsilon * np.eye(len(params))[i]))) / 
-                          (2 * epsilon) for i in range(len(params))
-                      ]).T
-
-                  # Compute fit and error bars
-                  y_fitted = fit_func(w_res, *popt_fit)
-                  J = jacobian(w_res, popt_fit)
-                  fit_var = np.sum(J @ pcov_fit * J, axis=1)  # Variance of the fit
-                  y_err = np.sqrt(fit_var)              # Standard deviation (error)                  
+                                    
+                  complete_err = propagate_complete_error(
+                      w_res,
+                      transition_err,
+                      damping_dis_err,
+                      dis_err,
+                      w_res_min,
+                      w_dis_transition,
+                      w_dis_region,
+                      w_max
+                  ) # Error propagation
                   
-                  interp_func = interp1d(res_df['W'][res_df['Q2_labels']==l], res_df['G1F1.err'][res_df['Q2_labels'] == l], kind='linear', bounds_error=False, fill_value="extrapolate")
-                  y_data_err_aligned = interp_func(w_res)  # Align y_data_err to w_res
+                  #print("!!!!!!!!!!!!",complete_err)
+                  axs[row, col].plot(
+                      w_res,
+                      y_complete,
+                      color="blue",
+                      linestyle="solid",
+                      label=f"Complete Fit",
+                  )
+                  axs[row, col].fill_between(
+                      w_res,
+                      y_complete - complete_err,
+                      y_complete + complete_err,
+                      color="blue",
+                      alpha=0.3,
+                      label="Fit Error",
+                  )
+
+                  x_res = W_to_x(w_res, np.full_like(w_res, q2))
                   
-                  # Total variance (data variance + fit variance)
-                  total_var = y_err**2 + y_data_err_aligned**2
-                  total_err = np.sqrt(total_var)
+                  # Create a twin axis that shares the y-axis
+                  ax2 = axs[row, col].twiny()
 
-                  def moving_average(data, window_size):
-                      window_size = min(window_size, len(data))  # Ensure window size isn't larger than data
-                      if window_size % 2 == 0:  # Make window size odd
-                          window_size -= 1
-                      if window_size < 3:  # Ensure minimum window size of 3
-                          window_size = 3
-                      return np.convolve(data, np.ones(window_size)/window_size, mode='same')
+                  # Plot the same data against x_res (but make it invisible)
+                  ax2.plot(x_res, y_complete, alpha=0)
 
-                  # Smooth total_err with moving average
-                  window_size = 501  # Adjust for desired smoothness
-                  smoothed_total_err = moving_average(total_err, window_size)
+                  ax2.set_xlabel(r"$x_{Bj}$")
 
-                  # Plot original, fitted function, and error bands
-                  axs[row, col].plot(w_res, y_complete, markersize=m_size,
-                                   label=f"Original y_complete",
-                                   linestyle='dashdot')
+                  # This should force the x-axis limits to match your x_res range
+                  ax2.set_xlim(min(x_res), max(x_res))
 
-                  axs[row, col].plot(w_res, y_fitted, markersize=m_size,
-                                   label=f"Polynomial Fit",
-                                   linestyle='dotted', color='red')
-                  
-                  axs[row, col].fill_between(w_res, y_complete - smoothed_total_err, y_complete + smoothed_total_err, 
-                                           alpha=0.2, label='1σ confidence band')
-                
       # plot the data
       axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
                     res_df['G1F1'][res_df['Q2_labels']==l],
                     yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
                     fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
                     capthick=cap_thick)
-              
+      
       axs[row,col].legend()
       # set axes limits
       axs[row,col].axhline(0, color="black", linestyle="--")
@@ -2578,150 +2703,5 @@ with PdfPages("plots/g1f1_fits.pdf") as pdf:
     # Save figure
     pdf.savefig(fig,bbox_inches="tight")
     
-    ###
-
-    # ## Fit $g_1/F_1$ DIS data with neutron form from Xiaochao's thesis
-    # $g_1/F_1 = (a+bx+cx^2)(1+β/Q^2)$
-    # 
-    # Downward trend cubic form
-    # $g_1/F_1 = (a+bx+cx^2+dx^3)(1+β/Q^2)$
-
-    # In[17]:
-
-    # In[19]:
-
-
-    # independent variable data to feed to curve fit, X and Q2
-    #indep_data = [dis_df['X'], dis_df['Q2']]
-
-    '''
-    # fit g1f1 DIS data with cubic form
-    # initial guess for a,b,c,d,beta
-    cubic_dis_init = (-.03, -.02, 0.3, -.22, 0.1)
-    par_cub, cov_cub, par_err_cub, chi2_cub = fit(g1f1_cubic_DIS, indep_data,
-                                                  dis_df['G1F1'],
-                                                  dis_df['G1F1.err'],
-                                                  cubic_dis_init,
-                                                  ["a", "b", "c", "d", "beta"])
-    '''
-
-    '''
-    # fit the g1f1 DIS data with constrained quadratic form
-    quad2_init = [0.16424, -.02584, 0.16632, 0.11059]
-    quad2_constr = ([0.12, -.05, 0.10, 0.105],
-                    [0.20, -.00, 0.20, 0.115]) # min and max bounds on x0, y0, c, and beta
-    par_quad, cov_quad, par_err_quad, chi2_quad = fit(g1f1_quad2_DIS, indep_data,
-                                                      dis_df['G1F1'],
-                                                      dis_df['G1F1.err'],
-                                                      quad2_init,
-                                                      ["x0", "y0", "c", "beta"],
-                                                      constr=quad2_constr)
-    '''
-    
-    # In[20]:
-
-
-    # Generate fitted curve using the fitted parameters for constant q2
-    x = np.linspace(0,1.0,1000, dtype=np.double)
-    q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
-
-    #args3 = [[x, q2]] + [p for p in par_cub]
-    #args2 = [[x, q2]] + [p for p in par_quad]
-
-    args_new = [[x, q2]] + [p for p in dis_fit_init]    
-
-    #cubic_fit_curve = g1f1_cubic_DIS(*args3)
-    #quad_fit_curve = g1f1_quad2_DIS(*args2)
-    #quad_fit_curve = g1f1_quad_new_DIS(*args2)
-
-    quad_new_fit_curve = g1f1_quad_new_DIS(*args_new)
-
-    # In[21]:
-
-    # # list of partials for parameters (index 0 is for a -> index 3 is for beta)
-    partials2 = [partial_a2, partial_b2, partial_c2, partial_beta2]
-
-    # list of partials for parameters (index 0 is for a -> index 4 is for beta)
-    partials3 = [partial_a3, partial_b3, partial_c3, partial_d3, partial_beta3]
-
-    # list of partials for constrained quadratic form
-    partials4 = [partial_x0, partial_y0, partial_c4, partial_beta4]
-    
-    # Table F.1 from XZ's thesis
-    #partials_new = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_d_new, partial_beta_new]
-    partials_new = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
-
-    def fit_error(x, q2, par, par_sigmas, pcov, partials):
-      """
-      Equation F.5 from Xiaochao's thesis
-      x: X array
-      q2: Q2 array
-      par: fit parameters
-      par_sigmas: list of errors in parameters
-      pcov: covariance matrix
-      partials: list of partial functions for the fit function
-      return: array of errors in fitted points
-      """
-      # initialize fit variance array
-      y_err = np.zeros(len(x))
-
-      for i in range(len(par)):
-        y_err += (partials[i](x,q2,par)**2) * par_sigmas[i]**2 * pcov[i][i]
-
-        for j in range(i+1, len(par)):
-          if i != j:
-              y_err += 2 * (partials[i](x,q2,par) * partials[j](x,q2,par)) * (par_sigmas[i] * par_sigmas[j]) * pcov[i][j]
-
-      return np.sqrt(y_err)
-
-
-    # In[22]:
-
-
-    #cubic_fit_err = fit_error(x, q2, par_cub, par_err_cub, cov_cub, partials3)
-
-    # quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, cov_quad, partials2)
-    ##quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, cov_quad, partials_new)
-    quad_fit_err = fit_error(x, q2, par_quad, par_err_quad, corr_quad, partials_new)
-
-    # In[23]:
-
-
-    # make figure
-    fig, (ax1) = plt.subplots(1, 1, figsize=(18,10))
-
-    # formatting variables
-    m_size = 6
-    cap_size = 2
-    cap_thick = 1
-    m_type = '.'
-    colors = ("red", "darkorange", "limegreen",
-              "darkslategray", "darkblue", "rebeccapurple",
-              "darkmagenta")
-
-    # plot w/ labels
-    for i,l in enumerate(dis_df['Label'].unique()):
-      ax1.errorbar(dis_df['X'][dis_df['Label']==l],
-                    dis_df['G1F1'][dis_df['Label']==l],
-                    yerr=dis_df['G1F1.err'][dis_df['Label']==l],
-                    fmt=m_type, color=colors[i], markersize=m_size, capsize=cap_size,
-                    label=l, capthick=cap_thick)
-
-
-    # plot fit and fit error
-    #ax1.plot(x, cubic_fit_curve, label="Cubic Fit, $Q^2=5\ {GeV}^2$" + f" $\chi_v^2={chi2_cub:.2f}$")
-    #ax1.fill_between(x, cubic_fit_curve-cubic_fit_err, cubic_fit_curve+cubic_fit_err, alpha=0.5)
-    ax1.plot(x, quad_new_fit_curve, label="Quadratic Fit, $Q^2=5\ {GeV}^2$" + f" $\chi_v^2={chi2_quad:.2f}$", color="darkred")
-    ax1.fill_between(x, quad_new_fit_curve-quad_fit_err, quad_new_fit_curve+quad_fit_err, alpha=0.5, color="darkred")
-    ax1.axhline(y=0, color="black", linestyle="dashed")
-
-    ax1.legend()
-    fig.tight_layout()
-    fig.text(0.53, 0.001, "X", ha='center', va='center')
-    fig.text(0.001, 0.56, '$g_1^{^{3}He}/F_1^{^{3}He}$', ha='center', va='center', rotation='vertical')
-
-    # Save figure
-    pdf.savefig(fig,bbox_inches="tight")
-
 show_pdf_with_evince("plots/g1f1_fits.pdf")
     

@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-16 14:53:26 trottar"
+# Time-stamp: "2025-01-21 12:32:01 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -392,6 +392,8 @@ def weighted_avg(y, w=1):
 
   return np.sum(y*w)/np.sum(w)
 
+#######################################################################
+
 def partial_k(w, M, k, gamma):
     """
     Partial derivative of the Breit-Wigner resonance formula with respect to k.
@@ -399,7 +401,6 @@ def partial_k(w, M, k, gamma):
     numerator = M**2 * gamma**2
     denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
     return numerator / denominator
-
 
 def partial_gamma(w, M, k, gamma):
     """
@@ -410,7 +411,6 @@ def partial_gamma(w, M, k, gamma):
     denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
     denominator_squared = denominator**2
     return (numerator_1 / denominator) - (numerator_2 / denominator_squared)
-
 
 def partial_mass(w, M, k, gamma):
     """
@@ -423,6 +423,18 @@ def partial_mass(w, M, k, gamma):
     denominator = ((w**2 - M**2)**2 + M**2 * gamma**2)
     denominator_squared = denominator**2
     return (numerator_1 / denominator) - (numerator_2 / denominator_squared)
+
+def partial_damp_W_transition(W, W_transition, width):
+    """Partial derivative with respect to W_transition"""
+    return (1/(width * (1 + np.exp((W - W_transition)/width))**2) * 
+            np.exp((W - W_transition)/width))
+
+def partial_damp_width(W, W_transition, width):
+    """Partial derivative with respect to width"""
+    return ((W - W_transition)/(width**2 * (1 + np.exp((W - W_transition)/width))**2) * 
+            np.exp((W - W_transition)/width))
+
+#######################################################################
 
 # determine uncertainty in the fit
 # partial functions for quadratic and cubic forms
@@ -559,10 +571,6 @@ def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, beta):
 def g1f1_cubic_DIS(x_q2, a, b , c, d, beta):
   return (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0])*(1+(beta/x_q2[1]))
 
-def residual_function(W, a, b, c, W_transition):
-    """A simple polynomial function to fit the residual"""
-    return a * (W - W_transition)**2 + b * (W - W_transition) + c
-
 def damping_function(W, W_transition, width):
     """Woods-Saxon function for smooth damping"""
     return 1 / (1 + np.exp((W - W_transition) / width))
@@ -643,38 +651,6 @@ def damping_function_err(w, w_transition, w_transition_err, damping_width, dampi
     propagated_error = np.sqrt((dw_trans * w_transition_err)**2 + (dwidth * damping_width_err)**2)
     return propagated_error
 
-def propagate_residual_error(w_res, popt, pcov, residual_function, w_dis_transition):
-    """
-    Propagate errors for the residual fit using Jacobian matrix.
-    
-    Parameters:
-    - w_res: W_res values (array) [shape (1000,)]
-    - popt: Optimal parameters from curve fitting [shape (3,)]
-    - pcov: Covariance matrix from curve fitting [shape (3, 3)]
-    - residual_function: Residual function used in the fit
-    - w_dis_transition: Region parameter for the residual function
-    
-    Returns:
-    - Propagated errors for residual fit at each w_res point [shape (1000,)]
-    """
-    
-    # Compute the Jacobian matrix (keep original error calculation)
-    def jacobian(x, params):
-        epsilon = np.sqrt(np.finfo(float).eps)
-        return np.array([
-            (residual_function(x, *(params + epsilon * np.eye(len(params))[i]), w_dis_transition) - 
-             residual_function(x, *(params - epsilon * np.eye(len(params))[i]), w_dis_transition)) / 
-            (2 * epsilon) for i in range(len(params))
-        ]).T
-
-    # Compute fit and error bars
-    fit = residual_function(w_res, *popt, w_dis_transition)
-    J = jacobian(w_res, popt)
-    fit_var = np.sum(J @ pcov * J, axis=1)
-    fit_err = np.sqrt(fit_var)    
-
-    return fit_err
-
 def propagate_dis_error(fit_errs):
     """
     Propagate errors for the DIS fit, handling NaN values in dx and fit_errs.
@@ -691,25 +667,22 @@ def propagate_dis_error(fit_errs):
 
     return fit_errs
 
-def propagate_transition_error(w, bw_err, residual_err, damping_res_err, w_res_min, w_res_max, w_res_transition):
+def propagate_transition_error(w, bw_err, w_res_min, w_res_max):
     """
     Propagate errors for the transition between Breit-Wigner and DIS with region-dependent scaling factors.
     The sum of alpha and beta is 1.0 for each region.
 
     Parameters:
-    - w: List of W values (in the region [w_res_min, w_res_transition])
+    - w: List of W values
     - bw_err: List of errors in Breit-Wigner fit
-    - residual_err: List of errors in residual fit
-    - damping_res_err: List of errors in damping_res function
     - w_res_min: Minimum value of W for the Breit-Wigner region
     - w_res_max: Maximum value of W for the Breit-Wigner region
-    - w_res_transition: W value marking the start of the DIS transition region
     
     Returns:
     - List of propagated errors for the transition
     """
     # Ensure all input lists are of the same length
-    if not (len(w) == len(bw_err) == len(residual_err) == len(damping_res_err)):
+    if not (len(w) == len(bw_err)):
         raise ValueError("All input lists must have the same length.")
     
     # Initialize the total propagated errors list
@@ -722,18 +695,13 @@ def propagate_transition_error(w, bw_err, residual_err, damping_res_err, w_res_m
         if w[i] >= w_res_min and w[i] <= w_res_max:
             alpha, beta = 1.0, 0.0
             error = np.sqrt((alpha * bw_err[i])**2)
-
-        # Region 2: [w_res_max, w_res_transition], where beta = 1.0 and alpha = 0.0
-        elif w[i] > w_res_max and w[i] <= w_res_transition:
-            alpha, beta = 0.0, 1.0
-            error = np.sqrt(beta * (residual_err[i]**2 + damping_res_err[i]**2))
-
+            
         # Append the error to the results list
         propagated_errors.append(error)
     
     return propagated_errors
 
-def propagate_complete_error(w, transition_err, damping_dis_err, dis_err, w_res_min, w_res_transition, w_dis_transition, w_max):
+def propagate_complete_error(w, transition_err, damping_dis_err, dis_err, w_res_min, w_res_max, w_dis_transition, w_max):
     """
     Propagate errors for the complete fit over a range of W values, including region-dependent scaling factors.
     The sum of alpha, beta, and gamma is 1.0 for each region.
@@ -761,9 +729,9 @@ def propagate_complete_error(w, transition_err, damping_dis_err, dis_err, w_res_
     for i in range(len(w)):
 
         # Region-dependent scaling factors
-        if w[i] >= w_res_min and w[i] <= w_res_transition:
+        if w[i] >= w_res_min and w[i] <= w_res_max:
             alpha, beta, gamma = 1.0, 0.0, 0.0
-        elif w[i] >= w_res_transition and w[i] <= w_dis_transition:
+        elif w[i] >= w_res_max and w[i] <= w_dis_transition:
             alpha, beta, gamma = 0.0, 1.0, 0.0
         else:
             alpha, beta, gamma = 0.0, 0.0, 1.0

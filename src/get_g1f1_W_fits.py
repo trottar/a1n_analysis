@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-17 13:44:41 trottar"
+# Time-stamp: "2025-01-21 12:35:15 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -19,12 +19,11 @@ import os
 
 ##################################################################################################################################################
 
-from functions import x_to_W, W_to_x, red_chi_sqr, \
+from functions import x_to_W, W_to_x, red_chi_sqr,\
     breit_wigner_wrapper, breit_wigner_res, propagate_bw_error, \
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, g1f1_quad_new_DIS, \
     calculate_param_error, \
     damping_function, damping_function_err, \
-    residual_function, propagate_residual_error, \
     propagate_transition_error, propagate_complete_error, \
     propagate_dis_error
 
@@ -41,7 +40,7 @@ def get_g1f1_W_fits(
     def optimize_parameters_for_q2_bin(res_df, l, k_nucl_par, gamma_nucl_par, mass_nucl_par, k_P_vals, gamma_P_vals, mass_P_vals, w_lims):
         def objective_function(params):
 
-            w_res_transition, w_dis_transition, damping_res_width, damping_dis_width = params
+            w_dis_transition, damping_dis_width = params
 
             q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
@@ -108,10 +107,10 @@ def get_g1f1_W_fits(
                       y = breit_wigner_res(w, mass, k, gamma)
 
                       # try getting a chi squared for this curve for w_res_min<W<w_res_max
-                      W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
+                      W = res_df['W']
                       y_cal = breit_wigner_res(W, mass, k, gamma)
-                      y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
-                      y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
+                      y_act = res_df['G1F1']
+                      y_act_err = res_df['G1F1.err']
               
             w_dis = np.linspace(2.0,3.0,1000)
             q2_array = np.ones(w_dis.size)*q2
@@ -172,25 +171,17 @@ def get_g1f1_W_fits(
 
                     # Calculate Breit-Wigner fit
                     y_bw = breit_wigner_res(w_res, mass, k, gamma)
-                    damping_res = damping_function(w_res, w_res_transition, damping_res_width)
-                    y_bw_damped = y_bw * damping_res
 
                     # Calculate DIS fit
                     y_dis = g1f1_quad_new_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], *quad_new_dis_par)
-
-                    # Fit residual function
-                    w_fit = w_res[(w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)]
-                    residual_fit = y_dis[(w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)]\
-                                   - y_bw_damped[(w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)]
-                    popt, pcov = curve_fit(lambda W, a, b, c: residual_function(W, a, b, c, w_dis_transition), w_fit, residual_fit, p0=[0, 0, 0])
-
+                    
                     # Calculate the complete fit
-                    y_dis_transition = y_bw_damped - ((damping_res * y_dis) + (1 - damping_res) * residual_function(w_res, *popt, w_dis_transition)))
+                    y_transition = (y_bw - y_dis)
 
                     # Ensure smooth transition to DIS
                     damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-                    y_complete = y_dis_transition * damping_dis + y_dis
-
+                    y_complete = y_transition * damping_dis + y_dis
+                    
                     interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
                     y_complete_interpolated = interp_func(res_df['W'][res_df['Q2_labels']==l])
                     
@@ -204,14 +195,8 @@ def get_g1f1_W_fits(
     
         # Define parameter bounds
         bounds = [
-            (w_res_max, 1.8),   # w_res_transition
-            (w_res_max, 1.8),   # w_dis_transition
-            (0.03, 0.8),  # damping_res_width
+            (w_res_max, 1.9),   # w_dis_transition
             (0.1, 0.8)   # damping_dis_width            
-            #(1.3, 1.9),   # w_res_transition
-            #(1.5, 1.9),   # w_dis_transition
-            #(0.03, 0.3),  # damping_res_width
-            #(0.1, 0.3)   # damping_dis_width
         ]
 
         # Run differential evolution for this Q2 bin
@@ -278,7 +263,7 @@ def get_g1f1_W_fits(
     full_results_csv = "../fit_data/full_results.csv"
 
     # Assuming optimize_parameters_for_q2_bin now returns both best_params and uncertainties
-    param_names = ['w_res_transition', 'w_dis_transition', 'damping_res_width', 'damping_dis_width']
+    param_names = ['w_dis_transition', 'damping_dis_width']
 
     if not os.path.exists(full_results_csv):
         print(f"\n\nFile '{full_results_csv}' does not exist. Finding best parameters!")
@@ -600,7 +585,7 @@ def get_g1f1_W_fits(
 
         # Save figure
         pdf.savefig(fig, bbox_inches="tight")
-
+        
     # Print best fit results
     for name, results in best_fit_results.items():
         print(f"\nBest results for parameter {name}:")
@@ -623,14 +608,10 @@ def get_g1f1_W_fits(
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
       # Read all parameters for this specific Q2 bin
-      w_res_transition = q2_bin_params[l]['w_res_transition']
       w_dis_transition = q2_bin_params[l]['w_dis_transition']
-      damping_res_width = q2_bin_params[l]['damping_res_width']
       damping_dis_width = q2_bin_params[l]['damping_dis_width']      
 
-      w_res_transition_err = q2_bin_errors[l]['w_res_transition']
       w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
-      damping_res_width_err = q2_bin_errors[l]['damping_res_width']
       damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
 
       k_fit_params = [k_nucl_par]
@@ -697,10 +678,10 @@ def get_g1f1_W_fits(
               y = breit_wigner_res(w, mass, k, gamma)
 
               # try getting a chi squared for this curve for w_res_min<W<w_res_max
-              W = res_df['W'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
+              W = res_df['W']
               y_cal = breit_wigner_res(W, mass, k, gamma)
-              y_act = res_df['G1F1'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
-              y_act_err = res_df['G1F1.err'][res_df['Q2_labels']==l][res_df['W']<=w_res_max][res_df['W']>=w_res_min]
+              y_act = res_df['G1F1']
+              y_act_err = res_df['G1F1.err']
               nu = abs(len(y_act)-3) # n points minus 3 fitted parameters (k, gamma, mass)
               chi2 = red_chi_sqr(y_cal, y_act, y_act_err, nu)
 
@@ -752,14 +733,234 @@ def get_g1f1_W_fits(
       q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
 
       # Read all parameters for this specific Q2 bin
-      w_res_transition = q2_bin_params[l]['w_res_transition']
       w_dis_transition = q2_bin_params[l]['w_dis_transition']
-      damping_res_width = q2_bin_params[l]['damping_res_width']
       damping_dis_width = q2_bin_params[l]['damping_dis_width']      
 
-      w_res_transition_err = q2_bin_errors[l]['w_res_transition']
       w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
-      damping_res_width_err = q2_bin_errors[l]['damping_res_width']
+      damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
+      
+      k_fit_params = [k_nucl_par]
+      gamma_fit_params = [gamma_nucl_par]
+      mass_fit_params = [mass_nucl_par]
+      fit_funcs_k = [quad_nucl_curve_k]
+      fit_funcs_gamma = [quad_nucl_curve_gamma]
+      fit_funcs_mass = [quad_nucl_curve_mass]
+      fit_names = ["New"]
+      
+      # select desired k, gamma fits to be used by index
+      # [(i, j, l),...] where i=index for k fit, j=index for gamma fit, l=index for M fit
+      chosen_fits = [(0, 0, 0)] # k Quad, gamma Quad, M Quad
+
+      for i in range(len(k_fit_params)):
+          k_params = k_fit_params[i]
+          args = [q2]
+
+          for j in range(len(gamma_fit_params)):
+              gamma_params = gamma_fit_params[j]
+
+              for ij in range(len(mass_fit_params)):
+                  if (i, j, ij) not in chosen_fits:
+                      # skip combinations that aren't desired
+                      continue
+
+                  mass_params = mass_fit_params[ij]
+
+                  if i==1:
+                      # spline k
+                      k = k_fit_params[i](q2)
+                  else:
+                      k_args = args + [p for p in k_params]
+                      if i==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          k_args += [P for P in k_P_vals]
+                      k = fit_funcs_k[i](*k_args)
+                      k_err = calculate_param_error(fit_funcs_k[i], k_args, k_nucl_err)
+
+                  if j==1:
+                      # spline gamma
+                      gamma = gamma_fit_params[j](q2)
+                  else:
+                      gamma_args = args + [p for p in gamma_params]
+                      if j==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          gamma_args += [P for P in gamma_P_vals]
+                      gamma = fit_funcs_gamma[j](*gamma_args)
+                      gamma_err = calculate_param_error(fit_funcs_gamma[i], gamma_args, gamma_nucl_err)
+                      
+                  if ij==1:
+                      # spline mass
+                      mass = mass_fit_params[ij](q2)
+                  else:
+                      mass_args = args + [p for p in mass_params]
+                      if ij==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          mass_args += [P for P in mass_P_vals]
+                      mass = fit_funcs_mass[ij](*mass_args)
+                      mass_err = calculate_param_error(fit_funcs_mass[i], mass_args, mass_nucl_err)
+
+                  # Main analysis code structure
+                  y = breit_wigner_res(w, mass, k, gamma)
+
+                  # Chi-squared calculation for W in [w_res_min, w_res_max]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_cal = breit_wigner_res(W, mass, k, gamma)
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                                  
+                  axs[row, col].plot(w, y, markersize=m_size,
+                                    linestyle='dashed')
+
+      w_dis = np.linspace(2.0,3.0,1000)
+      q2_array = np.ones(w_dis.size)*q2
+      x_dis = W_to_x(w_dis, q2_array)
+
+      # original DIS fit params x0, y0, c, beta
+      #quad2_dis_par = [0.16424, -.02584, 0.16632, 0.11059]
+      #y_dis_new = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
+      #                        quad2_dis_par[2], quad2_dis_par[3])
+      # Table F.1 from XZ's thesis
+      quad_new_dis_par = dis_fit_params["par_quad"]
+      y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
+      
+      for i in range(len(k_fit_params)):
+          k_params = k_fit_params[i]
+          args = [q2]
+
+          for j in range(len(gamma_fit_params)):
+              gamma_params = gamma_fit_params[j]
+
+              for ij in range(len(mass_fit_params)):
+                  if (i, j, ij) not in chosen_fits:
+                      # skip combinations that aren't desired
+                      continue
+
+                  mass_params = mass_fit_params[ij]
+
+                  if i==1:
+                      # spline k
+                      k = k_fit_params[i](q2)
+                  else:
+                      k_args = args + [p for p in k_params]
+                      if i==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          k_args += [P for P in k_P_vals]
+                      k = fit_funcs_k[i](*k_args)
+
+                  if j==1:
+                      # spline gamma
+                      gamma = gamma_fit_params[j](q2)
+                  else:
+                      gamma_args = args + [p for p in gamma_params]
+                      if j==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          gamma_args += [P for P in gamma_P_vals]
+                      gamma = fit_funcs_gamma[j](*gamma_args)
+
+                  if ij==1:
+                      # spline mass
+                      mass = mass_fit_params[ij](q2)
+                  else:
+                      mass_args = args + [p for p in mass_params]
+                      if ij==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+
+                          mass_args += [P for P in mass_P_vals]
+                      mass = fit_funcs_mass[ij](*mass_args)
+
+                  # Recalculate k, gamma, mass, and Breit-Wigner as in earlier loop
+                  # Calculate Breit-Wigner fit
+                  w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
+
+                  y_bw = breit_wigner_res(w_res, mass, k, gamma)
+
+                  bw_err = propagate_bw_error(
+                      w_res, mass, mass_err, k, k_err, gamma, gamma_err
+                  )
+
+                  # Calculate DIS fit
+                  y_dis = g1f1_quad_new_DIS(
+                      [W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)],
+                      *quad_new_dis_par
+                  )
+                  
+                  dis_err = propagate_dis_error(
+                      quad_fit_err
+                  )  # Error propagation
+
+                  # Calculate the complete fit
+                  y_transition = (y_bw - y_dis)
+                  transition_err = propagate_transition_error(
+                      w_res,
+                      bw_err,
+                      w_res_min,
+                      w_res_max,
+                  ) # Error propagation
+
+                  # Ensure smooth transition to DIS
+                  damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
+                  damping_dis_err = damping_function_err(                      
+                      w_res, w_dis_transition, w_dis_transition_err, damping_dis_width, damping_dis_width_err
+                  )  # Error propagation
+                  
+                  y_complete = y_transition * damping_dis + y_dis
+                                    
+                  complete_err = propagate_complete_error(
+                      w_res,
+                      transition_err,
+                      damping_dis_err,
+                      dis_err,
+                      w_res_min,
+                      w_res_max,
+                      w_dis_transition,
+                      w_max
+                  ) # Error propagation
+
+                  axs[row, col].plot(
+                      w_res,
+                      damping_dis,
+                      color="red",
+                      linestyle="-.",
+                      label=f"damping_dis",
+                  )
+                  
+      # plot the data
+      axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
+                    res_df['G1F1'][res_df['Q2_labels']==l],
+                    yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
+                    fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
+                    capthick=cap_thick)
+      
+      axs[row,col].legend()
+      # set axes limits
+      axs[row,col].axhline(0, color="black", linestyle="--")
+      axs[row,col].set_xlim(0.9,2.5)
+      axs[row,col].set_title(l)
+
+    fig.tight_layout()
+    fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', size = 14)
+    fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', size=16)
+
+    # Save figure
+    pdf.savefig(fig,bbox_inches="tight")        
+
+    # make figure
+    n_col = 5
+    num_plots = len(res_df['Q2_labels'].unique())
+    n_rows = num_plots//n_col + 1
+    fig, axs = plt.subplots(num_plots//n_col + 1, n_col, figsize=(n_col*6.5,n_rows*6))
+
+    # make fit curves and plot with data
+    for i,l in enumerate(res_df['Q2_labels'].unique()):
+      row = i//n_col
+      col = i%n_col
+
+      q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
+
+      # Read all parameters for this specific Q2 bin
+      w_dis_transition = q2_bin_params[l]['w_dis_transition']
+      damping_dis_width = q2_bin_params[l]['damping_dis_width']      
+
+      w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
       damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
       
       k_fit_params = [k_nucl_par]
@@ -823,7 +1024,255 @@ def get_g1f1_W_fits(
                       
                   # Calculate Breit-Wigner fit
                   y = breit_wigner_res(w, mass, k, gamma)
-                  bw_err = propagate_bw_error(w, mass, mass_err, k, k_err, gamma, gamma_err)  # Error propagation
+
+                  bw_err = propagate_bw_error(
+                      w_res, mass, mass_err, k, k_err, gamma, gamma_err
+                  )
+
+                  # Chi-squared calculation for W in [w_res_min, w_res_max]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_cal = breit_wigner_res(W, mass, k, gamma)
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+            
+                  axs[row, col].plot(w, y, markersize=m_size,
+                                    linestyle='dashed')
+
+      w_dis = np.linspace(2.0,3.0,1000)
+      q2_array = np.ones(w_dis.size)*q2
+      x_dis = W_to_x(w_dis, q2_array)
+
+      # original DIS fit params x0, y0, c, beta
+      #quad2_dis_par = [0.16424, -.02584, 0.16632, 0.11059]
+      #y_dis_new = g1f1_quad2_DIS([x_dis, q2_array], quad2_dis_par[0], quad2_dis_par[1],
+      #                        quad2_dis_par[2], quad2_dis_par[3])
+      # Table F.1 from XZ's thesis
+      quad_new_dis_par = dis_fit_params["par_quad"]
+      y_dis_new = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
+      
+      for i in range(len(k_fit_params)):
+          k_params = k_fit_params[i]
+          args = [q2]
+
+          for j in range(len(gamma_fit_params)):
+              gamma_params = gamma_fit_params[j]
+
+              for ij in range(len(mass_fit_params)):
+                  if (i, j, ij) not in chosen_fits:
+                      # skip combinations that aren't desired
+                      continue
+
+                  mass_params = mass_fit_params[ij]
+
+                  if i==1:
+                      # spline k
+                      k = k_fit_params[i](q2)
+                  else:
+                      k_args = args + [p for p in k_params]
+                      if i==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          k_args += [P for P in k_P_vals]
+                      k = fit_funcs_k[i](*k_args)
+
+                  if j==1:
+                      # spline gamma
+                      gamma = gamma_fit_params[j](q2)
+                  else:
+                      gamma_args = args + [p for p in gamma_params]
+                      if j==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          gamma_args += [P for P in gamma_P_vals]
+                      gamma = fit_funcs_gamma[j](*gamma_args)
+
+                  if ij==1:
+                      # spline mass
+                      mass = mass_fit_params[ij](q2)
+                  else:
+                      mass_args = args + [p for p in mass_params]
+                      if ij==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+
+                          mass_args += [P for P in mass_P_vals]
+                      mass = fit_funcs_mass[ij](*mass_args)
+
+                  # Recalculate k, gamma, mass, and Breit-Wigner as in earlier loop
+                  # Calculate Breit-Wigner fit
+                  w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
+
+                  y_bw = breit_wigner_res(w_res, mass, k, gamma)
+
+                  bw_err = propagate_bw_error(
+                      w_res, mass, mass_err, k, k_err, gamma, gamma_err
+                  )
+
+                  # Calculate DIS fit
+                  y_dis = g1f1_quad_new_DIS(
+                      [W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)],
+                      *quad_new_dis_par
+                  )
+                  
+                  dis_err = propagate_dis_error(
+                      quad_fit_err
+                  )  # Error propagation
+
+                  # Calculate the complete fit
+                  y_transition = (y_bw - y_dis)
+                  transition_err = propagate_transition_error(
+                      w_res,
+                      bw_err,
+                      w_res_min,
+                      w_res_max,
+                  ) # Error propagation
+
+                  # Ensure smooth transition to DIS
+                  damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
+                  damping_dis_err = damping_function_err(                      
+                      w_res, w_dis_transition, w_dis_transition_err, damping_dis_width, damping_dis_width_err
+                  )  # Error propagation
+                  
+                  y_complete = y_transition * damping_dis + y_dis
+                                    
+                  complete_err = propagate_complete_error(
+                      w_res,
+                      transition_err,
+                      damping_dis_err,
+                      dis_err,
+                      w_res_min,
+                      w_res_max,
+                      w_dis_transition,
+                      w_max
+                  ) # Error propagation
+                  
+                  axs[row, col].plot(
+                      w_res,
+                      y_transition,
+                      color="green",
+                      linestyle="-.",
+                      label=f"y_transition",
+                  )
+
+                  axs[row, col].plot(
+                      w_res,
+                      y_transition * damping_dis,
+                      color="red",
+                      linestyle="-.",
+                      label=f"y_transition * damping_dis",
+                  )
+                  
+                  axs[row, col].plot(
+                      w_res,
+                      y_complete,
+                      color="blue",
+                      linestyle="solid",
+                      label=f"y_complete",
+                  )
+                  
+      # plot the data
+      axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
+                    res_df['G1F1'][res_df['Q2_labels']==l],
+                    yerr=res_df['G1F1.err'][res_df['Q2_labels']==l],
+                    fmt=m_type, color=colors[0], markersize=m_size, capsize=cap_size,
+                    capthick=cap_thick)
+      
+      axs[row,col].legend()
+      # set axes limits
+      axs[row,col].axhline(0, color="black", linestyle="--")
+      axs[row,col].set_ylim(-.15,0.1)
+      axs[row,col].set_xlim(0.9,2.5)
+      axs[row,col].set_title(l)
+
+    fig.tight_layout()
+    fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', size = 14)
+    fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', size=16)
+
+    # Save figure
+    pdf.savefig(fig,bbox_inches="tight")    
+    
+    # make figure
+    n_col = 5
+    num_plots = len(res_df['Q2_labels'].unique())
+    n_rows = num_plots//n_col + 1
+    fig, axs = plt.subplots(num_plots//n_col + 1, n_col, figsize=(n_col*6.5,n_rows*6))
+
+    # make fit curves and plot with data
+    for i,l in enumerate(res_df['Q2_labels'].unique()):
+      row = i//n_col
+      col = i%n_col
+
+      q2 = res_df['Q2'][res_df['Q2_labels']==l].unique()[0]
+
+      # Read all parameters for this specific Q2 bin
+      w_dis_transition = q2_bin_params[l]['w_dis_transition']
+      damping_dis_width = q2_bin_params[l]['damping_dis_width']      
+
+      w_dis_transition_err = q2_bin_errors[l]['w_dis_transition']
+      damping_dis_width_err = q2_bin_errors[l]['damping_dis_width']
+      
+      k_fit_params = [k_nucl_par]
+      gamma_fit_params = [gamma_nucl_par]
+      mass_fit_params = [mass_nucl_par]
+      fit_funcs_k = [quad_nucl_curve_k]
+      fit_funcs_gamma = [quad_nucl_curve_gamma]
+      fit_funcs_mass = [quad_nucl_curve_mass]
+      fit_names = ["New"]
+      
+      # select desired k, gamma fits to be used by index
+      # [(i, j, l),...] where i=index for k fit, j=index for gamma fit, l=index for M fit
+      chosen_fits = [(0, 0, 0)] # k Quad, gamma Quad, M Quad
+
+      for i in range(len(k_fit_params)):
+          k_params = k_fit_params[i]
+          args = [q2]
+
+          for j in range(len(gamma_fit_params)):
+              gamma_params = gamma_fit_params[j]
+
+              for ij in range(len(mass_fit_params)):
+                  if (i, j, ij) not in chosen_fits:
+                      # skip combinations that aren't desired
+                      continue
+
+                  mass_params = mass_fit_params[ij]
+
+                  if i==1:
+                      # spline k
+                      k = k_fit_params[i](q2)
+                  else:
+                      k_args = args + [p for p in k_params]
+                      if i==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          k_args += [P for P in k_P_vals]
+                      k = fit_funcs_k[i](*k_args)
+                      k_err = calculate_param_error(fit_funcs_k[i], k_args, k_nucl_err)
+
+                  if j==1:
+                      # spline gamma
+                      gamma = gamma_fit_params[j](q2)
+                  else:
+                      gamma_args = args + [p for p in gamma_params]
+                      if j==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          gamma_args += [P for P in gamma_P_vals]
+                      gamma = fit_funcs_gamma[j](*gamma_args)
+                      gamma_err = calculate_param_error(fit_funcs_gamma[i], gamma_args, gamma_nucl_err)
+                      
+                  if ij==1:
+                      # spline mass
+                      mass = mass_fit_params[ij](q2)
+                  else:
+                      mass_args = args + [p for p in mass_params]
+                      if ij==0:
+                          # add constant parameters P0, P1, P2 for Woods-Saxon
+                          mass_args += [P for P in mass_P_vals]
+                      mass = fit_funcs_mass[ij](*mass_args)
+                      mass_err = calculate_param_error(fit_funcs_mass[i], mass_args, mass_nucl_err)
+                      
+                  # Calculate Breit-Wigner fit
+                  y = breit_wigner_res(w, mass, k, gamma)
+
+                  bw_err = propagate_bw_error(
+                      w_res, mass, mass_err, k, k_err, gamma, gamma_err
+                  )
 
                   # Chi-squared calculation for W in [w_res_min, w_res_max]
                   W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
@@ -898,10 +1347,10 @@ def get_g1f1_W_fits(
                   w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
                   y_bw = breit_wigner_res(w_res, mass, k, gamma)
-                  bw_err = propagate_bw_error(w_res, mass, mass_err, k, k_err, gamma, gamma_err)  # Error propagation
-                  damping_res = damping_function(w_res, w_res_transition, damping_res_width)
-                  damping_res_err = damping_function_err(w_res, w_res_transition, w_res_transition_err, damping_res_width, damping_res_width_err)  # Error propagation
-                  y_bw_damped = y_bw * damping_res
+
+                  bw_err = propagate_bw_error(
+                      w_res, mass, mass_err, k, k_err, gamma, gamma_err
+                  )
 
                   # Calculate DIS fit
                   y_dis = g1f1_quad_new_DIS(
@@ -909,50 +1358,31 @@ def get_g1f1_W_fits(
                       *quad_new_dis_par
                   )
                   
-                  #dis_fit_err = fit_error(W_to_x(w_res, np.full_like(w_res, q2)), q2, par_quad, par_err_quad, corr_quad, partials_new)
                   dis_err = propagate_dis_error(
                       quad_fit_err
-                      #dis_fit_err
                   )  # Error propagation
 
-                  # Fit residual function
-                  w_fit = w_res[(w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)]
-                  residual_fit = y_dis[
-                      (w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)
-                  ] - y_bw_damped[
-                      (w_res >= w_res_transition - 0.01) & (w_res <= w_res_transition + 0.01)
-                  ]
-                  popt, pcov = curve_fit(
-                      lambda W, a, b, c: residual_function(W, a, b, c, w_dis_transition),
-                      w_fit,
-                      residual_fit,
-                      p0=[0, 0, 0],
-                  )
-
-                  residual_err = propagate_residual_error(w_res, popt, pcov, residual_function, w_dis_transition)
-
                   # Calculate the complete fit
-                  y_dis_transition = y_bw_damped + (- damping_res * y_dis) - (residual_function(w_res, *popt, w_dis_transition) - damping_res * residual_function(w_res, *popt, w_dis_transition))
+                  y_transition = (y_bw - y_dis)
                   transition_err = propagate_transition_error(
                       w_res,
                       bw_err,
-                      residual_err,
-                      damping_res_err,
                       w_res_min,
                       w_res_max,
-                      w_res_transition
                   ) # Error propagation
 
                   # Ensure smooth transition to DIS
                   damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-                  damping_dis_err = damping_function_err(w_res, w_dis_transition, w_dis_transition_err, damping_dis_width, damping_dis_width_err)  # Error propagation
+                  damping_dis_err = damping_function_err(                      
+                      w_res, w_dis_transition, w_dis_transition_err, damping_dis_width, damping_dis_width_err
+                  )  # Error propagation
                   
-                  y_complete = y_dis_transition * damping_dis + y_dis
+                  y_complete = y_transition * damping_dis + y_dis
 
                   interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
                   y_complete_interpolated = interp_func(res_df['W'][res_df['Q2_labels']==l])
 
-                  nu = abs(len(y_complete_interpolated)-len([w_res_transition, w_dis_transition, damping_res_width, damping_dis_width]))
+                  nu = abs(len(y_complete_interpolated)-len([w_dis_transition, damping_dis_width]))
                   chi2 = red_chi_sqr(y_complete_interpolated, res_df['G1F1'][res_df['Q2_labels']==l], res_df['G1F1.err'][res_df['Q2_labels']==l], nu)
                                     
                   complete_err = propagate_complete_error(
@@ -961,10 +1391,23 @@ def get_g1f1_W_fits(
                       damping_dis_err,
                       dis_err,
                       w_res_min,
-                      w_res_transition,
+                      w_res_max,
                       w_dis_transition,
                       w_max
                   ) # Error propagation
+
+                  '''
+                  def moving_average(data, window_size):
+                      window_size = min(window_size, len(data))
+                      if window_size % 2 == 0:
+                          window_size -= 1
+                      if window_size < 3:
+                          window_size = 3
+                      return np.convolve(data, np.ones(window_size)/window_size, mode='same')
+
+                  window_size = 1001
+                  complete_err = moving_average(complete_err, window_size)
+                  '''
                   
                   axs[row, col].plot(
                       w_res,

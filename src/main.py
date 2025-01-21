@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-15 18:26:30 trottar"
+# Time-stamp: "2025-01-20 18:54:49 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -71,9 +71,9 @@ with PdfPages(outputpdf) as pdf:
     quad_new_fit_curve = g1f1_quad_new_DIS(*args_new)
 
     # Table F.1 from XZ's thesis
-    partials_new = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
+    dis_fit_params["partials"] = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
     
-    quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], partials_new)
+    quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
     # Plot dis fit vs x
     plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)

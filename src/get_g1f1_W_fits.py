@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-21 12:35:15 trottar"
+# Time-stamp: "2025-02-11 01:04:24 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -106,7 +106,7 @@ def get_g1f1_W_fits(
                       # calculate fitted curve
                       y = breit_wigner_res(w, mass, k, gamma)
 
-                      # try getting a chi squared for this curve for w_res_min<W<w_res_max
+                      # try getting a chi squared for this curve for w_lims[i][0]<W<w_lims[i][1]
                       W = res_df['W']
                       y_cal = breit_wigner_res(W, mass, k, gamma)
                       y_act = res_df['G1F1']
@@ -170,13 +170,15 @@ def get_g1f1_W_fits(
                     w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
                     # Calculate Breit-Wigner fit
+                    k_new_new = ((0.25 * q2) / (1.0 + 1.55 * q2)) * np.exp(-q2 / (2 * 0.25))
                     y_bw = breit_wigner_res(w_res, mass, k, gamma)
 
                     # Calculate DIS fit
                     y_dis = g1f1_quad_new_DIS([W_to_x(w_res, np.full_like(w_res, q2)), np.full_like(w_res, q2)], *quad_new_dis_par)
                     
                     # Calculate the complete fit
-                    y_transition = (y_bw - y_dis)
+                    y_bw_bump =  breit_wigner_res(w_res, 1.55, k_new_new, 0.25)
+                    y_transition = y_bw_bump + (y_bw - y_dis)
 
                     # Ensure smooth transition to DIS
                     damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
@@ -195,8 +197,9 @@ def get_g1f1_W_fits(
     
         # Define parameter bounds
         bounds = [
-            (w_res_max, 1.9),   # w_dis_transition
-            (0.1, 0.8)   # damping_dis_width            
+            (1.5, 1.9),   # w_dis_transition
+            (0.1, 1.0)   # damping_dis_width            
+            
         ]
 
         # Run differential evolution for this Q2 bin
@@ -468,12 +471,6 @@ def get_g1f1_W_fits(
                 initial_guess=[1, 0, 1],
                 param_bounds=([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
             ),
-            'sinusoidal': create_function_info(
-                func=sinusoidal,
-                param_names=['a', 'a0', 'width', 'b'],
-                initial_guess=[1, 0, 1, 0],
-                param_bounds=([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
-            )            
         }
 
         return fit_functions
@@ -570,7 +567,10 @@ def get_g1f1_W_fits(
             
             # Plot best fit line
             q2_fit = np.linspace(min(q2_array), max(q2_array), 100)
-            axs.plot(q2_fit, best_fit_values, color="r", label=fit_info_text, linestyle='dashed')
+            try:
+                axs.plot(q2_fit, best_fit_values, color="r", label=fit_info_text, linestyle='dashed')
+            except ValueError:
+                print("")
 
         # Customize the plot
         axs.set_title(f"Parameter {name} vs Q²")
@@ -677,7 +677,7 @@ def get_g1f1_W_fits(
               # calculate fitted curve
               y = breit_wigner_res(w, mass, k, gamma)
 
-              # try getting a chi squared for this curve for w_res_min<W<w_res_max
+              # try getting a chi squared for this curve for w_lims[i][0]<W<w_lims[i][1]
               W = res_df['W']
               y_cal = breit_wigner_res(W, mass, k, gamma)
               y_act = res_df['G1F1']
@@ -801,11 +801,11 @@ def get_g1f1_W_fits(
                   # Main analysis code structure
                   y = breit_wigner_res(w, mass, k, gamma)
 
-                  # Chi-squared calculation for W in [w_res_min, w_res_max]
-                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  # Chi-squared calculation for W in [w_lims[i][0], w_lims[i][1]]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
                   y_cal = breit_wigner_res(W, mass, k, gamma)
-                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
-                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
                                   
                   axs[row, col].plot(w, y, markersize=m_size,
                                     linestyle='dashed')
@@ -871,6 +871,8 @@ def get_g1f1_W_fits(
                   # Calculate Breit-Wigner fit
                   w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
+                  # Calculate Breit-Wigner fit
+                  k_new_new = ((0.25 * q2) / (1.0 + 1.55 * q2)) * np.exp(-q2 / (2 * 0.25))
                   y_bw = breit_wigner_res(w_res, mass, k, gamma)
 
                   bw_err = propagate_bw_error(
@@ -888,12 +890,13 @@ def get_g1f1_W_fits(
                   )  # Error propagation
 
                   # Calculate the complete fit
-                  y_transition = (y_bw - y_dis)
+                  y_bw_bump =  breit_wigner_res(w_res, 1.55, k_new_new, 0.25)
+                  y_transition = y_bw_bump + (y_bw - y_dis)
                   transition_err = propagate_transition_error(
                       w_res,
                       bw_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                   ) # Error propagation
 
                   # Ensure smooth transition to DIS
@@ -909,8 +912,8 @@ def get_g1f1_W_fits(
                       transition_err,
                       damping_dis_err,
                       dis_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                       w_dis_transition,
                       w_max
                   ) # Error propagation
@@ -1029,11 +1032,11 @@ def get_g1f1_W_fits(
                       w_res, mass, mass_err, k, k_err, gamma, gamma_err
                   )
 
-                  # Chi-squared calculation for W in [w_res_min, w_res_max]
-                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  # Chi-squared calculation for W in [w_lims[i][0], w_lims[i][1]]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
                   y_cal = breit_wigner_res(W, mass, k, gamma)
-                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
-                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
             
                   axs[row, col].plot(w, y, markersize=m_size,
                                     linestyle='dashed')
@@ -1099,6 +1102,8 @@ def get_g1f1_W_fits(
                   # Calculate Breit-Wigner fit
                   w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
+                  # Calculate Breit-Wigner fit
+                  k_new_new = ((0.25 * q2) / (1.0 + 1.55 * q2)) * np.exp(-q2 / (2 * 0.25))
                   y_bw = breit_wigner_res(w_res, mass, k, gamma)
 
                   bw_err = propagate_bw_error(
@@ -1116,12 +1121,13 @@ def get_g1f1_W_fits(
                   )  # Error propagation
 
                   # Calculate the complete fit
-                  y_transition = (y_bw - y_dis)
+                  y_bw_bump =  breit_wigner_res(w_res, 1.55, k_new_new, 0.25)
+                  y_transition = y_bw_bump + (y_bw - y_dis)
                   transition_err = propagate_transition_error(
                       w_res,
                       bw_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                   ) # Error propagation
 
                   # Ensure smooth transition to DIS
@@ -1137,8 +1143,8 @@ def get_g1f1_W_fits(
                       transition_err,
                       damping_dis_err,
                       dis_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                       w_dis_transition,
                       w_max
                   ) # Error propagation
@@ -1151,6 +1157,14 @@ def get_g1f1_W_fits(
                       label=f"y_transition",
                   )
 
+                  axs[row, col].plot(
+                      w_res,
+                      (1 - damping_dis) * y_dis,
+                      color="cyan",
+                      linestyle="-.",
+                      label=f"(1-damping_dis)*y_dis",
+                  )
+                  
                   axs[row, col].plot(
                       w_res,
                       y_transition * damping_dis,
@@ -1166,6 +1180,15 @@ def get_g1f1_W_fits(
                       linestyle="solid",
                       label=f"y_complete",
                   )
+
+                  axs[row, col].plot(
+                      w_res,
+                      y_dis,
+                      color="purple",
+                      linestyle=":",
+                      label=f"y_dis",
+                  )
+
                   
       # plot the data
       axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],
@@ -1274,11 +1297,11 @@ def get_g1f1_W_fits(
                       w_res, mass, mass_err, k, k_err, gamma, gamma_err
                   )
 
-                  # Chi-squared calculation for W in [w_res_min, w_res_max]
-                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  # Chi-squared calculation for W in [w_lims[i][0], w_lims[i][1]]
+                  W = res_df['W'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
                   y_cal = breit_wigner_res(W, mass, k, gamma)
-                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
-                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_res_max][res_df['W'] >= w_res_min]
+                  y_act = res_df['G1F1'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
+                  y_act_err = res_df['G1F1.err'][res_df['Q2_labels'] == l][res_df['W'] <= w_lims[i][1]][res_df['W'] >= w_lims[i][0]]
             
                   axs[row, col].plot(w, y, markersize=m_size,
                                     linestyle='dashed')
@@ -1346,6 +1369,8 @@ def get_g1f1_W_fits(
                   # Calculate Breit-Wigner fit
                   w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
 
+                  # Calculate Breit-Wigner fit
+                  k_new_new = ((0.25 * q2) / (1.0 + 1.55 * q2)) * np.exp(-q2 / (2 * 0.25))
                   y_bw = breit_wigner_res(w_res, mass, k, gamma)
 
                   bw_err = propagate_bw_error(
@@ -1363,12 +1388,13 @@ def get_g1f1_W_fits(
                   )  # Error propagation
 
                   # Calculate the complete fit
-                  y_transition = (y_bw - y_dis)
+                  y_bw_bump =  breit_wigner_res(w_res, 1.55, k_new_new, 0.25)
+                  y_transition = y_bw_bump + (y_bw - y_dis)
                   transition_err = propagate_transition_error(
                       w_res,
                       bw_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                   ) # Error propagation
 
                   # Ensure smooth transition to DIS
@@ -1390,8 +1416,8 @@ def get_g1f1_W_fits(
                       transition_err,
                       damping_dis_err,
                       dis_err,
-                      w_res_min,
-                      w_res_max,
+                      w_lims[i][0],
+                      w_lims[i][1],
                       w_dis_transition,
                       w_max
                   ) # Error propagation
@@ -1425,18 +1451,21 @@ def get_g1f1_W_fits(
                       label="Fit Error",
                   )
 
-                  x_res = W_to_x(w_res, np.full_like(w_res, q2))
-                  
-                  # Create a twin axis that shares the y-axis
-                  ax2 = axs[row, col].twiny()
+                  # Define the transformation functions properly
+                  def wrapper_w_to_x(w):
+                      """ Transform W to x_Bj for constant q2. """
+                      return W_to_x(w, np.full_like(w, q2))
 
-                  # Plot the same data against x_res (but make it invisible)
-                  ax2.plot(x_res, y_complete, alpha=0)
+                  def wrapper_x_to_w(x):
+                      """ Transform x to W for constant q2. """
+                      return x_to_W(x, np.full_like(x, q2))
 
-                  ax2.set_xlabel(r"$x_{Bj}$")
-
-                  # This should force the x-axis limits to match your x_res range
-                  ax2.set_xlim(min(x_res), max(x_res))
+                  # Add secondary x-axis for x_Bj
+                  ax2 = axs[row, col].secondary_xaxis(
+                      'top',
+                      functions=(wrapper_w_to_x, wrapper_x_to_w)  # Just pass the function references
+                  )
+                  ax2.set_xlabel("x")  # Label for the secondary axis
 
       # plot the data
       axs[row, col].errorbar(res_df['W'][res_df['Q2_labels']==l],

@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-20 18:54:49 trottar"
+# Time-stamp: "2025-02-11 00:52:58 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -176,7 +176,7 @@ with PdfPages(outputpdf) as pdf:
       mass_err_unique.append(mass_avg_err)
       
     # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(0.1, delta_par_df["Q2"].max()+3.0, 1000, dtype=np.double) # Ignore small q2 region for fits
+    q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
 
     bw_fit_params = fit_BW_params(q2, delta_par_df, pdf)    
 
@@ -194,6 +194,7 @@ with PdfPages(outputpdf) as pdf:
                     bw_fit_params["k params"]["P_vals"],
                     dis_fit_params["beta_val"],
                     w_lims,
+                    
                     pdf
     )
     

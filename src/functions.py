@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-21 12:32:01 trottar"
+# Time-stamp: "2025-02-11 01:47:50 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -162,7 +162,7 @@ def red_chi_sqr(y_calc, y_obs, y_err, nu):
   return np.sum(np.square((y_obs-y_calc)/y_err))/nu
 
 def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_vals_initial, fit_function, N=10, 
-                             population_size=15, max_iterations=50000, mutation_range=(0.4, 1.6), 
+                             population_size=15, max_iterations=100000, mutation_range=(0.4, 1.6), 
                              recombination_rate=0.8, strategy='best1bin', tolerance=1e-8):
     """
     Enhanced phase space search function for parameter fitting with more flexible optimization strategies.
@@ -618,12 +618,18 @@ def propagate_bw_error(w, mass, mass_err, k, k_err, gamma, gamma_err):
     - Propagated error for Breit-Wigner fit
     """
     # Partial derivatives for each parameter (mass, k, gamma)
+    #'''
     d_m = (np.gradient(breit_wigner_res(w, mass + mass_err, k, gamma)) - 
            np.gradient(breit_wigner_res(w, mass - mass_err, k, gamma))) / (2 * mass_err)
     d_k = (np.gradient(breit_wigner_res(w, mass, k + k_err, gamma)) - 
            np.gradient(breit_wigner_res(w, mass, k - k_err, gamma))) / (2 * k_err)
     d_gamma = (np.gradient(breit_wigner_res(w, mass, k, gamma + gamma_err)) - 
                np.gradient(breit_wigner_res(w, mass, k, gamma - gamma_err))) / (2 * gamma_err)
+    '''
+    d_m = (partial_mass(w, mass + mass_err, k, gamma) - partial_mass(w, mass - mass_err, k, gamma)) / (2 * mass_err)
+    d_k = (partial_k(w, mass, k + k_err, gamma) - partial_k(w, mass, k - k_err, gamma)) / (2 * k_err)
+    d_gamma = (partial_gamma(w, mass, k, gamma + gamma_err) - partial_gamma(w, mass, k, gamma - gamma_err)) / (2 * gamma_err)
+    #'''
     # Propagate errors
     propagated_error = np.sqrt((d_m * mass_err)**2 + (d_k * k_err)**2 + (d_gamma * gamma_err)**2)
     return propagated_error
@@ -695,6 +701,8 @@ def propagate_transition_error(w, bw_err, w_res_min, w_res_max):
         if w[i] >= w_res_min and w[i] <= w_res_max:
             alpha, beta = 1.0, 0.0
             error = np.sqrt((alpha * bw_err[i])**2)
+        else:
+            error = 0.0
             
         # Append the error to the results list
         propagated_errors.append(error)

@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-15 13:37:30 trottar"
+# Time-stamp: "2025-02-23 11:05:14 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -14,9 +14,9 @@ import numpy as np
 from scipy.optimize import curve_fit
 from tabulate import tabulate
 import matplotlib.pyplot as plt
+import json
 
 ##################################################################################################################################################
-
 
 from functions import g1f1_quad_new_DIS
 
@@ -126,29 +126,58 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
         print(" ".join(f"{val:6.2e}" for val in row))
     print("-"*25, "\n\n")
 
+    # Load configuration
+    with open("config.json", "r") as f:
+        config = json.load(f)
+
     # g1/f1 fit vs x, residuals vs x
     fig, axs = plt.subplots(2, 1, figsize=(18, 10), gridspec_kw={'height_ratios': [3, 1]})
-    
+
     fit_vals = g1f1_quad_new_DIS([x_dense, q2_dense], *par_quad)
-    
-    axs[0].errorbar(dis_df['X'], dis_df['G1F1'], yerr=dis_df['G1F1.err'], 
-                   fmt='o', color='black', label='Data', markersize=4)
-    axs[0].plot(x_dense, fit_vals, 'r-', label=f'Fit ($\chi^2_{{red}}$ = {chi2_quad:.2f})')
-    
-    axs[0].set_xlabel('x')
-    axs[0].set_ylabel('$g_1F_1$')
-    axs[0].legend()
-    axs[0].grid(True)
-    
+
+    # Top plot: Data with Fit
+    axs[0].errorbar(
+        dis_df['X'], dis_df['G1F1'], yerr=dis_df['G1F1.err'], 
+        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+        label='Data', markersize=config["marker"]["size"], 
+        capsize=config["error_bar"]["cap_size"], capthick=config["error_bar"]["cap_thick"],
+        linewidth=config["error_bar"]["line_width"], ecolor=config["colors"]["error_bar"]
+    )
+    axs[0].plot(
+        x_dense, fit_vals, 'r-', 
+        label=f'Fit ($\chi^2_{{red}}$ = {chi2_quad:.2f})', 
+        linewidth=config["error_bar"]["line_width"]
+    )
+
+    # Labels, Titles, Legends
+    axs[0].set_xlabel('x', fontsize=config["font_sizes"]["x_axis"])
+    axs[0].set_ylabel('$g_1F_1$', fontsize=config["font_sizes"]["y_axis"])
+    axs[0].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+
+    # Grid settings
+    if config["grid"]["enabled"]:
+        axs[0].grid(True, linestyle=config["grid"]["line_style"], 
+                    linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"], 
+                    color=config["colors"]["grid"])
+
+    # Bottom plot: Residuals
     residuals = (dis_df['G1F1'] - g1f1_quad_new_DIS([dis_df['X'], dis_df['Q2']], *par_quad)) / dis_df['G1F1.err']
-    axs[1].scatter(dis_df['X'], residuals, color='black', s=20)
-    axs[1].axhline(y=0, color='r', linestyle='-', alpha=0.5)
-    
-    axs[1].set_xlabel('x')
-    axs[1].set_ylabel('Residuals ($\\sigma$)')
-    axs[1].grid(True)
-    
+    axs[1].scatter(
+        dis_df['X'], residuals, color=config["colors"]["scatter"], 
+        s=config["marker"]["size"] * 2  # Scale scatter point size
+    )
+    axs[1].axhline(y=0, color=config["colors"]["error_band"], linestyle='-', alpha=0.5)
+
+    axs[1].set_xlabel('x', fontsize=config["font_sizes"]["x_axis"])
+    axs[1].set_ylabel('Residuals ($\\sigma$)', fontsize=config["font_sizes"]["y_axis"])
+
+    # Grid settings for residuals plot
+    if config["grid"]["enabled"]:
+        axs[1].grid(True, linestyle=config["grid"]["line_style"], 
+                    linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"], 
+                    color=config["colors"]["grid"])
+
     plt.tight_layout()
-    pdf.savefig(fig, bbox_inches="tight")    
+    pdf.savefig(fig, bbox_inches="tight")
 
     return {"par_quad" : par_quad, "cov_quad" : cov_quad, "corr_quad" : corr_quad, "par_err_quad" : par_err_quad, "chi2_quad" : chi2_quad, "beta_val" : beta_val, "residuals" : residuals}

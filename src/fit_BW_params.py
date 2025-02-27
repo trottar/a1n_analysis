@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-15 18:18:02 trottar"
+# Time-stamp: "2025-02-23 11:46:45 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -16,6 +16,7 @@ from scipy.optimize import Bounds, differential_evolution
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import re, ast, os
+import json
 
 ##################################################################################################################################################
 
@@ -37,7 +38,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     k_p_vals_initial = [P0, P1, P2, Y1]
 
     gamma_lb = [-1e10, -1e10, -1e10, 0.0]
-    gamma_ub = [1e10, 1e10, 1e10, 0.3]
+    gamma_ub = [1e10, 1e10, 1e10, 1e10]
     gamma_bounds = Bounds(lb=gamma_lb, ub=gamma_ub)        
     P0 = 0.7
     P1 = 1.7
@@ -255,25 +256,22 @@ def fit_BW_params(q2, delta_par_df, pdf):
     print("P value uncertainties:", mass_p_val_uncertainties)
     print("\n")
 
+    # k
     k_nucl_args = [q2] + [p for p in k_nucl_par] + [P for P in k_P_vals]
     k_nucl = quad_nucl_curve_k(*k_nucl_args)
     k_nucl_err = [p for p in k_param_uncertainties] + [p for p in k_p_val_uncertainties]
+    # gamma
     gamma_nucl_args = [q2] + [p for p in gamma_nucl_par] + [P for P in gamma_P_vals]
     gamma_nucl = quad_nucl_curve_gamma(*gamma_nucl_args)
     gamma_nucl_err = [p for p in gamma_param_uncertainties] + [p for p in gamma_p_val_uncertainties]
+    # mass
     mass_nucl_args = [q2] + [p for p in mass_nucl_par] + [P for P in mass_P_vals]
     mass_nucl = quad_nucl_curve_mass(*mass_nucl_args)
     mass_nucl_err = [p for p in mass_param_uncertainties] + [p for p in mass_p_val_uncertainties]
 
-    # formatting variables
-    m_size = 6
-    cap_size = 2
-    cap_thick = 1
-    m_type = '.'
-    
-    colors = ("dimgrey", "maroon", "saddlebrown", "red", "darkorange", "darkolivegreen",
-              "limegreen", "darkslategray", "cyan", "steelblue", "darkblue", "rebeccapurple",
-              "darkmagenta", "indigo", "crimson", "sandybrown", "orange", "teal", "mediumorchid")
+    # Load configuration
+    with open("config.json", "r") as f:
+        config = json.load(f)
     
     # plot M, k, gamma vs Q2 from variable M fit
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -283,7 +281,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
-
+    
     def find_param_errors(i, var_name):
         x_data = delta_par_df["Q2"]
         if var_name == "k":
@@ -307,6 +305,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
             y_nucl = gamma_nucl
             bounds = (gamma_lb + [P-(1e-6) for P in gamma_P_vals], gamma_ub + [P+(1e-6) for P in gamma_P_vals])
             model = quad_nucl_curve_gamma
+            
         else:
             print("ERROR: Invalid variable name!")
             return
@@ -320,55 +319,73 @@ def fit_BW_params(q2, delta_par_df, pdf):
         popt, pcov = curve_fit(
             model, x_data, y_data, p0=true_params, sigma=y_err, bounds=bounds, absolute_sigma=True
         )
+
+        # Define file names for saving/loading bootstrap results
+        params_filename = f"../fit_data/bootstrap_{var_name}_params.npy"
+        fits_data_filename = f"../fit_data/bootstrap_{var_name}_fits_data.npy"
+        fits_q2_filename = f"../fit_data/bootstrap_{var_name}_fits_q2.npy"
         
-        # Bootstrap parameters
-        n_bootstrap = 1000
-        n_points = len(x_data)
-        bootstrap_params = np.zeros((n_bootstrap, len(true_params)))
-        bootstrap_fits_data = np.zeros((n_bootstrap, len(x_data)))
-        bootstrap_fits_q2 = np.zeros((n_bootstrap, len(q2)))
+        if os.path.exists(params_filename) and os.path.exists(fits_q2_filename):
+            print(f"Loading existing bootstrap results for {var_name}...")
+            bootstrap_params = np.load(params_filename)
+            bootstrap_fits_data = np.load(fits_data_filename)            
+            bootstrap_fits_q2 = np.load(fits_q2_filename)
+        else:
+        
+            # Bootstrap parameters
+            n_bootstrap = 10000
+            n_points = len(x_data)
+            bootstrap_params = np.zeros((n_bootstrap, len(true_params)))
+            bootstrap_fits_data = np.zeros((n_bootstrap, len(x_data)))
+            bootstrap_fits_q2 = np.zeros((n_bootstrap, len(q2)))
 
-        # Perform bootstrap iterations
-        for b in range(n_bootstrap):
-            # Generate bootstrap sample
-            indices = np.random.randint(0, n_points, size=n_points)
-            x_bootstrap = x_data[indices]
-            y_bootstrap = y_data[indices]
+            # Perform bootstrap iterations
+            for b in range(n_bootstrap):
+                # Generate bootstrap sample
+                indices = np.random.randint(0, n_points, size=n_points)
+                x_bootstrap = x_data[indices]
+                y_bootstrap = y_data[indices]
 
-            try:
-                
-                # Fit the bootstrap sample
-                if var_name == "k":
-                    lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
-                    ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
-                    bounds=(lb_tmp, ub_tmp)
-                elif var_name == "gamma":
-                    lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
-                    ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
-                    bounds=(lb_tmp, ub_tmp)
-                elif var_name == "mass":
-                    lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
-                    ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
-                    bounds=(lb_tmp, ub_tmp)
-                else:
-                    bounds=bounds
-                boot_popt, _ = curve_fit(
-                    model, 
-                    x_bootstrap, 
-                    y_bootstrap, 
-                    p0=true_params,
-                    bounds=bounds,
-                    sigma=y_err,
-                    absolute_sigma=True
-                )                    
-                bootstrap_params[b] = boot_popt
-                bootstrap_fits_data[b] = model(x_data, *boot_popt)
-                bootstrap_fits_q2[b] = model(q2, *boot_popt)
-            except RuntimeError:
-                bootstrap_params[b] = popt
-                bootstrap_fits_data[b] = model(x_data, *popt)
-                bootstrap_fits_q2[b] = model(q2, *popt)
+                try:
 
+                    # Fit the bootstrap sample
+                    if var_name == "k":
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
+                        bounds=(lb_tmp, ub_tmp)
+                    elif var_name == "gamma":
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in gamma_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in gamma_P_vals]
+                        bounds=(lb_tmp, ub_tmp)
+                    elif var_name == "mass":
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in mass_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in mass_P_vals]
+                        bounds=(lb_tmp, ub_tmp)
+                    else:
+                        bounds=bounds
+                    boot_popt, _ = curve_fit(
+                        model, 
+                        x_bootstrap, 
+                        y_bootstrap, 
+                        p0=true_params,
+                        bounds=bounds,
+                        sigma=y_err,
+                        absolute_sigma=True
+                    )                    
+                    bootstrap_params[b] = boot_popt
+                    bootstrap_fits_data[b] = model(x_data, *boot_popt)
+                    bootstrap_fits_q2[b] = model(q2, *boot_popt)
+                except RuntimeError:
+                    bootstrap_params[b] = popt
+                    bootstrap_fits_data[b] = model(x_data, *popt)
+                    bootstrap_fits_q2[b] = model(q2, *popt)
+
+            # Save bootstrap results
+            np.save(params_filename, bootstrap_params)
+            np.save(fits_data_filename, bootstrap_fits_data)
+            np.save(fits_q2_filename, bootstrap_fits_q2)
+            print(f"Saved bootstrap results for {var_name}")
+                    
         # Calculate bootstrap uncertainties
         param_stds = np.std(bootstrap_params, axis=0)
 
@@ -410,42 +427,46 @@ def fit_BW_params(q2, delta_par_df, pdf):
         # Calculate uncertainties for q2 points
         q2_fit = model(q2, *popt)
         q2_err = np.std(bootstrap_fits_q2, axis=0)
-        window_size = min(len(q2) // 3, 10)
+        window_size = min(len(q2) // 3, 15)
         smoothed_q2_err = moving_average(q2_err, window_size)
-            
+                        
         # Plot
-        axs[i].errorbar(x_data, y_data, yerr=y_err, fmt='o', label='Data')
-        axs[i].plot(x_data, fit, label='Curve_fit', color='red')
-        axs[i].plot(q2, q2_fit, label='Extrapolation', color='purple', linestyle='--')
-        axs[i].plot(q2, y_nucl, label='Diff. Ev.', color='blue')
+        axs[i].errorbar(x_data, y_data, yerr=y_err, 
+                        fmt=config["marker"]["type"], label='Data', 
+                        color=config["colors"]["scatter"], markersize=config["marker"]["size"], 
+                        capsize=config["error_bar"]["cap_size"], capthick=config["error_bar"]["cap_thick"])
+
+        axs[i].plot(x_data, fit, label='Curve_fit', color=config["colors"]["fit"])
+        axs[i].plot(q2, q2_fit, label='Extrapolation', color=config["colors"]["extrapolation"], linestyle='--')
+        axs[i].plot(q2, y_nucl, label='Diff. Ev.', color=config["colors"]["diff_ev"])
         axs[i].fill_between(q2, 
-                           q2_fit - smoothed_q2_err,
-                           q2_fit + smoothed_q2_err,
-                           alpha=0.5, color="darkred")
+                            q2_fit - smoothed_q2_err,
+                            q2_fit + smoothed_q2_err,
+                            alpha=0.5, color=config["colors"]["error_band"])
 
     for i, var_name in enumerate(["k", "gamma", "mass"]):
         find_param_errors(i, var_name)
 
-    axs[0].set_ylabel("k")
-    axs[1].set_ylabel("$\Gamma$")
-    axs[2].set_ylabel("M")    
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])    
 
-    axs[0].legend()
-    axs[1].legend()
-    axs[2].legend()
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
 
     axs[0].set_ylim(-.12, 0.05)
     axs[1].set_ylim(-.5, 0.5)
     axs[2].set_ylim(1.1, 1.6)
-    axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
-    axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
-    axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
 
     fig.tight_layout()
-    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center')
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
     # Save figures
-    pdf.savefig(fig,bbox_inches="tight")
+    pdf.savefig(fig, bbox_inches="tight")
 
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -453,51 +474,52 @@ def fit_BW_params(q2, delta_par_df, pdf):
     # plot all the parameters vs Q2
     for i, label in enumerate(delta_par_df["Experiment"].unique()):
         axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==label]["k"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], fmt=m_type,
-                      color=colors[i], markersize=m_size, capsize=cap_size,
-                      label=label, capthick=cap_thick)
+                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
 
         axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
                         delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], fmt=m_type,
-                        color=colors[i], markersize=m_size, capsize=cap_size,
-                        label=label, capthick=cap_thick)
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
 
         axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                      delta_par_df[delta_par_df["Experiment"]==label]["M"],
-                      yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], fmt=m_type,
-                      color=colors[i], markersize=m_size, capsize=cap_size,
-                      label=label, capthick=cap_thick)
+                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
         
-    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color='red')
-
-    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color='red')
-
-    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color='red')
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
     
     fig.tight_layout()
 
-    axs[0].set_ylabel("k")
-    axs[1].set_ylabel("$\Gamma$")
-    axs[2].set_ylabel("M")
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
 
-    axs[0].legend()
-    axs[1].legend()
-    axs[2].legend()
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
 
     axs[0].set_ylim(-.12, 0.05)
     axs[1].set_ylim(-.5, 0.5)
     axs[2].set_ylim(1.1, 1.6)
-    axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
-    axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
-    axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
 
     fig.tight_layout()
-    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center')
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
     # Save figures
-    pdf.savefig(fig,bbox_inches="tight")
+    pdf.savefig(fig, bbox_inches="tight")
     
     return {
         "k params" : {

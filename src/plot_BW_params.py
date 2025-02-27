@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-01-15 13:44:33 trottar"
+# Time-stamp: "2025-02-23 11:05:58 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -11,61 +11,93 @@
 # Copyright (c) trottar
 #
 import matplotlib.pyplot as plt
+import json
 
 ##################################################################################################################################################
 
 def plot_BW_params(delta_par_df, pdf):
-
-    # formatting variables
-    m_size = 6
-    cap_size = 2
-    cap_thick = 1
-    m_type = '.'
     
-    colors = ("dimgrey", "maroon", "saddlebrown", "red", "darkorange", "darkolivegreen",
-              "limegreen", "darkslategray", "cyan", "steelblue", "darkblue", "rebeccapurple",
-              "darkmagenta", "indigo", "crimson", "sandybrown", "orange", "teal", "mediumorchid")
-    
-    # plot M, k, gamma vs Q2 from variable M fit
-    fig, axs = plt.subplots(1, 3, figsize=(18,10))
+    # Load configuration
+    with open("config.json", "r") as f:
+        config = json.load(f)
 
-    # maintain distinct colors between plots by keeping track of the index in the color map
+    # Create figure with 3 subplots
+    fig, axs = plt.subplots(1, 3, figsize=(18, 10))
+
+    # Maintain distinct colors between plots using index from color map
     color_index = 0
 
-    # plot all the parameters vs Q2
+    # Plot all the parameters vs Q²
     for i, exp_name in enumerate(delta_par_df["Experiment"].unique()):
-        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==exp_name]["k"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["k.err"], fmt=m_type,
-                        color=colors[i], markersize=m_size, capsize=cap_size,
-                        label=exp_name, capthick=cap_thick)
+        axs[0].errorbar(
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["k"],
+            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["k.err"],
+            fmt=config["marker"]["type"],
+            color=config["colors"]["scatter"],  # Config-based scatter color
+            markersize=config["marker"]["size"],
+            capsize=config["error_bar"]["cap_size"],
+            capthick=config["error_bar"]["cap_thick"],
+            linewidth=config["error_bar"]["line_width"],
+            ecolor=config["colors"]["error_bar"],
+            label=exp_name
+        )
 
-        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["gamma.err"], fmt=m_type,
-                        color=colors[i], markersize=m_size, capsize=cap_size,
-                        label=exp_name, capthick=cap_thick)
+        axs[1].errorbar(
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["gamma"],
+            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["gamma.err"],
+            fmt=config["marker"]["type"],
+            color=config["colors"]["scatter"],
+            markersize=config["marker"]["size"],
+            capsize=config["error_bar"]["cap_size"],
+            capthick=config["error_bar"]["cap_thick"],
+            linewidth=config["error_bar"]["line_width"],
+            ecolor=config["colors"]["error_bar"],
+            label=exp_name
+        )
 
-        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==exp_name]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==exp_name]["M"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==exp_name]["M.err"], fmt=m_type,
-                        color=colors[i], markersize=m_size, capsize=cap_size,
-                        label=exp_name, capthick=cap_thick)
+        axs[2].errorbar(
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Experiment"] == exp_name]["M"],
+            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["M.err"],
+            fmt=config["marker"]["type"],
+            color=config["colors"]["scatter"],
+            markersize=config["marker"]["size"],
+            capsize=config["error_bar"]["cap_size"],
+            capthick=config["error_bar"]["cap_thick"],
+            linewidth=config["error_bar"]["line_width"],
+            ecolor=config["colors"]["error_bar"],
+            label=exp_name
+        )
 
-    axs[0].set_ylabel("k")
-    axs[1].set_ylabel("$\Gamma$")
-    axs[2].set_ylabel("M")
+    # Set y-axis labels with configurable font size
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
 
-    axs[0].axhline(y=0,color="black", linestyle='--', alpha=0.5)
-    axs[1].axhline(y=0,color="black", linestyle='--', alpha=0.5)
+    # Add reference horizontal lines
+    axs[0].axhline(y=0, color="black", linestyle='--', alpha=0.5)
+    axs[1].axhline(y=0, color="black", linestyle='--', alpha=0.5)
     axs[2].axhline(y=1.232, color="black", linestyle='--', alpha=0.5)
 
-    axs[0].legend()
-    axs[1].legend()
-    axs[2].legend()
+    # Apply grid settings if enabled
+    for ax in axs:
+        if config["grid"]["enabled"]:
+            ax.grid(
+                True, linestyle=config["grid"]["line_style"],
+                linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"],
+                color=config["colors"]["grid"]
+            )
 
+    # Legends with configurable font size and frame setting
+    axs[0].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+
+    # Adjust layout and add global x-axis label
     fig.tight_layout()
-    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center')
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
-    # Save figures
-    pdf.savefig(fig,bbox_inches="tight")
+    # Save figure
+    pdf.savefig(fig, bbox_inches="tight")

@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-11 00:52:58 trottar"
+# Time-stamp: "2025-02-26 20:50:23 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -27,7 +27,7 @@ w_max = 3.0
 
 # Initial resonance region range (optimized later on)
 w_res_min = 1.1
-w_res_max = 1.4
+w_res_max = 1.45
 
 ##################################################################################################################################################
 
@@ -38,6 +38,7 @@ from plot_3he_data_W import plot_3he_data_W
 from get_res_fit import get_res_fit
 from plot_BW_params import plot_BW_params
 from fit_BW_params import fit_BW_params
+from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits
 from functions import g1f1_quad_new_DIS, \
     partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new, \
@@ -80,7 +81,7 @@ with PdfPages(outputpdf) as pdf:
 
     # make dataframe of Resonance values (1<W<2)
     res_df = g1f1_df[g1f1_df['W']<2.0]
-    res_df = res_df[res_df['W']>1.0]        
+    res_df = res_df[res_df['W']>1.0]
     
     # drop Flay data
     res_df = res_df.drop(res_df[res_df.Label == "Flay E06-014 (2014)"].index)
@@ -182,19 +183,23 @@ with PdfPages(outputpdf) as pdf:
 
     w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
-    get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err, res_df, dis_fit_params, 
-                    bw_fit_params["k params"]["nucl_par"],
-                    bw_fit_params["k params"]["nucl_curve_err"],
-                    bw_fit_params["gamma params"]["nucl_par"],
-                    bw_fit_params["gamma params"]["nucl_curve_err"],
-                    bw_fit_params["mass params"]["nucl_par"],
-                    bw_fit_params["mass params"]["nucl_curve_err"],                    
-                    bw_fit_params["k params"]["P_vals"],
-                    bw_fit_params["gamma params"]["P_vals"],
-                    bw_fit_params["k params"]["P_vals"],
+    dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params, 
+                                            bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                                            bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                                            bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                                            bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                                            w_lims,
+                                            pdf                                            
+    )
+    
+    get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                    res_df, dis_fit_params, dis_transition_fit,
+                    bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                    bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                    bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                    bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                     dis_fit_params["beta_val"],
-                    w_lims,
-                    
+                    w_lims,                    
                     pdf
     )
     

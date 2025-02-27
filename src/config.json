@@ -1,0 +1,43 @@
+{
+    "font_sizes": {
+        "title": 22,
+        "x_axis": 20,
+        "y_axis": 20,
+        "labels": 18,
+        "legend": 18,
+        "ticks": 16
+    },
+    "colors": {
+        "scatter": "#1f77b4",
+        "error_band": "#ff7f0e",
+        "error_bar": "#2ca02c",
+        "grid": "#b0b0b0",
+        "background": "#ffffff",
+        "fit": "#d62728",
+        "extrapolation": "#9467bd",
+        "diff_ev": "#17becf"
+    },
+    "marker": {
+        "size": 8,
+        "type": "o",
+        "edge_color": "black",
+        "edge_width": 2
+    },
+    "error_bar": {
+        "cap_size": 3,
+        "cap_thick": 2,
+        "line_width": 1.5
+    },
+    "grid": {
+        "enabled": true,
+        "line_style": "--",
+        "line_width": 1.0,
+        "alpha": 0.8
+    },
+    "legend": {
+        "enabled": true,
+        "location": "best",
+        "frame_on": false,
+        "fontsize": 18
+    }
+}

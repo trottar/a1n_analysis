@@ -20,6 +20,7 @@ Tmp*
 
 # Data files
 *.csv
+*.npy
 
 # Directories
 __pycache__

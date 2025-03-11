@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-24 18:48:35 trottar"
+# Time-stamp: "2025-03-06 17:23:22 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -30,7 +30,7 @@ import inspect
 def x_to_W(x, Q2):
   """ convert x to W for constant Q2"""
   Mp = 0.93870319 # average nucleon mass in 3He
-  return np.sqrt(Mp**2 + Q2*((1/x)+1))
+  return np.sqrt(Mp**2 + Q2*((1/x)-1))
 
 def W_to_x(W, Q2):
   """ convert W to x for constant Q2"""

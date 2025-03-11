@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-26 20:32:47 trottar"
+# Time-stamp: "2025-03-10 20:33:17 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -115,6 +115,7 @@ def fit_dis_transition(
 
                 # Breit-Wigner piece
                 y_bw = breit_wigner_res(w_res, mass, k, gamma)
+                
                 # DIS piece
                 x_dis = W_to_x(w_res, np.full_like(w_res, q2))
                 quad_new_dis_par = dis_fit_params["par_quad"]  # e.g. (a, b, c, d)
@@ -171,43 +172,58 @@ def fit_dis_transition(
             options={'ftol': 1e-8}
         )
 
-        def compute_uncertainties(opt_result, objective_func, epsilon=1e-8):
+        def compute_uncertainties(opt_result, objective_func, epsilon=1e-5, bounds=None):
             """
-            Compute parameter uncertainties using numerical Hessian. If that fails,
-            fallback to 5% of parameter range.
+            Compute parameter uncertainties using a central-difference numerical Hessian.
+            If Hessian inversion fails, fallback to 5% of parameter range (if bounds are provided).
             """
             params = opt_result.x
             n_params = len(params)
             hessian = np.zeros((n_params, n_params))
+            f0 = objective_func(params)
 
+            # Diagonal terms (second derivative w.r.t. each parameter)
             for i in range(n_params):
-                for j in range(i + 1):
+                h = np.zeros(n_params)
+                h[i] = epsilon
+                f_plus = objective_func(params + h)
+                f_minus = objective_func(params - h)
+                hessian[i, i] = (f_plus - 2 * f0 + f_minus) / (epsilon ** 2)
+
+            # Off-diagonal terms (mixed second derivatives)
+            for i in range(n_params):
+                for j in range(i+1, n_params):
                     h_i = np.zeros(n_params)
                     h_j = np.zeros(n_params)
                     h_i[i] = epsilon
                     h_j[j] = epsilon
 
-                    f_ij = objective_func(params + h_i + h_j)
-                    f_i  = objective_func(params + h_i)
-                    f_j  = objective_func(params + h_j)
-                    f_0  = objective_func(params)
-
-                    hessian[i, j] = (f_ij - f_i - f_j + f_0) / (epsilon**2)
+                    f_pp = objective_func(params + h_i + h_j)
+                    f_pm = objective_func(params + h_i - h_j)
+                    f_mp = objective_func(params - h_i + h_j)
+                    f_mm = objective_func(params - h_i - h_j)
+                    hessian[i, j] = (f_pp - f_pm - f_mp + f_mm) / (4 * epsilon ** 2)
                     hessian[j, i] = hessian[i, j]
 
+            # Attempt to invert the Hessian
             try:
-                covariance = np.linalg.inv(hessian)
+                # Optionally, add a small regularization term to the diagonal:
+                reg = 1e-8 * np.eye(n_params)
+                covariance = np.linalg.inv(hessian + reg)
                 uncertainties = np.sqrt(np.diag(covariance))
-                if (np.all(np.isreal(uncertainties)) and np.all(np.isfinite(uncertainties))):
+                if np.all(np.isreal(uncertainties)) and np.all(np.isfinite(uncertainties)):
                     return uncertainties, True
             except np.linalg.LinAlgError:
                 pass
 
             # Fallback if Hessian inversion fails
-            param_ranges = np.array([b[1] - b[0] for b in bounds])
-            return param_ranges * 0.05, False
+            if bounds is not None:
+                param_ranges = np.array([b[1] - b[0] for b in bounds])
+                return param_ranges * 0.05, False
+            else:
+                raise ValueError("Hessian inversion failed and no bounds were provided for fallback.")
 
-        uncertainties, _ = compute_uncertainties(refined_result, objective_function)
+        uncertainties, _ = compute_uncertainties(refined_result, objective_function, bounds = bounds)
         return refined_result.x, uncertainties
 
     ###########################################################################
@@ -337,7 +353,7 @@ def fit_dis_transition(
     # (5) Define candidate functions
     ###########################################################################
     def inverse(x, a, b, c):
-        return a + b/(x**c)
+        return a + b/(x+c)
     
     def linear(x, m, b):
         return m * x + b
@@ -367,12 +383,18 @@ def fit_dis_transition(
         }
 
     fit_functions = {
-        'inverse': create_function_info(
+        'inverse_damp': create_function_info(
             func=inverse,
             param_names=['a', 'b', 'c'],
-            initial_guess=[1, 0, 1],
-            param_bounds=([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
-        )
+            initial_guess=[0.105, 0, 0.5],
+            param_bounds=([0.100, -np.inf, 0.4], [0.110, np.inf, 0.6])
+        ),
+        'inverse_trans': create_function_info(
+            func=inverse,
+            param_names=['a', 'b', 'c'],
+            initial_guess=[1.73, 0, 0.5],
+            param_bounds=([1.70, -np.inf, 0.4], [1.75, np.inf, 0.6])
+        )        
     }
     '''
         'linear': create_function_info(

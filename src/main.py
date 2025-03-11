@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-26 20:50:23 trottar"
+# Time-stamp: "2025-03-10 14:43:34 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -27,7 +27,7 @@ w_max = 3.0
 
 # Initial resonance region range (optimized later on)
 w_res_min = 1.1
-w_res_max = 1.45
+w_res_max = 1.4
 
 ##################################################################################################################################################
 
@@ -39,7 +39,9 @@ from get_res_fit import get_res_fit
 from plot_BW_params import plot_BW_params
 from fit_BW_params import fit_BW_params
 from fit_dis_transition import fit_dis_transition
-from get_g1f1_W_fits import get_g1f1_W_fits
+from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
+
+from g1f1_grid import create_g1f1_grid
 from functions import g1f1_quad_new_DIS, \
     partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new, \
     fit_error, weighted_avg
@@ -52,6 +54,9 @@ g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data()
 indep_data = [dis_df['X'], dis_df['Q2']]
 
 outputpdf = "../plots/g1f1_fits.pdf"
+
+# Redefine w_max (if needed)
+w_max = g1f1_df['W'].max()
 
 # Create a PdfPages object to manage the PDF file
 with PdfPages(outputpdf) as pdf:
@@ -127,6 +132,7 @@ with PdfPages(outputpdf) as pdf:
               0.1, 0.1, 0.1, 0.1,
               0.1, 0.2, 0.2, 0.2,
               0.2, 0.1, 0.1]
+    
     # RLT (10/16/2024)
     w_lims = [(1.125, 1.4), (1.125, 1.4), (1.100, 1.4), (1.100, 1.4),
               (1.100, 1.4), (1.100, 1.4), (1.100, 1.4), (1.100, 1.35),
@@ -200,7 +206,31 @@ with PdfPages(outputpdf) as pdf:
                     bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                     dis_fit_params["beta_val"],
                     w_lims,                    
-                    pdf
+                    pdf,
+                    g1f1_df
     )
+
+    get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                    res_df, dis_fit_params, dis_transition_fit,
+                    bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                    bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                    bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                    bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                    dis_fit_params["beta_val"],
+                    w_lims,                    
+                    pdf,
+                    g1f1_df
+    )
+
+    create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                     res_df, dis_fit_params, dis_transition_fit,
+                     bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                     bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                     bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                     bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                     dis_fit_params["beta_val"],
+                     w_lims,
+                     pdf
+        )
     
 show_pdf_with_evince(outputpdf)

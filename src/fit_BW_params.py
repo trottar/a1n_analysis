@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 11:46:45 trottar"
+# Time-stamp: "2025-03-04 13:54:26 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -28,8 +28,10 @@ def fit_BW_params(q2, delta_par_df, pdf):
 
     fit_results_csv = "../fit_data/fit_results.csv"
 
-    k_lb = [-1e10, -1e10, -1e10, -1e-10]
-    k_ub = [1e10, 1e10, 1e10, 1e-10]
+    #k_lb = [-1e10, -1e10, -1e10, -1e-10]
+    #k_ub = [1e10, 1e10, 1e10, 1e-10]
+    k_lb = [-1e10, -1e10, -1e10, -1e10]
+    k_ub = [1e10, 1e10, 1e10, 1e10]
     k_bounds = Bounds(lb=k_lb, ub=k_ub)
     P0 = 0.7
     P1 = 1.7

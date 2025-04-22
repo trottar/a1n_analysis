@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 11:08:53 trottar"
+# Time-stamp: "2025-04-15 22:14:56 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -56,12 +56,12 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
             # Make fitted curve for all three parameter fit
             if 0 not in params:
-                fit = breit_wigner_res(w, params[0], params[1], params[2])
+                fit_curve = breit_wigner_res(w, params[0], params[1], params[2])
                 axs[row, col].plot(
-                    w, fit,
+                    w, fit_curve,
                     color=config["colors"]["scatter"],
                     linewidth=config["error_bar"]["line_width"],
-                    label="Fit"
+                    label="Fit = "
                 )
 
             # Make fitted curve for two parameter fit (k, gamma)
@@ -93,8 +93,10 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
             # Set axes limits
             axs[row, col].axhline(0, color="black", linestyle="--")
-            axs[row, col].set_ylim(-.15, 0.1)
-            axs[row, col].set_xlim(0.9, 2.1)
+
+            w_min_data = res_df['W'][res_df['Q2_labels'] == l].min() - 0.1 * res_df['W'][res_df['Q2_labels'] == l].min()
+            w_max_data = res_df['W'][res_df['Q2_labels'] == l].max() + 0.1 * res_df['W'][res_df['Q2_labels'] == l].max()
+            axs[row, col].set_xlim(w_min_data, w_max_data)
             axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
             # Apply grid settings if enabled
@@ -137,36 +139,27 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
         # go through each experiment for constant Q2 and do a fit
         for i, name in enumerate(res_df['Q2_labels'].unique()):
+
+            # get Q2 for this bin
+            q2 = res_df['Q2'][res_df['Q2_labels']==name].unique()[0]
+            
             n_points = len(res_df['W'][res_df['Q2_labels']==name])
             init = (mass_init[i], k_init[i], gamma_init[i])
 
             label_list.append(name) # add name to list of labels
-
-            # get Q2 for this bin
-            if "Flay" in name:
-              q2 = res_df['Q2'][res_df['Q2_labels']==name].mean()
-            else:
-              q2 = res_df['Q2'][res_df['Q2_labels']==name].unique()[0]
             q2_list.append(q2)
 
             # add experiment name to list
             exp_list.append(res_df['Label'][res_df['Q2_labels']==name].unique()[0])
 
             # chop off data outside w_min and w_max
-            w = res_df['W'][res_df['Q2_labels']==name][res_df['W']<w_bounds[i][1]][res_df['W']>w_bounds[i][0]]
-            g1f1 = res_df['G1F1'][res_df['Q2_labels']==name][res_df['W']<w_bounds[i][1]][res_df['W']>w_bounds[i][0]]
-            g1f1_err = res_df['G1F1.err'][res_df['Q2_labels']==name][res_df['W']<w_bounds[i][1]][res_df['W']>w_bounds[i][0]]
+            w = res_df['W'][res_df['Q2_labels']==name][(res_df['W'][res_df['Q2_labels']==name] < w_bounds[i][1]) & (res_df['W'][res_df['Q2_labels']==name] > w_bounds[i][0])]
+            g1f1 = res_df['G1F1'][res_df['Q2_labels']==name][(res_df['W'][res_df['Q2_labels']==name] < w_bounds[i][1]) & (res_df['W'][res_df['Q2_labels']==name] > w_bounds[i][0])]
+            g1f1_err = res_df['G1F1.err'][res_df['Q2_labels']==name][(res_df['W'][res_df['Q2_labels']==name] < w_bounds[i][1]) & (res_df['W'][res_df['Q2_labels']==name] > w_bounds[i][0])]
 
             # default bounds for parameters M, k, gamma
             par_bounds = ([-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
-
-            '''
-            if "Solvg." in name:
-              # bound gamma
-              par_bounds = ([-np.inf, -np.inf, .15],
-                            [np.inf, np.inf, .4])
-            '''
             
             try:
                 # fit for (M, k, gamma) and get parameters and covariance matrix
@@ -201,7 +194,6 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
             # Print the table
             print(f"{name} Fit Parameters")
-            # header is param_names
             print(tabulate(table, param_names + ["$\chi_v^2$"], tablefmt="fancy_grid"))
 
             # Load configuration
@@ -224,27 +216,17 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
                 capthick=config["error_bar"]["cap_thick"],
                 linewidth=config["error_bar"]["line_width"],
                 ecolor=config["colors"]["error_bar"],
-                label='Data'
             )
             w_fine = np.linspace(w.min(), w.max(), 1000)
             axs[0, 0].plot(
                 w_fine, breit_wigner_res(w_fine, *params),
                 color=config["colors"]["error_band"],
                 linewidth=config["error_bar"]["line_width"],
-                label='Fit'
             )
             axs[0, 0].set_xlabel('W', fontsize=config["font_sizes"]["x_axis"])
             axs[0, 0].set_ylabel('G1F1', fontsize=config["font_sizes"]["y_axis"])
             axs[0, 0].set_title('Data and Fitted Curve', fontsize=config["font_sizes"]["labels"])
             axs[0, 0].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
-
-            # Apply grid settings if enabled
-            if config["grid"]["enabled"]:
-                axs[0, 0].grid(
-                    True, linestyle=config["grid"]["line_style"],
-                    linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"],
-                    color=config["colors"]["grid"]
-                )
 
             # Plot 2: Normalized Residuals
             residuals = g1f1 - breit_wigner_res(w, *params)  # Raw residuals
@@ -266,10 +248,8 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
             # Plot 3: Q-Q plot of normalized residuals
             (osm, osr), _ = probplot(normalized_residuals)
-
             axs[1, 0].plot(osm, osr, config["marker"]["type"], color=config["colors"]["scatter"], markersize=config["marker"]["size"])
             axs[1, 0].plot(osm, osm, config["grid"]["line_style"], color=config["colors"]["error_band"])
-
             axs[1, 0].set_xlabel('Theoretical Quantiles', fontsize=config["font_sizes"]["x_axis"])
             axs[1, 0].set_ylabel('Sample Quantiles', fontsize=config["font_sizes"]["y_axis"])
             axs[1, 0].set_title('Q-Q Plot of Normalized Residuals', fontsize=config["font_sizes"]["labels"])
@@ -277,28 +257,13 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
             if config["grid"]["enabled"]:
                 axs[1, 0].grid(True, linestyle=config["grid"]["line_style"], linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"], color=config["colors"]["grid"])
 
-            # Plot 4: Reduced Chi-squared contributions
-            chi_squared = normalized_residuals ** 2
+            # Compute overall reduced chi² and add annotation to Plot 1
             dof = len(w) - n_params  # Degrees of freedom
-            reduced_chi_squared = chi_squared / dof
+            overall_reduced_chi2 = np.sum(normalized_residuals ** 2) / dof
+            axs[0, 0].text(0.05, 0.95, f"Reduced χ² = {overall_reduced_chi2:.2f}", transform=axs[0, 0].transAxes, fontsize=config["font_sizes"]["legend"], verticalalignment='top')
 
-            axs[1, 1].scatter(
-                w, reduced_chi_squared,
-                color=config["colors"]["scatter"],
-                s=config["marker"]["size"] * 2
-            )
-            axs[1, 1].axhline(y=1, color=config["colors"]["error_band"], linestyle='--', label='χ²ᵣ = 1')
-            axs[1, 1].set_xlabel('W', fontsize=config["font_sizes"]["x_axis"])
-            axs[1, 1].set_ylabel('Reduced χ² Contribution', fontsize=config["font_sizes"]["y_axis"])
-            axs[1, 1].set_title('Reduced χ² Contributions per Data Point', fontsize=config["font_sizes"]["labels"])
-            axs[1, 1].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
-
-            # Adjust y-axis for visibility
-            y_max = max(2, max(reduced_chi_squared) * 1.1)
-            axs[1, 1].set_ylim(0, y_max)
-
-            if config["grid"]["enabled"]:
-                axs[1, 1].grid(True, linestyle=config["grid"]["line_style"], linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"], color=config["colors"]["grid"])
+            # Remove the unused subplot (Plot 4) to clean up the figure
+            fig.delaxes(axs[1, 1])
 
             plt.tight_layout()
 

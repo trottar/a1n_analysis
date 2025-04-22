@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-26 20:50:23 trottar"
+# Time-stamp: "2025-04-22 01:16:03 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -39,9 +39,11 @@ from get_res_fit import get_res_fit
 from plot_BW_params import plot_BW_params
 from fit_BW_params import fit_BW_params
 from fit_dis_transition import fit_dis_transition
-from get_g1f1_W_fits import get_g1f1_W_fits
-from functions import g1f1_quad_new_DIS, \
-    partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new, \
+from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
+
+from g1f1_grid import create_g1f1_grid
+from functions import g1f1_quad_fullx_DIS, \
+    partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx,\
     fit_error, weighted_avg
 
 ##################################################################################################################################################
@@ -69,10 +71,10 @@ with PdfPages(outputpdf) as pdf:
 
     args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
 
-    quad_new_fit_curve = g1f1_quad_new_DIS(*args_new)
+    quad_new_fit_curve = g1f1_quad_fullx_DIS(*args_new)
 
     # Table F.1 from XZ's thesis
-    dis_fit_params["partials"] = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
+    dis_fit_params["partials"] = [partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx]
     
     quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
@@ -80,30 +82,9 @@ with PdfPages(outputpdf) as pdf:
     plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
     # make dataframe of Resonance values (1<W<2)
-    res_df = g1f1_df[g1f1_df['W']<2.0]
-    res_df = res_df[res_df['W']>1.0]
+    res_df = g1f1_df[g1f1_df['W']<2.0]    
+    res_df = res_df[res_df['W']>1.0]    
     
-    # drop Flay data
-    res_df = res_df.drop(res_df[res_df.Label == "Flay E06-014 (2014)"].index)
-
-    # drop Kramer data
-    res_df = res_df.drop(res_df[res_df.Label == 'Kramer E97-103 (2003)'].index)
-
-    q2_labels = []
-    # go through each experiment and divide into q2 bins
-    for name in res_df['Label'].unique():
-      data = res_df[res_df['Label']==name]
-      if name == "Flay E06-014 (2014)":
-        # not using Flay data
-        continue
-
-      else:
-        for q2 in data['Q2'].unique():
-          q2_labels += [f"{name} $Q^2={q2}\ GeV^2$" for x in range(len(data[data['Q2']==q2]))]
-          print(name, q2, len(data[data['Q2']==q2]))
-
-
-    res_df['Q2_labels'] = q2_labels
     n_bins = len(res_df['Q2_labels'])
 
     # Plot g1/f1 vs W
@@ -127,6 +108,7 @@ with PdfPages(outputpdf) as pdf:
               0.1, 0.1, 0.1, 0.1,
               0.1, 0.2, 0.2, 0.2,
               0.2, 0.1, 0.1]
+    
     # RLT (10/16/2024)
     w_lims = [(1.125, 1.4), (1.125, 1.4), (1.100, 1.4), (1.100, 1.4),
               (1.100, 1.4), (1.100, 1.4), (1.100, 1.4), (1.100, 1.35),
@@ -177,10 +159,20 @@ with PdfPages(outputpdf) as pdf:
       mass_err_unique.append(mass_avg_err)
       
     # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
+    #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
+    #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
     bw_fit_params = fit_BW_params(q2, delta_par_df, pdf)    
 
+    # Redefine w_max (if needed)
+    w_max = g1f1_df['W'].max()
+
+    # Redefine dataframe for complete fit
+    res_df = g1f1_df
+    res_df = res_df[res_df['W']<2.0]
+    res_df = res_df[res_df['W']>1.0]
+    
     w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
     dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params, 
@@ -200,7 +192,31 @@ with PdfPages(outputpdf) as pdf:
                     bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                     dis_fit_params["beta_val"],
                     w_lims,                    
-                    pdf
+                    pdf,
+                    g1f1_df
     )
+
+    get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                    res_df, dis_fit_params, dis_transition_fit,
+                    bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                    bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                    bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                    bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                    dis_fit_params["beta_val"],
+                    w_lims,                    
+                    pdf,
+                    g1f1_df
+    )
+
+    create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                     res_df, dis_fit_params, dis_transition_fit,
+                     bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                     bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                     bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
+                     bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                     dis_fit_params["beta_val"],
+                     w_lims,
+                     pdf
+        )
     
 show_pdf_with_evince(outputpdf)

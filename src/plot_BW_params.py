@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 11:05:58 trottar"
+# Time-stamp: "2025-03-13 12:17:10 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -28,11 +28,11 @@ def plot_BW_params(delta_par_df, pdf):
     color_index = 0
 
     # Plot all the parameters vs Q²
-    for i, exp_name in enumerate(delta_par_df["Experiment"].unique()):
+    for i, exp_name in enumerate(delta_par_df["Label"].unique()):
         axs[0].errorbar(
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["k"],
-            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["k.err"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["k"],
+            yerr=delta_par_df[delta_par_df["Label"] == exp_name]["k.err"],
             fmt=config["marker"]["type"],
             color=config["colors"]["scatter"],  # Config-based scatter color
             markersize=config["marker"]["size"],
@@ -40,13 +40,12 @@ def plot_BW_params(delta_par_df, pdf):
             capthick=config["error_bar"]["cap_thick"],
             linewidth=config["error_bar"]["line_width"],
             ecolor=config["colors"]["error_bar"],
-            label=exp_name
         )
 
         axs[1].errorbar(
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["gamma"],
-            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["gamma.err"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["gamma"],
+            yerr=delta_par_df[delta_par_df["Label"] == exp_name]["gamma.err"],
             fmt=config["marker"]["type"],
             color=config["colors"]["scatter"],
             markersize=config["marker"]["size"],
@@ -54,13 +53,12 @@ def plot_BW_params(delta_par_df, pdf):
             capthick=config["error_bar"]["cap_thick"],
             linewidth=config["error_bar"]["line_width"],
             ecolor=config["colors"]["error_bar"],
-            label=exp_name
         )
 
         axs[2].errorbar(
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["Q2"],
-            delta_par_df[delta_par_df["Experiment"] == exp_name]["M"],
-            yerr=delta_par_df[delta_par_df["Experiment"] == exp_name]["M.err"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["Q2"],
+            delta_par_df[delta_par_df["Label"] == exp_name]["M"],
+            yerr=delta_par_df[delta_par_df["Label"] == exp_name]["M.err"],
             fmt=config["marker"]["type"],
             color=config["colors"]["scatter"],
             markersize=config["marker"]["size"],
@@ -68,7 +66,6 @@ def plot_BW_params(delta_par_df, pdf):
             capthick=config["error_bar"]["cap_thick"],
             linewidth=config["error_bar"]["line_width"],
             ecolor=config["colors"]["error_bar"],
-            label=exp_name
         )
 
     # Set y-axis labels with configurable font size
@@ -89,11 +86,6 @@ def plot_BW_params(delta_par_df, pdf):
                 linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"],
                 color=config["colors"]["grid"]
             )
-
-    # Legends with configurable font size and frame setting
-    axs[0].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
-    axs[1].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
-    axs[2].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
 
     # Adjust layout and add global x-axis label
     fig.tight_layout()

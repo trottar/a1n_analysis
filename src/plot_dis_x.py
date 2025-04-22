@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 12:03:34 trottar"
+# Time-stamp: "2025-04-22 10:53:00 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -80,6 +80,8 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
     # Legend settings
     ax1.legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"], loc=config["legend"]["location"])
 
+    #ax1.set_ylim(-0.05, 0.05)
+    
     # Adjust layout
     plt.tight_layout()
 

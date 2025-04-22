@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-03-10 14:43:00 trottar"
+# Time-stamp: "2025-04-21 17:55:18 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -27,7 +27,7 @@ from functions import (
     breit_wigner_bump_wrapper, breit_wigner_bump,
     breit_wigner_wrapper, breit_wigner_res, propagate_bw_error,
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    g1f1_quad_new_DIS, calculate_param_error, 
+    g1f1_quad_fullx_DIS, calculate_param_error, 
     damping_function, damping_function_err, 
     propagate_transition_error, propagate_complete_error, calculate_fit_residuals,
     propagate_dis_error
@@ -52,31 +52,9 @@ def get_g1f1_W_fits(
     exactly as in the original code to guarantee identical output.
     """
 
-    # drop Flay data
-    g1f1_df = g1f1_df.drop(g1f1_df[g1f1_df.Label == "Flay E06-014 (2014)"].index)
-
-    # drop Kramer data
-    g1f1_df = g1f1_df.drop(g1f1_df[g1f1_df.Label == 'Kramer E97-103 (2003)'].index)
-    
-    # --- Process g1f1_df: Compute Q² labels ---
-    q2_labels_g1f1 = []
-    # Loop through each experiment in g1f1_df
-    for name in g1f1_df['Label'].unique():
-        data = g1f1_df[g1f1_df['Label'] == name]
-        if name == "Flay E06-014 (2014)":
-            # Skip this experiment's data
-            continue
-        # For each unique Q² in the experiment, create Q² label entries
-        for q2 in data['Q2'].unique():
-            count = len(data[data['Q2'] == q2])
-            q2_labels_g1f1 += [f"{name} $Q^2={q2}\\ GeV^2$" for _ in range(count)]
-            print(name, q2, count)
-
-    # Assign the computed Q² labels to the g1f1_df DataFrame
-    g1f1_df['Q2_labels'] = q2_labels_g1f1
 
     # --- Process res_df: Extrapolate Q² values ---
-    extrapolated_q2 = [5, 10, 25]
+    extrapolated_q2 = [10, 20, 50]
     # Identify numeric columns that need extrapolation (excluding Q2 since it's set manually)
     numeric_cols = res_df.select_dtypes(include=[np.number]).columns.tolist()
 
@@ -106,6 +84,33 @@ def get_g1f1_W_fits(
     extrapolated_df = pd.DataFrame(extrapolated_entries)
     res_df = pd.concat([res_df, extrapolated_df], ignore_index=True)
 
+    # Define the desired order tokens
+    ordered_tokens = ['Low', 'Mid', 'High', 'Extrapolated']
+
+    # Function to extract the sort keyword from the full Q2 label
+    def extract_keyword(label):
+        for token in ordered_tokens:
+            # Check (case-insensitive) if the token is in the label
+            if token.lower() in label.lower():
+                return token
+        # Fallback: return the label itself if none found
+        return label
+
+    # Create a helper column 'keyword' by applying the extraction function to Q2_labels
+    res_df['keyword'] = res_df['Q2_labels'].apply(extract_keyword)
+
+    # Convert the helper column to an ordered categorical type
+    res_df['keyword'] = pd.Categorical(res_df['keyword'], categories=ordered_tokens, ordered=True)
+
+    # Sort the DataFrame by the helper column
+    res_df = res_df.sort_values('keyword').reset_index(drop=True)
+
+    # Explicitly get the sorted unique Q2_labels from the sorted DataFrame:
+    sorted_q2_labels = res_df.drop_duplicates(subset='Q2_labels').sort_values('keyword')['Q2_labels'].tolist()
+
+    # Print the sorted labels to verify the order
+    print("Sorted Q2_labels for plotting:", sorted_q2_labels)
+    
     # Print confirmation with unique Q² values in the final DataFrame
     print(f"Added extrapolated Q² values and merged non-overlapping g1f1_df data. Unique Q²: {res_df['Q2'].unique()}")
     
@@ -181,7 +186,7 @@ def get_g1f1_W_fits(
         w_dis = np.linspace(2.0, 3.0, 1000)
         q2_array = np.ones(w_dis.size) * q2
         x_dis = W_to_x(w_dis, q2_array)
-        y_dis = g1f1_quad_new_DIS([x_dis, q2_array], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([x_dis, q2_array], *quad_new_dis_par)
 
         axs[row, col].plot(
             w_dis, y_dis,
@@ -345,7 +350,7 @@ def get_g1f1_W_fits(
             y_bw = breit_wigner_res(w_res, mass, k, gamma)
             x_dis = W_to_x(w_res, np.full_like(w_res, q2))
             quad_new_dis_par = dis_fit_params["par_quad"]
-            y_dis = g1f1_quad_new_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+            y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
 
             k_new = k_new_new(q2)
             y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
@@ -462,7 +467,7 @@ def get_g1f1_W_fits(
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
         quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_new_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -583,7 +588,7 @@ def get_g1f1_W_fits(
     # Define custom height ratios to force residuals to be attached but keep gaps between Q² bins
     height_ratios = []
     for _ in range(n_rows):
-        height_ratios.extend([3, 0, 0])  # g₁/F₁ and residuals connected, then gap
+        height_ratios.extend([3, 0, 1])  # g₁/F₁ and residuals connected, then gap
 
     fig = plt.figure(figsize=(n_col * 6.5, n_rows * 6))
     gs = gridspec.GridSpec(n_rows * 3, n_col, height_ratios=height_ratios, hspace=0.0)  # hspace=0 for connection
@@ -620,7 +625,7 @@ def get_g1f1_W_fits(
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
         quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_new_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -654,6 +659,14 @@ def get_g1f1_W_fits(
             label=f"$\\chi_v^2$={chi2:.2f}",
         )
 
+        axs[row, col].plot(
+            x_dis, y_dis,
+            color=config["colors"]["fit"],
+            linestyle="-.",
+            linewidth=config["error_bar"]["line_width"],
+            label=f"y_dis",
+        )
+
         axs[row, col].errorbar(
             xbj,
             res_df['G1F1'][res_df['Q2_labels'] == l],
@@ -667,12 +680,14 @@ def get_g1f1_W_fits(
             ecolor=config["colors"]["error_bar"]
         )
 
+
         axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
+        axs[row, col].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
-        axs[row, col].set_xlim(0.0, 1.0)
-        axs[row, col].set_ylim(-0.15, 0.1)
+        #axs[row, col].set_xlim(0.0, 1.0)
+        #axs[row, col].set_ylim(-0.15, 0.1)
 
         # Get current y-tick labels
         yticks = axs[row, col].get_yticks()
@@ -690,7 +705,7 @@ def get_g1f1_W_fits(
                 linewidth=config["grid"]["line_width"], alpha=config["grid"]["alpha"],
                 color=config["colors"]["grid"]
             )
-        
+                
     # Force gaps between Q² bins, but keep residuals attached to g₁/F₁
     fig.subplots_adjust(hspace=0.0)  
 
@@ -938,7 +953,7 @@ def get_g1f1_W_fits_q2_bin(
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
         quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_new_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -1065,7 +1080,7 @@ def get_g1f1_W_fits_q2_bin(
     # Define custom height ratios to force residuals to be attached but keep gaps between Q² bins
     height_ratios = []
     for _ in range(n_rows):
-        height_ratios.extend([3, 0, 0])  # g₁/F₁ and residuals connected, then gap
+        height_ratios.extend([3, 0, 1.0])  # g₁/F₁ and residuals connected, then gap
 
     fig = plt.figure(figsize=(n_col * 6.5, n_rows * 6))
     gs = gridspec.GridSpec(n_rows * 3, n_col, height_ratios=height_ratios, hspace=0.0)  # hspace=0 for connection
@@ -1102,7 +1117,7 @@ def get_g1f1_W_fits_q2_bin(
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
         quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_new_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -1136,9 +1151,16 @@ def get_g1f1_W_fits_q2_bin(
             label=f"$\\chi_v^2$={chi2:.2f}",
         )
 
+        axs[row, col].plot(
+            x_dis, y_dis,
+            color=config["colors"]["fit"],
+            linestyle="-.",
+            linewidth=config["error_bar"]["line_width"],
+            label=f"y_dis",
+        )
+        
         axs[row, col].errorbar(
-            xbj,
-            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+            xbj,g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
             yerr=abs(g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l]),
             fmt=config["marker"]["type"],
             color=config["colors"]["scatter"],
@@ -1151,9 +1173,10 @@ def get_g1f1_W_fits_q2_bin(
 
         axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
+        axs[row, col].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
-        axs[row, col].set_xlim(0.0, 1.0)
+        #axs[row, col].set_xlim(0.0, 1.0)
         #axs[row, col].set_ylim(-0.15, 0.1)
 
         # Get current y-tick labels

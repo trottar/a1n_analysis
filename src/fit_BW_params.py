@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-03-04 13:54:26 trottar"
+# Time-stamp: "2025-03-28 11:16:58 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -30,8 +30,10 @@ def fit_BW_params(q2, delta_par_df, pdf):
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
     #k_ub = [1e10, 1e10, 1e10, 1e-10]
-    k_lb = [-1e10, -1e10, -1e10, -1e10]
-    k_ub = [1e10, 1e10, 1e10, 1e10]
+    #k_lb = [-1e10, -1e10, -1e10, -1e10]
+    #k_ub = [1e10, 1e10, 1e10, 1e10]
+    k_lb = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10, -1e10]
+    k_ub = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10, 1e10]
     k_bounds = Bounds(lb=k_lb, ub=k_ub)
     P0 = 0.7
     P1 = 1.7
@@ -39,8 +41,10 @@ def fit_BW_params(q2, delta_par_df, pdf):
     Y1 = 0.0
     k_p_vals_initial = [P0, P1, P2, Y1]
 
-    gamma_lb = [-1e10, -1e10, -1e10, 0.0]
-    gamma_ub = [1e10, 1e10, 1e10, 1e10]
+    #gamma_lb = [-1e10, -1e10, -1e10, 0.0]
+    #gamma_ub = [1e10, 1e10, 1e10, 1e10]
+    gamma_lb = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10]
+    gamma_ub = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10]
     gamma_bounds = Bounds(lb=gamma_lb, ub=gamma_ub)        
     P0 = 0.7
     P1 = 1.7
@@ -48,8 +52,10 @@ def fit_BW_params(q2, delta_par_df, pdf):
     Y1 = 0.0
     gamma_p_vals_initial = [P0, P1, P2, Y1]
 
-    mass_lb = [0.0, -1e10, 0.0, 0.0]
-    mass_ub = [1e10, 1e10, 1e10, 2.0]
+    #mass_lb = [0.0, -1e10, 0.0, 0.0]
+    #mass_ub = [1e10, 1e10, 1e10, 2.0]
+    mass_lb = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10]
+    mass_ub = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10]    
     mass_bounds = Bounds(lb=mass_lb, ub=mass_ub)
     P0 = 0.7
     P1 = 1.7
@@ -57,30 +63,30 @@ def fit_BW_params(q2, delta_par_df, pdf):
     Y1 = 0.0
     mass_p_vals_initial = [P0, P1, P2, Y1]                
 
-    def quad_nucl_curve_gamma_wrapper(x, a, b, c, y0):
+    def quad_nucl_curve_gamma_wrapper(x, a, b, c, d, e, y0):
       """
       quadratic * nucl potential form
       x: independent data
       a, b, c: quadratic curve parameters
       y0: term to have curve end at a constant value
       """  
-      return quad_nucl_curve_gamma(x, a, b, c, y0, P0, P1, P2, Y1)
-    def quad_nucl_curve_k_wrapper(x, a, b, c, y0):
+      return quad_nucl_curve_gamma(x, a, b, c, d, e, y0, P0, P1, P2, Y1)
+    def quad_nucl_curve_k_wrapper(x, a, b, c, d, e, f, y0):
       """
       quadratic * nucl potential form
       x: independent data
       a, b, c: quadratic curve parameters
       y0: term to have curve end at a constant value
       """  
-      return quad_nucl_curve_k(x, a, b, c, y0, P0, P1, P2, Y1)
-    def quad_nucl_curve_mass_wrapper(x, a, b, c, y0):
+      return quad_nucl_curve_k(x, a, b, c, d, e, f, y0, P0, P1, P2, Y1)
+    def quad_nucl_curve_mass_wrapper(x, a, b, c, d, e, y0):
       """
       quadratic * nucl potential form
       x: independent data
       a, b, c: quadratic curve parameters
       y0: term to have curve end at a constant value
       """  
-      return quad_nucl_curve_mass(x, a, b, c, y0, P0, P1, P2, Y1)
+      return quad_nucl_curve_mass(x, a, b, c, d, e, y0, P0, P1, P2, Y1)
     
     if not os.path.exists(fit_results_csv):
         print(f"\n\nFile '{fit_results_csv}' does not exist. Finding best fits!")
@@ -100,7 +106,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
             param_bounds=k_bounds,
             p_vals_initial=k_p_vals_initial,
             fit_function=quad_nucl_curve_k_wrapper,
-            N=10,
+            N=3,
         )
 
         # Store results
@@ -125,7 +131,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
             param_bounds=gamma_bounds,
             p_vals_initial=gamma_p_vals_initial,
             fit_function=quad_nucl_curve_gamma_wrapper,
-            N=10,
+            N=3,
         )
 
         # Store results
@@ -150,7 +156,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
             param_bounds=mass_bounds,
             p_vals_initial=mass_p_vals_initial,
             fit_function=quad_nucl_curve_mass_wrapper,
-            N=10,
+            N=3,
         )
 
         # Store results
@@ -225,7 +231,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     k_nucl_par = k_best_params
     k_P_vals = k_best_p_vals
     k_nucl_chi2 = k_best_chi2
-    print("Best fit parameters (a, b, c, y0):", k_nucl_par)
+    print("Best fit parameters (a, b, c, d, y0):", k_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", k_P_vals)
     print("Best chi-squared:", k_nucl_chi2)
     print("Parameters uncertainties:", k_param_uncertainties)
@@ -352,16 +358,16 @@ def fit_BW_params(q2, delta_par_df, pdf):
 
                     # Fit the bootstrap sample
                     if var_name == "k":
-                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
-                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in k_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in k_P_vals]
                         bounds=(lb_tmp, ub_tmp)
                     elif var_name == "gamma":
-                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in gamma_P_vals]
-                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in gamma_P_vals]
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in gamma_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in gamma_P_vals]
                         bounds=(lb_tmp, ub_tmp)
                     elif var_name == "mass":
-                        lb_tmp = [-1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in mass_P_vals]
-                        ub_tmp = [1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in mass_P_vals]
+                        lb_tmp = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10] + [P-(1e-6) for P in mass_P_vals]
+                        ub_tmp = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10] + [P+(1e-6) for P in mass_P_vals]
                         bounds=(lb_tmp, ub_tmp)
                     else:
                         bounds=bounds
@@ -510,6 +516,123 @@ def fit_BW_params(q2, delta_par_df, pdf):
     axs[1].legend(fontsize=config["font_sizes"]["legend"])
     axs[2].legend(fontsize=config["font_sizes"]["legend"])
 
+    axs[0].set_ylim(-.12, 0.05)
+    axs[1].set_ylim(-.5, 0.5)
+    axs[2].set_ylim(1.1, 1.6)
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+
+    fig.tight_layout()
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
+
+    # Save figures
+    pdf.savefig(fig, bbox_inches="tight")
+
+
+    # plot the fits with the data
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
+
+    # plot all the parameters vs Q2
+    for i, label in enumerate(delta_par_df["Experiment"].unique()):
+        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+
+        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+
+        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+        
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    
+    fig.tight_layout()
+
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
+
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
+
+    # Low Q2 plot range
+    axs[0].set_xlim(0.0, 0.5)
+    axs[1].set_xlim(0.0, 0.5)
+    axs[2].set_xlim(0.0, 0.5)
+    
+    axs[0].set_ylim(-.12, 0.05)
+    axs[1].set_ylim(-.5, 0.5)
+    axs[2].set_ylim(1.1, 1.6)
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+
+    fig.tight_layout()
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
+
+    # Save figures
+    pdf.savefig(fig, bbox_inches="tight")
+    
+    # plot the fits with the data
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
+
+    # plot all the parameters vs Q2
+    for i, label in enumerate(delta_par_df["Experiment"].unique()):
+        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+
+        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+
+        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
+                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
+                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
+                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
+                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
+                        label=label, capthick=config["error_bar"]["cap_thick"])
+        
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    
+    fig.tight_layout()
+
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
+
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
+
+    # Low Q2 plot range
+    axs[0].set_xlim(0.0, 0.1)
+    axs[1].set_xlim(0.0, 0.1)
+    axs[2].set_xlim(0.0, 0.1)
+    
     axs[0].set_ylim(-.12, 0.05)
     axs[1].set_ylim(-.5, 0.5)
     axs[2].set_ylim(1.1, 1.6)

@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 11:05:44 trottar"
+# Time-stamp: "2025-03-12 16:31:07 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -45,9 +45,13 @@ def plot_3he_data_W(res_df, pdf):
             label=l
         )
 
+        w_min_data = res_df['W'][res_df['Q2_labels'] == l].min() - 0.1 * res_df['W'][res_df['Q2_labels'] == l].min()
+        w_max_data = res_df['W'][res_df['Q2_labels'] == l].max() + 0.1 * res_df['W'][res_df['Q2_labels'] == l].max()
+        axs[row, col].set_xlim(w_min_data, w_max_data)
+        
         # Apply axis limits
-        axs[row, col].set_ylim(-0.15, 0.1)
-        axs[row, col].set_xlim(0.9, 2.1)
+        #axs[row, col].set_ylim(-0.15, 0.1)
+        #axs[row, col].set_xlim(0.9, 2.1)
 
         # Apply grid settings if enabled
         if config["grid"]["enabled"]:

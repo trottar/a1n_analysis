@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-03-04 13:23:09 trottar"
+# Time-stamp: "2025-04-21 18:17:29 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -23,7 +23,7 @@ from functions import (
     breit_wigner_bump_wrapper, breit_wigner_bump,
     breit_wigner_wrapper, breit_wigner_res,
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    g1f1_quad_new_DIS, damping_function,
+    g1f1_quad_fullx_DIS, damping_function,
 )
 
 def create_g1f1_grid(
@@ -43,20 +43,20 @@ def create_g1f1_grid(
     
     ##########################################
     # 1) Build the Q² grid with three segments:
-    #    - 0.001 to 0.1 (100 points)
-    #    - 0.1 to 1.0   (90 points)
-    #    - 1.0 to 20.0  (190 points)
+    #    - 0.001 to 0.1 (0.001 steps)
+    #    - 0.1 to 1.0   (0.1 steps)
+    #    - 1.0 to 20.0  (1.0 steps)
     ##########################################
-    q2_part1 = np.linspace(0.001, 0.1, 100)
-    q2_part2 = np.linspace(0.1, 1.0, 90)
-    q2_part3 = np.linspace(1.0, 20.0, 190)
+    q2_part1 = np.arange(0.001, 0.100, 0.001, dtype=np.double)
+    q2_part2 = np.arange(0.1, 1.0, 0.01, dtype=np.double)
+    q2_part3 = np.arange(1.0, 20.1, 0.1, dtype=np.double)
     q2_grid = np.unique(np.concatenate([q2_part1, q2_part2, q2_part3]))
 
     ##########################################
     # 2) Define your x range (0.0 to 1.0) and compute corresponding W values
     ##########################################
     n_x_points = 1000
-    x_grid = np.linspace(0.0, 1.0, n_x_points, dtype=np.double)
+    x_grid = np.arange(0.001, 1.001, 0.001, dtype=np.double)
 
     best_fit_results, q2_bin_params, q2_bin_errors = dis_transition_fit
 
@@ -114,7 +114,7 @@ def create_g1f1_grid(
 
         # -- Compute DIS part --
         quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_new_DIS([xbj, np.full_like(xbj, q2_val)], *quad_new_dis_par)
+        y_dis = g1f1_quad_fullx_DIS([xbj, np.full_like(xbj, q2_val)], *quad_new_dis_par)
 
         # -- Compute the transition/damping part and complete function --
         k_new_val = k_new_new(q2_val)

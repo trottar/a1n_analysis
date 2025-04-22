@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-03-10 14:43:34 trottar"
+# Time-stamp: "2025-04-22 01:16:03 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -27,7 +27,7 @@ w_max = 3.0
 
 # Initial resonance region range (optimized later on)
 w_res_min = 1.1
-w_res_max = 1.4
+w_res_max = 1.45
 
 ##################################################################################################################################################
 
@@ -42,8 +42,8 @@ from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
 
 from g1f1_grid import create_g1f1_grid
-from functions import g1f1_quad_new_DIS, \
-    partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new, \
+from functions import g1f1_quad_fullx_DIS, \
+    partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx,\
     fit_error, weighted_avg
 
 ##################################################################################################################################################
@@ -54,9 +54,6 @@ g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data()
 indep_data = [dis_df['X'], dis_df['Q2']]
 
 outputpdf = "../plots/g1f1_fits.pdf"
-
-# Redefine w_max (if needed)
-w_max = g1f1_df['W'].max()
 
 # Create a PdfPages object to manage the PDF file
 with PdfPages(outputpdf) as pdf:
@@ -74,10 +71,10 @@ with PdfPages(outputpdf) as pdf:
 
     args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
 
-    quad_new_fit_curve = g1f1_quad_new_DIS(*args_new)
+    quad_new_fit_curve = g1f1_quad_fullx_DIS(*args_new)
 
     # Table F.1 from XZ's thesis
-    dis_fit_params["partials"] = [partial_alpha_new, partial_a_new, partial_b_new, partial_c_new, partial_beta_new]
+    dis_fit_params["partials"] = [partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx]
     
     quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
@@ -85,30 +82,9 @@ with PdfPages(outputpdf) as pdf:
     plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
     # make dataframe of Resonance values (1<W<2)
-    res_df = g1f1_df[g1f1_df['W']<2.0]
-    res_df = res_df[res_df['W']>1.0]
+    res_df = g1f1_df[g1f1_df['W']<2.0]    
+    res_df = res_df[res_df['W']>1.0]    
     
-    # drop Flay data
-    res_df = res_df.drop(res_df[res_df.Label == "Flay E06-014 (2014)"].index)
-
-    # drop Kramer data
-    res_df = res_df.drop(res_df[res_df.Label == 'Kramer E97-103 (2003)'].index)
-
-    q2_labels = []
-    # go through each experiment and divide into q2 bins
-    for name in res_df['Label'].unique():
-      data = res_df[res_df['Label']==name]
-      if name == "Flay E06-014 (2014)":
-        # not using Flay data
-        continue
-
-      else:
-        for q2 in data['Q2'].unique():
-          q2_labels += [f"{name} $Q^2={q2}\ GeV^2$" for x in range(len(data[data['Q2']==q2]))]
-          print(name, q2, len(data[data['Q2']==q2]))
-
-
-    res_df['Q2_labels'] = q2_labels
     n_bins = len(res_df['Q2_labels'])
 
     # Plot g1/f1 vs W
@@ -183,10 +159,20 @@ with PdfPages(outputpdf) as pdf:
       mass_err_unique.append(mass_avg_err)
       
     # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
+    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
+    #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
+    #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
     bw_fit_params = fit_BW_params(q2, delta_par_df, pdf)    
 
+    # Redefine w_max (if needed)
+    w_max = g1f1_df['W'].max()
+
+    # Redefine dataframe for complete fit
+    res_df = g1f1_df
+    res_df = res_df[res_df['W']<2.0]
+    res_df = res_df[res_df['W']>1.0]
+    
     w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
     dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params, 

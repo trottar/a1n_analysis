@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-02-23 11:05:14 trottar"
+# Time-stamp: "2025-04-21 17:24:10 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -18,7 +18,7 @@ import json
 
 ##################################################################################################################################################
 
-from functions import g1f1_quad_new_DIS
+from functions import g1f1_quad_fullx_DIS
 
 ##################################################################################################################################################
 
@@ -27,11 +27,11 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
     # fit the g1f1 DIS data with constrained quadratic form
 
     # Initial parameterization guesses (irrelavent as algorthm is suffiecent with most initial params)
-    quad_new_init = [0.66084205, -0.23606144,  -1.25499178, 2.65987975,  0.09666789]
-    quad_new_constr = ([-np.inf, -np.inf, -np.inf, 0.0, -np.inf],
-                    [np.inf, np.inf, 0.0, np.inf, np.inf]) # min and max bounds on alpha, a, b, c, and beta
+    quad_new_init = [0.66084205, -0.23606144,  -1.25499178, 2.65987975,  0.09666789, 0.0, 0.2, 0.35]
+    quad_new_constr = ([-np.inf, -np.inf, -np.inf, 0.0, -np.inf, -np.inf, 0.1, 0.2],
+                    [np.inf, np.inf, 0.0, np.inf, np.inf, np.inf, 0.3, 0.5]) # min and max bounds on alpha, a, b, c, beta, d, x0 and sigma
 
-    quad_param_names = ["alpha", "a", "b", "c", "beta"]
+    quad_param_names = ["alpha", "a", "b", "c", "beta", "d", "x0", "sigma"]
     
     def optimize_init_params(func, x, y, y_err, params_init, bounds, n_tries=1000):
         """
@@ -93,7 +93,7 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
 
         return params, covariance, param_sigmas, chi_2
 
-    par_quad, cov_quad, par_err_quad, chi2_quad = fit_new(g1f1_quad_new_DIS, indep_data,
+    par_quad, cov_quad, par_err_quad, chi2_quad = fit_new(g1f1_quad_fullx_DIS, indep_data,
                                                           dis_df['G1F1'],
                                                           dis_df['G1F1.err'],
                                                           quad_new_init,
@@ -133,7 +133,7 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
     # g1/f1 fit vs x, residuals vs x
     fig, axs = plt.subplots(2, 1, figsize=(18, 10), gridspec_kw={'height_ratios': [3, 1]})
 
-    fit_vals = g1f1_quad_new_DIS([x_dense, q2_dense], *par_quad)
+    fit_vals = g1f1_quad_fullx_DIS([x_dense, q2_dense], *par_quad)
 
     # Top plot: Data with Fit
     axs[0].errorbar(
@@ -161,7 +161,7 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
                     color=config["colors"]["grid"])
 
     # Bottom plot: Residuals
-    residuals = (dis_df['G1F1'] - g1f1_quad_new_DIS([dis_df['X'], dis_df['Q2']], *par_quad)) / dis_df['G1F1.err']
+    residuals = (dis_df['G1F1'] - g1f1_quad_fullx_DIS([dis_df['X'], dis_df['Q2']], *par_quad)) / dis_df['G1F1.err']
     axs[1].scatter(
         dis_df['X'], residuals, color=config["colors"]["scatter"], 
         s=config["marker"]["size"] * 2  # Scale scatter point size

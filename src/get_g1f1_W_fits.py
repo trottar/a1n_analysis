@@ -32,6 +32,7 @@ from functions import (
     propagate_transition_error, propagate_complete_error, calculate_fit_residuals,
     propagate_dis_error
 )
+from utility import src_path
 
 ##################################################################################################################################################
 
@@ -134,7 +135,7 @@ def get_g1f1_W_fits(
             return np.nan, np.nan  # Prevent crashes on extrapolated Q²
         
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     n_col = 5
@@ -908,7 +909,7 @@ def get_g1f1_W_fits_q2_bin(
             return np.nan, np.nan  # Prevent crashes on extrapolated Q²
         
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     n_col = 5

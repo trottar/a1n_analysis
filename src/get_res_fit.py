@@ -19,7 +19,7 @@ import json
 ##################################################################################################################################################
 
 from functions import fit, breit_wigner_wrapper, breit_wigner_res
-from utility import safe_tabulate as tabulate
+from utility import safe_tabulate as tabulate, src_path
 
 ##################################################################################################################################################
 
@@ -31,7 +31,7 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
     def plot_res_fits(w_bounds, M, region_name, param_df):
 
         # Load configuration
-        with open("config.json", "r") as f:
+        with open(src_path("config.json"), "r") as f:
             config = json.load(f)
 
         # Make figure
@@ -201,7 +201,7 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
             print(tabulate(table, param_names + ["$\chi_v^2$"], tablefmt="fancy_grid"))
 
             # Load configuration
-            with open("config.json", "r") as f:
+            with open(src_path("config.json"), "r") as f:
                 config = json.load(f)
 
             # Add diagnostic plots

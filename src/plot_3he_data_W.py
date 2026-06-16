@@ -13,12 +13,14 @@
 import matplotlib.pyplot as plt
 import json
 
+from utility import src_path
+
 ##################################################################################################################################################
 
 def plot_3he_data_W(res_df, pdf):
 
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     # Determine number of subplots

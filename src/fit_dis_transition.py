@@ -30,13 +30,14 @@ from functions import (
     k_gamma_mass_loop,
     k_new_new
 )
+from utility import project_path, src_path
 
 ##################################################################################################################################################
 def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
-        return os.path.join("..", "fit_data", filename)
+        return project_path("fit_data", filename)
 
-    tagged_dir = os.path.join("..", "fit_data", dataset_tag)
+    tagged_dir = project_path("fit_data", dataset_tag)
     os.makedirs(tagged_dir, exist_ok=True)
     return os.path.join(tagged_dir, filename)
 
@@ -334,7 +335,7 @@ def fit_dis_transition(
     ###########################################################################
     # (4) Plot: bin-by-bin results for each parameter
     ###########################################################################
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
     
     for name in param_names:

@@ -18,7 +18,7 @@ import json
 ##################################################################################################################################################
 
 from functions import g1f1_quad_fullx_DIS
-from utility import safe_tabulate as tabulate
+from utility import safe_tabulate as tabulate, src_path
 
 ##################################################################################################################################################
 
@@ -127,7 +127,7 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
     print("-"*25, "\n\n")
 
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     # g1/f1 fit vs x, residuals vs x

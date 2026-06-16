@@ -21,6 +21,20 @@ except ImportError:
 
 ################################################################################################################################################
 
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SRC_DIR)
+
+
+def src_path(*parts):
+    return os.path.join(SRC_DIR, *parts)
+
+
+def project_path(*parts):
+    return os.path.join(PROJECT_ROOT, *parts)
+
+
+################################################################################################################################################
+
 def safe_tabulate(rows, headers=(), tablefmt=None):
     if _tabulate is not None:
         return _tabulate(rows, headers=headers, tablefmt=tablefmt)

@@ -13,12 +13,14 @@
 import matplotlib.pyplot as plt
 import json
 
+from utility import src_path
+
 ##################################################################################################################################################
 
 def plot_BW_params(delta_par_df, pdf):
     
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     # Create figure with 3 subplots

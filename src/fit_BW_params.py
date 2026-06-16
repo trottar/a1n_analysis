@@ -21,14 +21,15 @@ import json
 ##################################################################################################################################################
 
 from functions import fit_with_dynamic_params, quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass
+from utility import project_path, src_path
 
 ##################################################################################################################################################
 
 def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
-        return os.path.join("..", "fit_data", filename)
+        return project_path("fit_data", filename)
 
-    tagged_dir = os.path.join("..", "fit_data", dataset_tag)
+    tagged_dir = project_path("fit_data", dataset_tag)
     os.makedirs(tagged_dir, exist_ok=True)
     return os.path.join(tagged_dir, filename)
 
@@ -287,7 +288,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
     mass_nucl_err = [p for p in mass_param_uncertainties] + [p for p in mass_p_val_uncertainties]
 
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
     
     # plot M, k, gamma vs Q2 from variable M fit

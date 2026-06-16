@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from functions import x_to_W
+from utility import project_path
 
 ##################################################################################################################################################
 
@@ -239,25 +240,24 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
     # Load csv files into data frames
-    data_dir = "../data/"
-    e06014_df = pd.read_csv(data_dir + "dflay_e06014.csv")
-    e94010_df = pd.read_csv(data_dir + "e94010.csv")
-    e97110_df = pd.read_csv(data_dir + "e97110.csv")
-    psolva1a2_df = pd.read_csv(data_dir + "psolv_e01012_a1a2.csv")
-    psolvg1g2_df = pd.read_csv(data_dir + "psolv_e01012_g1g2.csv")
-    zheng_df = pd.read_csv(data_dir + "zheng_thesis_pub_e99117.csv")
-    hermes_df = pd.read_csv(data_dir + "hermes_2000.csv")
-    e142_df = pd.read_csv(data_dir + "slac_e142.csv")
-    e154_df = pd.read_csv(data_dir + "slac_e154.csv")
-    e97103_df = pd.read_csv(data_dir + "kramer_e97103.csv")
+    e06014_df = pd.read_csv(project_path("data", "dflay_e06014.csv"))
+    e94010_df = pd.read_csv(project_path("data", "e94010.csv"))
+    e97110_df = pd.read_csv(project_path("data", "e97110.csv"))
+    psolva1a2_df = pd.read_csv(project_path("data", "psolv_e01012_a1a2.csv"))
+    psolvg1g2_df = pd.read_csv(project_path("data", "psolv_e01012_g1g2.csv"))
+    zheng_df = pd.read_csv(project_path("data", "zheng_thesis_pub_e99117.csv"))
+    hermes_df = pd.read_csv(project_path("data", "hermes_2000.csv"))
+    e142_df = pd.read_csv(project_path("data", "slac_e142.csv"))
+    e154_df = pd.read_csv(project_path("data", "slac_e154.csv"))
+    e97103_df = pd.read_csv(project_path("data", "kramer_e97103.csv"))
 
-    mingyu_df = pd.read_csv(data_dir + "mingyu_g1f1_g2f1_dis.csv")  # mingyu thesis DIS
+    mingyu_df = pd.read_csv(project_path("data", "mingyu_g1f1_g2f1_dis.csv"))  # mingyu thesis DIS
 
     # combined g1f1, g2f1, a1, a2 tables
-    g1f1_df = pd.read_csv(data_dir + "g1f1_comb.csv")
-    g2f1_df = pd.read_csv(data_dir + "g2f1_comb.csv")
-    a1_df = pd.read_csv(data_dir + "a1_comb.csv")
-    a2_df = pd.read_csv(data_dir + "a2_comb.csv")
+    g1f1_df = pd.read_csv(project_path("data", "g1f1_comb.csv"))
+    g2f1_df = pd.read_csv(project_path("data", "g2f1_comb.csv"))
+    a1_df = pd.read_csv(project_path("data", "a1_comb.csv"))
+    a2_df = pd.read_csv(project_path("data", "a2_comb.csv"))
 
     dis_df = g1f1_df.copy()
     dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)

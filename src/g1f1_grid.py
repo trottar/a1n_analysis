@@ -26,12 +26,13 @@ from functions import (
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
     g1f1_quad_fullx_DIS, damping_function,
 )
+from utility import project_path, src_path
 
 def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
-        return os.path.join("..", "fit_data", filename)
+        return project_path("fit_data", filename)
 
-    tagged_dir = os.path.join("..", "fit_data", dataset_tag)
+    tagged_dir = project_path("fit_data", dataset_tag)
     os.makedirs(tagged_dir, exist_ok=True)
     return os.path.join(tagged_dir, filename)
 
@@ -49,7 +50,7 @@ def create_g1f1_grid(
 ):
 
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)    
     
     ##########################################

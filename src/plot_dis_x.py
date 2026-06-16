@@ -14,12 +14,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 
+from utility import src_path
+
 ##################################################################################################################################################
 
 def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf):
 
     # Load configuration
-    with open("config.json", "r") as f:
+    with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
     # Get unique labels and assign unique colors & markers dynamically

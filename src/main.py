@@ -20,7 +20,7 @@ from scipy.interpolate import griddata, interp1d
 ##################################################################################################################################################
 # Importing utility functions
 
-from utility import show_pdf_with_evince
+from utility import project_path, show_pdf_with_evince
 
 ##################################################################################################################################################
 
@@ -53,8 +53,8 @@ FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # DEBUG_FULL_FAILURE_TRACEBACK = False
 DEBUG_FULL_FAILURE_TRACEBACK = True
 
-DATASET_2025_ALL_PATH = "../data/g1F1he3_2025_all.csv"
-DATASET_2025_DIS_PATH = "../data/g1F1he3_2025_dis.csv"
+DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
+DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
 
 DATASET_MODE = DATASET_MODE.lower()
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
@@ -204,7 +204,7 @@ def run_analysis(analysis_scope):
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
 
-    outputpdf = build_output_path("../plots/g1f1_fits.pdf", DATASET_TAG, analysis_scope)
+    outputpdf = build_output_path(project_path("plots", "g1f1_fits.pdf"), DATASET_TAG, analysis_scope)
     print(f"[{DATASET_MODE}/{analysis_scope}] Writing PDF to {outputpdf}")
 
     # Create a PdfPages object to manage the PDF file

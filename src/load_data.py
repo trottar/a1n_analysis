@@ -275,11 +275,8 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
 
         dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
-        if analysis_scope == "dis_only":
-            dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
-            dis_df = pd.concat([dis_2025_all_df, dis_2025_df], ignore_index=True)
-        else:
-            dis_df = pd.concat([legacy_dis_df, dis_2025_df], ignore_index=True)
+        dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
+        dis_df = pd.concat([legacy_dis_df, dis_2025_all_df, dis_2025_df], ignore_index=True)
 
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 

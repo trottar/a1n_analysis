@@ -32,8 +32,8 @@ w_res_min = 1.1
 w_res_max = 1.45
 
 DATASET_MODE = "legacy"
-DATASET_2025_ALL_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_all.csv"
-DATASET_2025_DIS_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_dis.csv"
+DATASET_2025_ALL_PATH = "../data/g1F1he3_2025_all.csv"
+DATASET_2025_DIS_PATH = "../data/g1F1he3_2025_dis.csv"
 
 
 def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):

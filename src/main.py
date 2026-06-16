@@ -56,6 +56,14 @@ if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
 
 
+def sanitize_dataset_tag(tag):
+    safe_tag = tag.replace("(", "_").replace(")", "")
+    safe_tag = safe_tag.replace(" ", "_")
+    while "__" in safe_tag:
+        safe_tag = safe_tag.replace("__", "_")
+    return safe_tag.strip("_")
+
+
 def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
     if dataset_mode == "legacy":
         return "legacy"
@@ -68,10 +76,10 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
         g1f1_suffix = g1f1_stem[len(common_prefix):]
         dis_suffix = dis_stem[len(common_prefix):]
         if common_prefix and g1f1_suffix and dis_suffix:
-            return f"{common_prefix}{g1f1_suffix}({dis_suffix})"
-        return f"{g1f1_stem}__{dis_stem}"
+            return sanitize_dataset_tag(f"{common_prefix}{g1f1_suffix}_{dis_suffix}")
+        return sanitize_dataset_tag(f"{g1f1_stem}__{dis_stem}")
 
-    return g1f1_stem
+    return sanitize_dataset_tag(g1f1_stem)
 
 
 DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)

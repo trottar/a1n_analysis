@@ -115,6 +115,7 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
         # Save figure
         pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
       
     ## Fitting Function
     def fit_breit_wigner(res_df, pdf, w_bounds, M, region_name):
@@ -273,6 +274,7 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
 
             # Save figure
             pdf.savefig(fig, bbox_inches="tight")
+            plt.close(fig)
 
         # make lists into dataframe
         params_df = pd.DataFrame({"Q2": q2_list,

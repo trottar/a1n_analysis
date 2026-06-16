@@ -209,3 +209,4 @@ def create_g1f1_grid(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)

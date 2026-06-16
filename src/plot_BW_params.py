@@ -95,3 +95,4 @@ def plot_BW_params(delta_par_df, pdf):
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)

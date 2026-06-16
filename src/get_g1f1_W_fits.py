@@ -230,6 +230,7 @@ def get_g1f1_W_fits(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
@@ -311,6 +312,7 @@ def get_g1f1_W_fits(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
@@ -425,6 +427,7 @@ def get_g1f1_W_fits(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
@@ -581,6 +584,7 @@ def get_g1f1_W_fits(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
@@ -714,6 +718,7 @@ def get_g1f1_W_fits(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
     
     print("All figures generated and saved to PDF.")
 
@@ -1073,6 +1078,7 @@ def get_g1f1_W_fits_q2_bin(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     n_col = 5
     num_plots = len(g1f1_df['Q2_labels'].unique())
@@ -1204,6 +1210,7 @@ def get_g1f1_W_fits_q2_bin(
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
     
     print("All figures generated and saved to PDF.")
     

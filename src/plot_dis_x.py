@@ -89,3 +89,4 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)

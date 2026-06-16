@@ -73,3 +73,4 @@ def plot_3he_data_W(res_df, pdf):
 
     # Save figure
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)

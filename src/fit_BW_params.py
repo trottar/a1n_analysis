@@ -485,6 +485,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
     # Save figures
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -538,6 +539,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
     # Save figures
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
 
     # plot the fits with the data
@@ -597,6 +599,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
     # Save figures
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
     
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -655,6 +658,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
     # Save figures
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
     
     return {
         "k params" : {

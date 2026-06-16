@@ -332,8 +332,8 @@ def run_analysis(analysis_scope):
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")
         bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)
 
-        # Redefine w_max (if needed)
-        w_max = g1f1_df['W'].max()
+        # Redefine the upper W coverage for the full combined fit stages.
+        full_w_max = g1f1_df['W'].max()
 
         # Redefine dataframe for complete fit
         res_df = g1f1_df
@@ -343,7 +343,7 @@ def run_analysis(analysis_scope):
         w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: DIS-transition fits")
-        dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params,
+        dis_transition_fit = fit_dis_transition(w_min, full_w_max, res_df, dis_fit_params,
                                                 bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                                                 bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
                                                 bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],
@@ -354,7 +354,7 @@ def run_analysis(analysis_scope):
         )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages")
-        get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+        get_g1f1_W_fits(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                         bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
@@ -367,7 +367,7 @@ def run_analysis(analysis_scope):
         )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages by Q2 bin")
-        get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+        get_g1f1_W_fits_q2_bin(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                         bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
@@ -380,7 +380,7 @@ def run_analysis(analysis_scope):
         )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Fit grid export")
-        create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+        create_g1f1_grid(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                          res_df, dis_fit_params, dis_transition_fit,
                          bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                          bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],

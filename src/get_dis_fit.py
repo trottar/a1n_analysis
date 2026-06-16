@@ -179,5 +179,6 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
 
     plt.tight_layout()
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
 
     return {"par_quad" : par_quad, "cov_quad" : cov_quad, "corr_quad" : corr_quad, "par_err_quad" : par_err_quad, "chi2_quad" : chi2_quad, "beta_val" : beta_val, "residuals" : residuals}

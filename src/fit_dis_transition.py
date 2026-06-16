@@ -379,6 +379,7 @@ def fit_dis_transition(
         fig.text(0.0001, 0.5, f"{name}", ha='center', va='center', rotation='vertical', fontsize=config["font_sizes"]["y_axis"])
 
         pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
 
     ###########################################################################
     # (5) Define candidate functions for global fit propagation
@@ -551,6 +552,7 @@ def fit_dis_transition(
         fig.text(0.5, 0.001, "$Q^2\\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
         fig.text(0.0001, 0.5, f"{name}", ha='center', va='center', rotation='vertical', fontsize=config["font_sizes"]["y_axis"])
         pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
 
     ###########################################################################
     # (8) Global Fit Propagation: Update bin-by-bin parameters with the global fit

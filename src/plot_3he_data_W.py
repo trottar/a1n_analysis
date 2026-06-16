@@ -24,7 +24,7 @@ def plot_3he_data_W(res_df, pdf):
     # Determine number of subplots
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots // 4 + 1
-    fig, axs = plt.subplots(n_rows, 4, figsize=(20, n_rows * 5))
+    fig, axs = plt.subplots(n_rows, 4, figsize=(20, n_rows * 5), squeeze=False)
 
     # Plot resonance w/ labels
     for i, l in enumerate(res_df['Q2_labels'].unique()):

@@ -38,7 +38,7 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
         n_col = 5
         num_plots = len(res_df['Q2_labels'].unique())
         n_rows = num_plots // n_col + 1
-        fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6, n_rows * 6))
+        fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6, n_rows * 6), squeeze=False)
 
         # Make fit curves and plot with data
         for i, l in enumerate(res_df['Q2_labels'].unique()):
@@ -168,6 +168,8 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
               print(f"{name} Fit Failed\n   {e}")
               params = np.zeros(n_params)
               pcov = np.zeros((n_params, n_params))
+              perr = np.zeros(n_params)
+              chi2 = np.nan
 
             # add parameters and their errors to lists for M, k, gamma
             for j in range(len(params)):
@@ -181,6 +183,8 @@ def get_res_fit(k_init, gamma_init, mass_init, w_bounds, res_df, pdf):
               print(f"{name} Constant M Fit Failed\n   {e}")
               params_constm = np.zeros(n_params-1)
               pcov_constm = np.zeros((n_params-1, n_params-1))
+              perr_constm = np.zeros(n_params-1)
+              chi2_constm = np.nan
 
             # add parameters and their errors to lists for k & gamma for constant M fits
             for j in range(len(params_constm)):

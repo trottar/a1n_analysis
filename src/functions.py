@@ -73,7 +73,6 @@ def quad_curve(x, a, b, c):
   """quadratic fit function"""
   return a + b*x + c*x**2
 
-'''
 #HERE
 def k_curve(x, a, b, c, d, f, e, x0=0.1, k=100):
   """function"""
@@ -88,7 +87,6 @@ def k_curve(x, a, b, c, d, f, e, x0=0.1, k=100):
   s = 1 / (1 + np.exp(-k * (x - x0)))  # s ~ 0 for x << x0, s ~ 1 for x >> x0
 
   return (1 - s) * linear_part + s * nonlinear_part
-'''
 
 def theta_func(x, x_points=[1, 3, 5], theta_points=[-np.pi/2, 0, np.pi/2]):
     """
@@ -107,6 +105,7 @@ def theta_func(x, x_points=[1, 3, 5], theta_points=[-np.pi/2, 0, np.pi/2]):
     """
     return np.interp(x, x_points, theta_points)
 
+'''
 def k_curve(x, a, b, c, d, f, e):
     """
     Computes the k value in three Q² regimes:
@@ -160,7 +159,7 @@ def k_curve(x, a, b, c, d, f, e):
     k_val[mask_high] = exp_high + weight_sine * sine_var
     
     return k_val
-
+'''
 
 #HERE
 def gamma_curve(x, a, b, c, d, f, x0=0.1, k=100):

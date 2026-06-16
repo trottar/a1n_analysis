@@ -24,9 +24,17 @@ from functions import fit_with_dynamic_params, quad_nucl_curve_k, quad_nucl_curv
 
 ##################################################################################################################################################
 
-def fit_BW_params(q2, delta_par_df, pdf):
+def _build_artifact_path(filename, dataset_tag):
+    if dataset_tag == "legacy":
+        return os.path.join("..", "fit_data", filename)
 
-    fit_results_csv = "../fit_data/fit_results.csv"
+    stem, ext = os.path.splitext(filename)
+    return os.path.join("..", "fit_data", f"{stem}_{dataset_tag}{ext}")
+
+
+def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
+
+    fit_results_csv = _build_artifact_path("fit_results.csv", dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
     #k_ub = [1e10, 1e10, 1e10, 1e-10]
@@ -173,7 +181,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
         df_results = pd.DataFrame(fit_results)
         df_results.to_csv(fit_results_csv, index=False)
 
-        print("Results saved to fit_results.csv")
+        print(f"Results saved to {fit_results_csv}")
 
     else:
         print(f"\n\nFile '{fit_results_csv}' exists. Loading variables from CSV.")
@@ -231,7 +239,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     k_nucl_par = k_best_params
     k_P_vals = k_best_p_vals
     k_nucl_chi2 = k_best_chi2
-    print("Best fit parameters (a, b, c, d, y0):", k_nucl_par)
+    print("Best fit parameters (a, b, c, d, e, f, y0):", k_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", k_P_vals)
     print("Best chi-squared:", k_nucl_chi2)
     print("Parameters uncertainties:", k_param_uncertainties)
@@ -244,7 +252,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     gamma_nucl_par = gamma_best_params
     gamma_P_vals = gamma_best_p_vals
     gamma_nucl_chi2 = gamma_best_chi2
-    print("Best fit parameters (a, b, c, y0):", gamma_nucl_par)
+    print("Best fit parameters (a, b, c, d, e, y0):", gamma_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", gamma_P_vals)
     print("Best chi-squared:", gamma_nucl_chi2)
     print("Parameters uncertainties:", gamma_param_uncertainties)
@@ -257,7 +265,7 @@ def fit_BW_params(q2, delta_par_df, pdf):
     mass_nucl_par = mass_best_params
     mass_P_vals = mass_best_p_vals
     mass_nucl_chi2 = mass_best_chi2
-    print("Best fit parameters (a, b, c, y0):", mass_nucl_par)
+    print("Best fit parameters (a, b, c, d, e, y0):", mass_nucl_par)
     print("Best P values (P0, P1, P2, Y1):", mass_P_vals)
     print("Best chi-squared:", mass_nucl_chi2)
     print("Parameters uncertainties:", mass_param_uncertainties)    
@@ -329,9 +337,9 @@ def fit_BW_params(q2, delta_par_df, pdf):
         )
 
         # Define file names for saving/loading bootstrap results
-        params_filename = f"../fit_data/bootstrap_{var_name}_params.npy"
-        fits_data_filename = f"../fit_data/bootstrap_{var_name}_fits_data.npy"
-        fits_q2_filename = f"../fit_data/bootstrap_{var_name}_fits_q2.npy"
+        params_filename = _build_artifact_path(f"bootstrap_{var_name}_params.npy", dataset_tag)
+        fits_data_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_data.npy", dataset_tag)
+        fits_q2_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_q2.npy", dataset_tag)
         
         if os.path.exists(params_filename) and os.path.exists(fits_q2_filename):
             print(f"Loading existing bootstrap results for {var_name}...")
@@ -678,4 +686,3 @@ def fit_BW_params(q2, delta_par_df, pdf):
             "nucl_curve_err" : mass_nucl_err
         },
     }
-

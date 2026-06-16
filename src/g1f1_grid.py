@@ -12,6 +12,7 @@
 #
 import numpy as np
 import pandas as pd
+import os
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import json
@@ -26,6 +27,14 @@ from functions import (
     g1f1_quad_fullx_DIS, damping_function,
 )
 
+def _build_artifact_path(filename, dataset_tag):
+    if dataset_tag == "legacy":
+        return os.path.join("..", "fit_data", filename)
+
+    stem, ext = os.path.splitext(filename)
+    return os.path.join("..", "fit_data", f"{stem}_{dataset_tag}{ext}")
+
+
 def create_g1f1_grid(
         w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
         res_df, dis_fit_params, dis_transition_fit,
@@ -34,7 +43,8 @@ def create_g1f1_grid(
         mass_nucl_par, mass_nucl_err,
         k_P_vals, gamma_P_vals, mass_P_vals,
         beta_val, w_lims,
-        pdf
+        pdf,
+        dataset_tag="legacy"
 ):
 
     # Load configuration
@@ -152,7 +162,7 @@ def create_g1f1_grid(
     x_range = f"{x_grid[0]:.1f}-{x_grid[-1]:.1f}"
 
     # Update CSV filename to include Q² and x ranges
-    csv_filename = f"../fit_data/3He_fit_grid_Q{q2_range}_x{x_range}.csv"
+    csv_filename = _build_artifact_path(f"3He_fit_grid_Q{q2_range}_x{x_range}.csv", dataset_tag)
     grid_df.to_csv(csv_filename, index=False)
     print("Done! Saved new grid with extrapolated values and uncertainties to '{}'.".format(csv_filename))
 

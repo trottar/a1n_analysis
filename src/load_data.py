@@ -10,198 +10,256 @@
 #
 # Copyright (c) trottar
 #
-import pandas as pd
+import re
+
 import numpy as np
+import pandas as pd
+
+from functions import x_to_W
+
 ##################################################################################################################################################
 
-def load_data():
-
-    # # fix Mingyu W.cal
-    # # mingyu_df = mingyu_df.drop(columns=["W"])
-    # mingyu_df["W.cal"] = W_cal(mingyu_df["Q2"], mingyu_df["x"])
-    # mingyu_df.head(10)
-    # mingyu_df.to_csv(dir + 'mingyu_g1f1_g2f1_dis.csv', index=False)
-
-
-    # Load csv files into data frames
-    dir = '../data/'
-    e06014_df = pd.read_csv(dir + 'dflay_e06014.csv')
-    e94010_df = pd.read_csv(dir + 'e94010.csv')
-    e97110_df = pd.read_csv(dir + 'e97110.csv')
-    psolva1a2_df = pd.read_csv(dir + 'psolv_e01012_a1a2.csv')
-    psolvg1g2_df = pd.read_csv(dir + 'psolv_e01012_g1g2.csv')
-    zheng_df = pd.read_csv(dir + 'zheng_thesis_pub_e99117.csv')
-    hermes_df = pd.read_csv(dir + 'hermes_2000.csv')
-    e142_df = pd.read_csv(dir + 'slac_e142.csv')
-    e154_df = pd.read_csv(dir + 'slac_e154.csv')
-    e97103_df = pd.read_csv(dir + 'kramer_e97103.csv')
-
-    mingyu_df = pd.read_csv(dir + 'mingyu_g1f1_g2f1_dis.csv') # mingyu thesis DIS
+LEGACY_EXCLUDED_LABELS = {"Flay E06-014 (2014)", "Kramer E97-103 (2003)"}
+TWENTY25_COLUMNS = [
+    "Ep", "xbj", "Q2",
+    "Apar", "Apar_stat", "Apar_syst",
+    "Aperp", "Aperp_stat", "Aperp_syst",
+    "vpar", "vperp",
+    "g1F1_He3", "g1F1_stat", "g1F1_syst",
+    "vpar2", "vperp2",
+    "g2F1_He3", "g2F1_stat", "g2F1_syst",
+]
+EMPTY_FRAME_COLUMNS = {
+    "g2f1": ["Q2", "W", "X", "G2F1", "G2F1.err", "Label"],
+    "a1": ["Q2", "W", "X", "A1", "A1.err", "Label"],
+    "a2": ["Q2", "W", "X", "A2", "A2.err", "Label"],
+}
 
 
-    # Saikat's data tables for interpolation
-    # caldata = pd.read_csv(dir + 'saikat_tables/XZ_table_3He_JAM_smeared_kpsv_onshell_ipol1_ipolres1_IA14_SF23_AC11.csv') #  0.1<Q2<15.0 GeV2
-    # caldata = pd.read_csv(dir + 'saikat_tables/table_3He_JAM_smeared_kpsv_onshell_ipol1_ipolres1_IA14_SF23_AC11.csv') #  0.001<Q2<5.0 GeV2
+def _convert_q2(q2):
+    try:
+        return float(q2)
+    except Exception:
+        match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", str(q2))
+        if match:
+            return float(match.group())
+        return np.nan
 
-    # combined g1f1, g2f1, a1, a2 tables
-    g1f1_df = pd.read_csv(dir + 'g1f1_comb.csv')
-    g2f1_df = pd.read_csv(dir + 'g2f1_comb.csv')
-    a1_df = pd.read_csv(dir + 'a1_comb.csv')
-    a2_df = pd.read_csv(dir + 'a2_comb.csv')
-    
-    dis_df = g1f1_df
-    
-    # --- Debug: Print column names and a sample of data to check the format ---
+
+def _assign_q2_category(q2):
+    if pd.isna(q2):
+        return None
+    if q2 < 0.1:
+        return "Low Q2"
+    if 0.1 <= q2 < 1.0:
+        return "Mid Q2"
+    if q2 >= 1.0:
+        return "High Q2"
+    return None
+
+
+def _create_bins_for_category_maximize(df, category, min_count=5, gap_factor=2.0):
+    """
+    For the given category, this function:
+      1. Sorts the Q² values.
+      2. Computes the differences between consecutive Q² values.
+      3. Flags potential splits when a gap exceeds (gap_factor * median_gap).
+      4. Splits the data at those indices.
+      5. Merges any bins that have fewer than min_count data points.
+    The final label for each bin shows the central value and the bin size.
+    """
+    subset = df[df["Q2_category"] == category].copy()
+    if subset.empty:
+        return pd.Series(dtype=object)
+
+    subset.sort_values("Q2", inplace=True)
+    q2_vals = subset["Q2"].values
+    n = len(q2_vals)
+    indices = subset.index.tolist()
+
+    if n < min_count:
+        center = (q2_vals[0] + q2_vals[-1]) / 2
+        bin_size = q2_vals[-1] - q2_vals[0]
+        label = f"{category} bin 1: {center:.3f} ± {bin_size:.3f} (n={n})"
+        return pd.Series([label] * n, index=indices)
+
+    diffs = np.diff(q2_vals)
+    median_diff = np.median(diffs) if len(diffs) > 0 else 0
+    threshold = gap_factor * median_diff
+
+    potential_splits = [i for i, diff in enumerate(diffs) if diff > threshold]
+
+    bins = []
+    start = 0
+    for split_idx in potential_splits:
+        end = split_idx + 1
+        bins.append((start, end))
+        start = end
+    bins.append((start, n))
+
+    merged_bins = []
+    idx = 0
+    while idx < len(bins):
+        start, end = bins[idx]
+        count = end - start
+        if count < min_count:
+            if merged_bins:
+                prev_start, _ = merged_bins[-1]
+                merged_bins[-1] = (prev_start, end)
+            elif idx + 1 < len(bins):
+                _, next_end = bins[idx + 1]
+                merged_bins.append((start, next_end))
+                idx += 1
+            else:
+                merged_bins.append((start, end))
+        else:
+            merged_bins.append((start, end))
+        idx += 1
+
+    changed = True
+    while changed and len(merged_bins) > 1:
+        changed = False
+        new_bins = []
+        idx = 0
+        while idx < len(merged_bins):
+            start, end = merged_bins[idx]
+            if (end - start) < min_count and idx > 0:
+                prev_start, _ = new_bins[-1]
+                new_bins[-1] = (prev_start, end)
+                changed = True
+            else:
+                new_bins.append((start, end))
+            idx += 1
+        merged_bins = new_bins
+
+    bin_labels = [None] * n
+    for bin_idx, (start, end) in enumerate(merged_bins):
+        count = end - start
+        lower = q2_vals[start]
+        upper = q2_vals[end - 1]
+        center = (lower + upper) / 2
+        bin_size = upper - lower
+        label = f"{category} bin {bin_idx + 1}: {center:.3f} ± {bin_size:.3f} (n={count})"
+        for label_idx in range(start, end):
+            bin_labels[label_idx] = label
+
+    return pd.Series(bin_labels, index=indices)
+
+
+def _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False):
+    g1f1_df = g1f1_df.copy()
+
     print("Columns:", g1f1_df.columns.tolist())
 
-    # --- Function to convert Q² values to float safely, removing any extra characters ---
-    def convert_q2(q2):
-        try:
-            return float(q2)
-        except Exception:
-            match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", str(q2))
-            if match:
-                return float(match.group())
-            return np.nan
+    g1f1_df["Q2"] = g1f1_df["Q2"].apply(_convert_q2)
 
-    # Clean the Q2 column
-    g1f1_df['Q2'] = g1f1_df['Q2'].apply(convert_q2)
-
-    # Debug: Print unique Q2 values after cleaning
-    unique_q2 = sorted(g1f1_df['Q2'].dropna().unique())
+    unique_q2 = sorted(g1f1_df["Q2"].dropna().unique())
     print("\nUnique Q2 values after cleaning:", unique_q2)
 
-    # --- Remove unwanted experiments ---
-    g1f1_df = g1f1_df[~g1f1_df['Label'].isin(["Flay E06-014 (2014)", "Kramer E97-103 (2003)"])]
+    if remove_unwanted_labels and "Label" in g1f1_df.columns:
+        g1f1_df = g1f1_df[~g1f1_df["Label"].isin(LEGACY_EXCLUDED_LABELS)].copy()
 
-    # --- Assign Q² category based on the numeric Q² value ---
-    def assign_q2_category(q2):
-        if pd.isna(q2):
-            return None
-        if q2 < 0.1:
-            return "Low Q2"
-        elif 0.1 <= q2 < 1.0:
-            return "Mid Q2"
-        elif q2 >= 1.0:
-            return "High Q2"
-        else:
-            return None
+    g1f1_df["Q2_category"] = g1f1_df["Q2"].apply(_assign_q2_category)
 
-    g1f1_df['Q2_category'] = g1f1_df['Q2'].apply(assign_q2_category)
-
-    # Debug: Print distribution of Q² categories
     print("\nDistribution of Q² categories:")
-    print(g1f1_df['Q2_category'].value_counts(dropna=False))
+    print(g1f1_df["Q2_category"].value_counts(dropna=False))
 
-    # --- New function to create bins with as many points as possible per bin,
-    #     but ensuring every bin has at least min_count data points.
-    def create_bins_for_category_maximize(df, category, min_count=5, gap_factor=2.0):
-        """
-        For the given category, this function:
-          1. Sorts the Q² values.
-          2. Computes the differences between consecutive Q² values.
-          3. Flags potential splits when a gap exceeds (gap_factor * median_gap).
-          4. Splits the data at those indices.
-          5. Merges any bins that have fewer than min_count data points.
-        The final label for each bin shows the central value and the bin size.
-        """
-        subset = df[df['Q2_category'] == category].copy()
-        if subset.empty:
-            return pd.Series(dtype=object)
+    low_bins = _create_bins_for_category_maximize(g1f1_df, "Low Q2", min_count=5, gap_factor=2.0)
+    mid_bins = _create_bins_for_category_maximize(g1f1_df, "Mid Q2", min_count=5, gap_factor=2.0)
+    high_bins = _create_bins_for_category_maximize(g1f1_df, "High Q2", min_count=5, gap_factor=2.0)
 
-        subset.sort_values('Q2', inplace=True)
-        q2_vals = subset['Q2'].values
-        n = len(q2_vals)
-        indices = subset.index.tolist()
-
-        if n < min_count:
-            # Not enough points even for one bin; return one bin.
-            center = (q2_vals[0] + q2_vals[-1]) / 2
-            bin_size = q2_vals[-1] - q2_vals[0]
-            label = f"{category} bin 1: {center:.3f} ± {bin_size:.3f} (n={n})"
-            return pd.Series([label] * n, index=indices)
-
-        # Compute gaps between consecutive Q² values.
-        diffs = np.diff(q2_vals)
-        median_diff = np.median(diffs) if len(diffs) > 0 else 0
-        threshold = gap_factor * median_diff
-
-        # Identify indices where the gap is "large"
-        potential_splits = [i for i, d in enumerate(diffs) if d > threshold]
-
-        # Create initial bins using these split indices.
-        bins = []
-        start = 0
-        for split_idx in potential_splits:
-            end = split_idx + 1
-            bins.append((start, end))
-            start = end
-        bins.append((start, n))
-
-        # Merge any bins that have fewer than min_count points.
-        merged_bins = []
-        i = 0
-        while i < len(bins):
-            s, e = bins[i]
-            count = e - s
-            if count < min_count:
-                if merged_bins:
-                    prev_s, prev_e = merged_bins[-1]
-                    merged_bins[-1] = (prev_s, e)
-                else:
-                    if i + 1 < len(bins):
-                        next_s, next_e = bins[i+1]
-                        merged_bins.append((s, next_e))
-                        i += 1  # Skip the next bin
-                    else:
-                        merged_bins.append((s, e))
-            else:
-                merged_bins.append((s, e))
-            i += 1
-
-        # It may be possible that after merging, an internal bin is still too small.
-        changed = True
-        while changed and len(merged_bins) > 1:
-            changed = False
-            new_bins = []
-            i = 0
-            while i < len(merged_bins):
-                s, e = merged_bins[i]
-                if (e - s) < min_count and i > 0:
-                    prev_s, prev_e = new_bins[-1]
-                    new_bins[-1] = (prev_s, e)
-                    changed = True
-                else:
-                    new_bins.append((s, e))
-                i += 1
-            merged_bins = new_bins
-
-        # Assign bin labels using the merged bins, computing central value and bin size.
-        bin_labels = [None] * n
-        for bin_idx, (s, e) in enumerate(merged_bins):
-            count = e - s
-            lower = q2_vals[s]
-            upper = q2_vals[e-1]
-            center = (lower + upper) / 2
-            bin_size = upper - lower
-            label = f"{category} bin {bin_idx+1}: {center:.3f} ± {bin_size:.3f} (n={count})"
-            for j in range(s, e):
-                bin_labels[j] = label
-
-        return pd.Series(bin_labels, index=indices)
-
-    # --- Create bins for each Q² category using the new algorithm ---
-    low_bins = create_bins_for_category_maximize(g1f1_df, "Low Q2", min_count=5, gap_factor=2.0)
-    mid_bins = create_bins_for_category_maximize(g1f1_df, "Mid Q2", min_count=5, gap_factor=2.0)
-    high_bins = create_bins_for_category_maximize(g1f1_df, "High Q2", min_count=5, gap_factor=2.0)
-
-    # Combine the bin labels and assign them as the new Q² labels column
     all_bins = pd.concat([low_bins, mid_bins, high_bins])
-    g1f1_df['Q2_labels'] = all_bins
-    
+    g1f1_df["Q2_labels"] = all_bins
+
+    return g1f1_df.reset_index(drop=True)
+
+
+def _load_2025_g1f1_frame(path, label):
+    raw_df = pd.read_csv(
+        path,
+        sep=r"\s+",
+        names=TWENTY25_COLUMNS,
+        skiprows=1,
+        engine="python",
+    )
+
+    for column in TWENTY25_COLUMNS:
+        raw_df[column] = pd.to_numeric(raw_df[column], errors="coerce")
+
+    g1f1_err = np.sqrt(raw_df["g1F1_stat"] ** 2 + raw_df["g1F1_syst"] ** 2)
+    w_values = x_to_W(
+        raw_df["xbj"].to_numpy(dtype=np.double),
+        raw_df["Q2"].to_numpy(dtype=np.double),
+    )
+
+    normalized_df = pd.DataFrame(
+        {
+            "Q2": raw_df["Q2"],
+            "W": w_values,
+            "X": raw_df["xbj"],
+            "G1F1": raw_df["g1F1_He3"],
+            "G1F1.err": g1f1_err,
+            "Label": label,
+        }
+    )
+
+    normalized_df = normalized_df.dropna(subset=["Q2", "W", "X", "G1F1", "G1F1.err"])
+    return normalized_df.reset_index(drop=True)
+
+
+def _empty_frame(columns):
+    return pd.DataFrame(columns=columns)
+
+
+def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None):
+
+    dataset_mode = dataset_mode.lower()
+    if dataset_mode not in {"legacy", "2025"}:
+        raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy' or '2025'.")
+
+    if dataset_mode == "2025":
+        if not g1f1_2025_path or not dis_2025_path:
+            raise ValueError("2025 mode requires both g1f1_2025_path and dis_2025_path.")
+
+        g1f1_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
+        g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False)
+
+        dis_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
+
+        g2f1_df = _empty_frame(EMPTY_FRAME_COLUMNS["g2f1"])
+        a1_df = _empty_frame(EMPTY_FRAME_COLUMNS["a1"])
+        a2_df = _empty_frame(EMPTY_FRAME_COLUMNS["a2"])
+
+        return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
+
+    # Load csv files into data frames
+    data_dir = "../data/"
+    e06014_df = pd.read_csv(data_dir + "dflay_e06014.csv")
+    e94010_df = pd.read_csv(data_dir + "e94010.csv")
+    e97110_df = pd.read_csv(data_dir + "e97110.csv")
+    psolva1a2_df = pd.read_csv(data_dir + "psolv_e01012_a1a2.csv")
+    psolvg1g2_df = pd.read_csv(data_dir + "psolv_e01012_g1g2.csv")
+    zheng_df = pd.read_csv(data_dir + "zheng_thesis_pub_e99117.csv")
+    hermes_df = pd.read_csv(data_dir + "hermes_2000.csv")
+    e142_df = pd.read_csv(data_dir + "slac_e142.csv")
+    e154_df = pd.read_csv(data_dir + "slac_e154.csv")
+    e97103_df = pd.read_csv(data_dir + "kramer_e97103.csv")
+
+    mingyu_df = pd.read_csv(data_dir + "mingyu_g1f1_g2f1_dis.csv")  # mingyu thesis DIS
+
+    # combined g1f1, g2f1, a1, a2 tables
+    g1f1_df = pd.read_csv(data_dir + "g1f1_comb.csv")
+    g2f1_df = pd.read_csv(data_dir + "g2f1_comb.csv")
+    a1_df = pd.read_csv(data_dir + "a1_comb.csv")
+    a2_df = pd.read_csv(data_dir + "a2_comb.csv")
+
+    dis_df = g1f1_df.copy()
+    dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
+    g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
+
     # make dataframe of DIS values (W>2 && Q2>1)
-    #dis_df = dis_df[dis_df['W']>2.0]
-    dis_df = dis_df[dis_df['Q2']>1.0]
+    # dis_df = dis_df[dis_df["W"]>2.0]
+    dis_df = dis_df[dis_df["Q2"] > 1.0]
 
     # combine Mingyu data and g1f1_df
     temp_df = pd.DataFrame(
@@ -211,14 +269,11 @@ def load_data():
             "X": mingyu_df["x"],
             "G1F1": mingyu_df["g1F1_3He"],
             "G1F1.err": mingyu_df["g1f1.err"],
-            "Label": ["Mingyu" for x in range(len(mingyu_df["Q2"]))],
+            "Label": ["Mingyu" for _ in range(len(mingyu_df["Q2"]))],
         }
     )
 
-    dis_df = pd.concat([temp_df, dis_df], ignore_index=True) # add Mingyu data
-    
-    # temp_df.head()
-    
+    dis_df = pd.concat([temp_df, dis_df], ignore_index=True)  # add Mingyu data
     dis_df.head(100)
 
     return g1f1_df, g2f1_df, a1_df, a2_df, dis_df

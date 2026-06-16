@@ -29,6 +29,73 @@ w_max = 3.0
 w_res_min = 1.1
 w_res_max = 1.45
 
+DATASET_MODE = "legacy"
+DATASET_TAG = "legacy" if DATASET_MODE == "legacy" else "2025"
+DATASET_2025_ALL_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_all.csv"
+DATASET_2025_DIS_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_dis.csv"
+
+
+def build_output_path(base_path, dataset_tag):
+    if dataset_tag == "legacy":
+        return base_path
+
+    stem, ext = base_path.rsplit(".", 1)
+    return f"{stem}_{dataset_tag}.{ext}"
+
+
+def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path):
+    min_bw_fit_points = 11
+    min_unique_q2_bins = 4
+
+    resonance_points = len(res_df)
+    resonance_bins = len(res_df["Q2_labels"].dropna().unique())
+    bw_fit_points = len(delta_par_df)
+    unique_q2_bins = delta_par_df["Q2"].nunique()
+
+    if bw_fit_points >= min_bw_fit_points and unique_q2_bins >= min_unique_q2_bins:
+        return
+
+    raise RuntimeError(
+        "2025-only mode cannot continue to BW/global-fit stages. "
+        f"Required at least {min_bw_fit_points} resonance fit points and {min_unique_q2_bins} unique Q2 bins, "
+        f"but observed {bw_fit_points} fit points, {unique_q2_bins} unique Q2 bins, "
+        f"{resonance_points} resonance-region rows, and {resonance_bins} resonance labels. "
+        f"Inputs: all='{g1f1_path}', dis='{dis_path}'."
+    )
+
+
+def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path):
+    label_counts = []
+    q2_labels = list(res_df["Q2_labels"].dropna().unique())
+
+    for idx, label in enumerate(q2_labels):
+        if idx >= len(w_lims):
+            break
+
+        w_min_fit, w_max_fit = w_lims[idx]
+        fit_count = len(
+            res_df[
+                (res_df["Q2_labels"] == label)
+                & (res_df["W"] > w_min_fit)
+                & (res_df["W"] < w_max_fit)
+            ]
+        )
+        label_counts.append((label, fit_count, w_min_fit, w_max_fit))
+
+    insufficient = [entry for entry in label_counts if entry[1] < 3]
+    if not insufficient:
+        return
+
+    details = "; ".join(
+        f"{label}: {count} points in [{w_min_fit:.3f}, {w_max_fit:.3f}]"
+        for label, count, w_min_fit, w_max_fit in insufficient
+    )
+    raise RuntimeError(
+        "2025-only mode cannot start resonance Breit-Wigner fits. "
+        "Each resonance Q2 label needs at least 3 points inside its configured W fit window. "
+        f"Observed: {details}. Inputs: all='{g1f1_path}', dis='{dis_path}'."
+    )
+
 ##################################################################################################################################################
 
 from load_data import load_data
@@ -48,12 +115,23 @@ from functions import g1f1_quad_fullx_DIS, \
 
 ##################################################################################################################################################
 
-g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data()
+if DATASET_MODE not in {"legacy", "2025"}:
+    raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy' or '2025'.")
+
+load_data_kwargs = {}
+if DATASET_MODE == "2025":
+    load_data_kwargs = {
+        "dataset_mode": DATASET_MODE,
+        "g1f1_2025_path": DATASET_2025_ALL_PATH,
+        "dis_2025_path": DATASET_2025_DIS_PATH,
+    }
+
+g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data(**load_data_kwargs)
 
 # independent variable data to feed to curve fit, X and Q2
 indep_data = [dis_df['X'], dis_df['Q2']]
 
-outputpdf = "../plots/g1f1_fits.pdf"
+outputpdf = build_output_path("../plots/g1f1_fits.pdf", DATASET_TAG)
 
 # Create a PdfPages object to manage the PDF file
 with PdfPages(outputpdf) as pdf:
@@ -115,6 +193,9 @@ with PdfPages(outputpdf) as pdf:
               (1.085, 1.4), (1.085, 1.4), (1.085, 1.5), (1.100, 1.5),
               (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
               (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
+
+    if DATASET_MODE == "2025":
+        validate_2025_resonance_fit_support(res_df, w_lims, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
     
     delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
 
@@ -163,7 +244,10 @@ with PdfPages(outputpdf) as pdf:
     #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
     #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
-    bw_fit_params = fit_BW_params(q2, delta_par_df, pdf)    
+    if DATASET_MODE == "2025":
+        validate_2025_only_support(res_df, delta_par_df, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+
+    bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)    
 
     # Redefine w_max (if needed)
     w_max = g1f1_df['W'].max()
@@ -181,7 +265,8 @@ with PdfPages(outputpdf) as pdf:
                                             bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
                                             bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                                             w_lims,
-                                            pdf                                            
+                                            pdf,
+                                            dataset_tag=DATASET_TAG,
     )
     
     get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
@@ -216,7 +301,8 @@ with PdfPages(outputpdf) as pdf:
                      bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                      dis_fit_params["beta_val"],
                      w_lims,
-                     pdf
+                     pdf,
+                     dataset_tag=DATASET_TAG,
         )
     
 show_pdf_with_evince(outputpdf)

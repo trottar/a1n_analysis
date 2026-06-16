@@ -32,6 +32,14 @@ from functions import (
 )
 
 ##################################################################################################################################################
+def _build_artifact_path(filename, dataset_tag):
+    if dataset_tag == "legacy":
+        return os.path.join("..", "fit_data", filename)
+
+    stem, ext = os.path.splitext(filename)
+    return os.path.join("..", "fit_data", f"{stem}_{dataset_tag}{ext}")
+
+
 def fit_dis_transition(
         w_min, w_max, res_df, dis_fit_params,
         k_nucl_par, k_nucl_err,
@@ -39,7 +47,8 @@ def fit_dis_transition(
         mass_nucl_par, mass_nucl_err,
         k_P_vals, gamma_P_vals, mass_P_vals,
         w_lims,
-        pdf
+        pdf,
+        dataset_tag="legacy"
 ):
     """
     Searches for best-fit parameters (w_dis_transition, damping_dis_width)
@@ -252,7 +261,8 @@ def fit_dis_transition(
     ###########################################################################
     # (2) Check for existing CSV or run optimization
     ###########################################################################
-    full_results_csv = "../fit_data/full_results.csv"
+    full_results_csv = _build_artifact_path("full_results.csv", dataset_tag)
+    full_errors_csv = _build_artifact_path("full_results_errors.csv", dataset_tag)
     param_names = ['w_dis_transition', 'damping_dis_width']
 
     if not os.path.exists(full_results_csv):
@@ -281,7 +291,7 @@ def fit_dis_transition(
         )
 
         params_df.to_csv(full_results_csv, index=True)
-        errors_df.to_csv(full_results_csv.replace('.csv', '_errors.csv'), index=True)
+        errors_df.to_csv(full_errors_csv, index=True)
         print("Results and uncertainties saved to CSV files.")
     else:
         print(f"\nFile '{full_results_csv}' exists. Loading variables from CSV.")
@@ -293,7 +303,7 @@ def fit_dis_transition(
     q2_bin_errors = {}
 
     full_results_df = pd.read_csv(full_results_csv, index_col=0)
-    full_errors_df = pd.read_csv(full_results_csv.replace('.csv', '_errors.csv'), index_col=0)
+    full_errors_df = pd.read_csv(full_errors_csv, index_col=0)
 
     print("CSV Columns:", full_results_df.columns)
     print("CSV Index:", full_results_df.index)

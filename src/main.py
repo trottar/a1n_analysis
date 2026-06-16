@@ -59,6 +59,11 @@ DEBUG_FULL_FAILURE_TRACEBACK = True
 # ALLOW_SPARSE_2025_FULL = False
 ALLOW_SPARSE_2025_FULL = False
 
+# Hybrid-2025 support variants:
+# USE_LEGACY_FIT_SUPPORT_FOR_2025 = True
+# USE_LEGACY_FIT_SUPPORT_FOR_2025 = False
+USE_LEGACY_FIT_SUPPORT_FOR_2025 = True
+
 DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
 DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
 
@@ -136,7 +141,7 @@ def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path, strict
     if strict:
         raise RuntimeError(message)
 
-    print(f"[2025/full] Sparse-full override: {message}")
+    print(f"[2025/full] Continuing despite validation failure: {message}")
     return False
 
 
@@ -174,7 +179,7 @@ def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path, str
     if strict:
         raise RuntimeError(message)
 
-    print(f"[2025/full] Sparse-full override: {message}")
+    print(f"[2025/full] Continuing despite validation failure: {message}")
     return False
 
 
@@ -294,7 +299,13 @@ def load_analysis_data(analysis_scope):
 
 def run_analysis(analysis_scope):
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_analysis_data(analysis_scope)
-    force_sparse_2025_full = DATASET_MODE == "2025" and analysis_scope == "full" and ALLOW_SPARSE_2025_FULL
+    uses_hybrid_2025_support = DATASET_MODE == "2025" and USE_LEGACY_FIT_SUPPORT_FOR_2025
+    force_sparse_2025_full = (
+        DATASET_MODE == "2025"
+        and analysis_scope == "full"
+        and ALLOW_SPARSE_2025_FULL
+        and not uses_hybrid_2025_support
+    )
 
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
@@ -375,7 +386,7 @@ def run_analysis(analysis_scope):
                 w_lims,
                 DATASET_2025_ALL_PATH,
                 DATASET_2025_DIS_PATH,
-                strict=not force_sparse_2025_full,
+                strict=not (force_sparse_2025_full or uses_hybrid_2025_support),
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
@@ -399,7 +410,7 @@ def run_analysis(analysis_scope):
                 delta_par_df,
                 DATASET_2025_ALL_PATH,
                 DATASET_2025_DIS_PATH,
-                strict=not force_sparse_2025_full,
+                strict=not (force_sparse_2025_full or uses_hybrid_2025_support),
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")

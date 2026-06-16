@@ -215,7 +215,8 @@ def _empty_frame(columns):
 def _build_dis_cut_df(g1f1_df, label=None):
     dis_df = g1f1_df.copy()
     dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
-    dis_df = dis_df[dis_df["Q2"] > 1.0].copy()
+    dis_df["W"] = pd.to_numeric(dis_df["W"], errors="coerce")
+    dis_df = dis_df[(dis_df["Q2"] > 1.0) & (dis_df["W"] > 2.0)].copy()
     if label is not None:
         dis_df["Label"] = label
     return dis_df.reset_index(drop=True)

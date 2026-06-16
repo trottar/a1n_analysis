@@ -57,7 +57,7 @@ DEBUG_FULL_FAILURE_TRACEBACK = True
 # Sparse-2025 full-mode variants:
 # ALLOW_SPARSE_2025_FULL = True
 # ALLOW_SPARSE_2025_FULL = False
-ALLOW_SPARSE_2025_FULL = True
+ALLOW_SPARSE_2025_FULL = False
 
 DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
 DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")

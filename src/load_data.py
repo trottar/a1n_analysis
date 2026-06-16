@@ -212,6 +212,39 @@ def _empty_frame(columns):
     return pd.DataFrame(columns=columns)
 
 
+def _build_mingyu_dis_df():
+    mingyu_df = pd.read_csv(project_path("data", "mingyu_g1f1_g2f1_dis.csv"))
+    return pd.DataFrame(
+        {
+            "Q2": mingyu_df["Q2"],
+            "W": mingyu_df["W.cal"],
+            "X": mingyu_df["x"],
+            "G1F1": mingyu_df["g1F1_3He"],
+            "G1F1.err": mingyu_df["g1f1.err"],
+            "Label": ["Mingyu" for _ in range(len(mingyu_df["Q2"]))],
+        }
+    )
+
+
+def _load_legacy_fit_support(analysis_scope):
+    legacy_g1f1_df = pd.read_csv(project_path("data", "g1f1_comb.csv"))
+    g2f1_df = pd.read_csv(project_path("data", "g2f1_comb.csv"))
+    a1_df = pd.read_csv(project_path("data", "a1_comb.csv"))
+    a2_df = pd.read_csv(project_path("data", "a2_comb.csv"))
+
+    legacy_dis_df = legacy_g1f1_df.copy()
+    legacy_dis_df["Q2"] = legacy_dis_df["Q2"].apply(_convert_q2)
+    legacy_dis_df = legacy_dis_df[legacy_dis_df["Q2"] > 1.0]
+
+    mingyu_dis_df = _build_mingyu_dis_df()
+    if analysis_scope == "dis_only":
+        legacy_dis_df = mingyu_dis_df.reset_index(drop=True)
+    else:
+        legacy_dis_df = pd.concat([mingyu_dis_df, legacy_dis_df], ignore_index=True)
+
+    return legacy_g1f1_df, g2f1_df, a1_df, a2_df, legacy_dis_df
+
+
 def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full"):
 
     dataset_mode = dataset_mode.lower()
@@ -228,62 +261,18 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         if not g1f1_2025_path or not dis_2025_path:
             raise ValueError("2025 mode requires both g1f1_2025_path and dis_2025_path.")
 
-        g1f1_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
-        g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False)
+        legacy_g1f1_df, g2f1_df, a1_df, a2_df, legacy_dis_df = _load_legacy_fit_support(analysis_scope)
 
-        dis_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
+        g1f1_2025_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
+        g1f1_df = pd.concat([legacy_g1f1_df, g1f1_2025_df], ignore_index=True)
+        g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
 
-        g2f1_df = _empty_frame(EMPTY_FRAME_COLUMNS["g2f1"])
-        a1_df = _empty_frame(EMPTY_FRAME_COLUMNS["a1"])
-        a2_df = _empty_frame(EMPTY_FRAME_COLUMNS["a2"])
+        dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
+        dis_df = pd.concat([legacy_dis_df, dis_2025_df], ignore_index=True)
 
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
-    # Load csv files into data frames
-    e06014_df = pd.read_csv(project_path("data", "dflay_e06014.csv"))
-    e94010_df = pd.read_csv(project_path("data", "e94010.csv"))
-    e97110_df = pd.read_csv(project_path("data", "e97110.csv"))
-    psolva1a2_df = pd.read_csv(project_path("data", "psolv_e01012_a1a2.csv"))
-    psolvg1g2_df = pd.read_csv(project_path("data", "psolv_e01012_g1g2.csv"))
-    zheng_df = pd.read_csv(project_path("data", "zheng_thesis_pub_e99117.csv"))
-    hermes_df = pd.read_csv(project_path("data", "hermes_2000.csv"))
-    e142_df = pd.read_csv(project_path("data", "slac_e142.csv"))
-    e154_df = pd.read_csv(project_path("data", "slac_e154.csv"))
-    e97103_df = pd.read_csv(project_path("data", "kramer_e97103.csv"))
-
-    mingyu_df = pd.read_csv(project_path("data", "mingyu_g1f1_g2f1_dis.csv"))  # mingyu thesis DIS
-
-    # combined g1f1, g2f1, a1, a2 tables
-    g1f1_df = pd.read_csv(project_path("data", "g1f1_comb.csv"))
-    g2f1_df = pd.read_csv(project_path("data", "g2f1_comb.csv"))
-    a1_df = pd.read_csv(project_path("data", "a1_comb.csv"))
-    a2_df = pd.read_csv(project_path("data", "a2_comb.csv"))
-
-    dis_df = g1f1_df.copy()
-    dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
+    g1f1_df, g2f1_df, a1_df, a2_df, dis_df = _load_legacy_fit_support(analysis_scope)
     g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
-
-    # make dataframe of DIS values (W>2 && Q2>1)
-    # dis_df = dis_df[dis_df["W"]>2.0]
-    dis_df = dis_df[dis_df["Q2"] > 1.0]
-
-    # combine Mingyu data and g1f1_df
-    temp_df = pd.DataFrame(
-        {
-            "Q2": mingyu_df["Q2"],
-            "W": mingyu_df["W.cal"],
-            "X": mingyu_df["x"],
-            "G1F1": mingyu_df["g1F1_3He"],
-            "G1F1.err": mingyu_df["g1f1.err"],
-            "Label": ["Mingyu" for _ in range(len(mingyu_df["Q2"]))],
-        }
-    )
-
-    if analysis_scope == "dis_only":
-        dis_df = temp_df.reset_index(drop=True)
-    else:
-        dis_df = pd.concat([temp_df, dis_df], ignore_index=True)  # add Mingyu data
-
-    dis_df.head(100)
 
     return g1f1_df, g2f1_df, a1_df, a2_df, dis_df

@@ -141,7 +141,7 @@ def get_g1f1_W_fits(
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots // n_col + 1
-    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6))
+    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6), squeeze=False)
 
     for i, l in enumerate(res_df['Q2_labels'].unique()):
         row = i // n_col
@@ -235,7 +235,7 @@ def get_g1f1_W_fits(
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots // n_col + 1
-    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6))
+    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6), squeeze=False)
 
     for i, l in enumerate(res_df['Q2_labels'].unique()):
         row = i // n_col
@@ -317,7 +317,7 @@ def get_g1f1_W_fits(
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots // n_col + 1
-    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6))
+    fig, axs = plt.subplots(n_rows, n_col, figsize=(n_col * 6.5, n_rows * 6), squeeze=False)
 
     for i, l in enumerate(res_df['Q2_labels'].unique()):
         row = i // n_col

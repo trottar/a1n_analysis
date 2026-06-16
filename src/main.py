@@ -222,6 +222,8 @@ def build_sparse_2025_bw_fit_input(delta_par_df):
                 "gamma.err": gamma_err,
                 "M": mass_value,
                 "M.err": mass_err,
+                "Experiment": row.get("Experiment", "2025 data"),
+                "Label": row.get("Label", "2025 sparse full"),
             }
         )
 
@@ -239,6 +241,8 @@ def build_sparse_2025_bw_fit_input(delta_par_df):
                 "gamma.err": reference_row["gamma.err"],
                 "M": 1.232,
                 "M.err": reference_row["M.err"],
+                "Experiment": "2025 sparse anchor",
+                "Label": "2025 sparse anchor",
             }
         )
 

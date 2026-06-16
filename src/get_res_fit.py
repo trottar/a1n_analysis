@@ -11,7 +11,6 @@
 # Copyright (c) trottar
 #
 import numpy as np
-from tabulate import tabulate
 import matplotlib.pyplot as plt
 from scipy.stats import probplot
 import pandas as pd
@@ -20,6 +19,7 @@ import json
 ##################################################################################################################################################
 
 from functions import fit, breit_wigner_wrapper, breit_wigner_res
+from utility import safe_tabulate as tabulate
 
 ##################################################################################################################################################
 

@@ -17,12 +17,13 @@ from scipy.optimize import curve_fit
 from scipy.optimize import Bounds
 from scipy.optimize import minimize, differential_evolution
 from scipy.stats import chi2
-from tabulate import tabulate
 import inspect
     
 ##################################################################################################################################################
 # Importing utility functions
 
+from utility import safe_tabulate as tabulate
+	
 #from utility import custom_map
 
 ##################################################################################################################################################

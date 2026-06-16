@@ -12,13 +12,13 @@
 #
 import numpy as np
 from scipy.optimize import curve_fit
-from tabulate import tabulate
 import matplotlib.pyplot as plt
 import json
 
 ##################################################################################################################################################
 
 from functions import g1f1_quad_fullx_DIS
+from utility import safe_tabulate as tabulate
 
 ##################################################################################################################################################
 

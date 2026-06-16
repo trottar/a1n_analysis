@@ -12,7 +12,6 @@ from matplotlib import colormaps
 import pandas as pd
 from scipy.interpolate import griddata, interp1d
 from scipy.optimize import curve_fit, Bounds, differential_evolution, minimize
-from tabulate import tabulate
 from scipy.interpolate import splrep, BSpline
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.lines import Line2D
@@ -28,7 +27,7 @@ import os
 ##################################################################################################################################################
 # Importing utility functions
 
-from utility import show_pdf_with_evince, most_common_combination
+from utility import show_pdf_with_evince, most_common_combination, safe_tabulate as tabulate
 
 ##################################################################################################################################################
 

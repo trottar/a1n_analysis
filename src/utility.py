@@ -14,6 +14,44 @@ import signal
 from collections import defaultdict
 import sys, os, subprocess
 
+try:
+    from tabulate import tabulate as _tabulate
+except ImportError:
+    _tabulate = None
+
+################################################################################################################################################
+
+def safe_tabulate(rows, headers=(), tablefmt=None):
+    if _tabulate is not None:
+        return _tabulate(rows, headers=headers, tablefmt=tablefmt)
+
+    rows = [list(map(str, row)) for row in rows]
+    headers = list(map(str, headers)) if headers else []
+
+    if not rows and not headers:
+        return ""
+
+    n_cols = max([len(headers)] + [len(row) for row in rows])
+
+    def pad(row):
+        return row + [""] * (n_cols - len(row))
+
+    padded_rows = [pad(row) for row in rows]
+    padded_headers = pad(headers) if headers else []
+    width_source = padded_rows + ([padded_headers] if headers else [])
+    widths = [max(len(row[col]) for row in width_source) for col in range(n_cols)]
+
+    def format_row(row):
+        padded = pad(row)
+        return " | ".join(padded[col].ljust(widths[col]) for col in range(n_cols))
+
+    lines = []
+    if headers:
+        lines.append(format_row(headers))
+        lines.append("-+-".join("-" * width for width in widths))
+    lines.extend(format_row(row) for row in rows)
+    return "\n".join(lines)
+
 ################################################################################################################################################
 
 def show_pdf_with_evince(file_path):

@@ -11,6 +11,7 @@
 # Copyright (c) trottar
 #
 import os
+import traceback
 
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -46,6 +47,11 @@ ANALYSIS_SCOPE = "full"
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = False
 FALLBACK_TO_DIS_ON_FULL_FAILURE = True
+
+# Full-failure debug variants:
+# DEBUG_FULL_FAILURE_TRACEBACK = True
+# DEBUG_FULL_FAILURE_TRACEBACK = False
+DEBUG_FULL_FAILURE_TRACEBACK = True
 
 DATASET_2025_ALL_PATH = "../data/g1F1he3_2025_all.csv"
 DATASET_2025_DIS_PATH = "../data/g1F1he3_2025_dis.csv"
@@ -178,26 +184,34 @@ if DATASET_MODE not in {"legacy", "2025"}:
 if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
 
-load_data_kwargs = {}
-if DATASET_MODE == "2025":
+def load_analysis_data(analysis_scope):
     load_data_kwargs = {
         "dataset_mode": DATASET_MODE,
-        "g1f1_2025_path": DATASET_2025_ALL_PATH,
-        "dis_2025_path": DATASET_2025_DIS_PATH,
+        "analysis_scope": analysis_scope,
     }
-
-g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data(**load_data_kwargs)
+    if DATASET_MODE == "2025":
+        load_data_kwargs.update(
+            {
+                "g1f1_2025_path": DATASET_2025_ALL_PATH,
+                "dis_2025_path": DATASET_2025_DIS_PATH,
+            }
+        )
+    return load_data(**load_data_kwargs)
 
 def run_analysis(analysis_scope):
+    g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_analysis_data(analysis_scope)
+
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
 
     outputpdf = build_output_path("../plots/g1f1_fits.pdf", DATASET_TAG, analysis_scope)
+    print(f"[{DATASET_MODE}/{analysis_scope}] Writing PDF to {outputpdf}")
 
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
 
         # DIS fit
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: DIS fit")
         q2_interp = interp1d(dis_df['X'].values, dis_df['Q2'].values, kind='linear')
         x_dense = np.linspace(dis_df['X'].min(), dis_df['X'].max(), 10000)
         q2_dense = np.full(x_dense.size, 5.0) # array of q2 = 5.0 GeV^2
@@ -231,6 +245,7 @@ def run_analysis(analysis_scope):
         n_bins = len(res_df['Q2_labels'])
 
         # Plot g1/f1 vs W
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance data overview")
         plot_3he_data_W(res_df, pdf)
 
         # initial guesses for k and M
@@ -262,9 +277,11 @@ def run_analysis(analysis_scope):
         if DATASET_MODE == "2025":
             validate_2025_resonance_fit_support(res_df, w_lims, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
         delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
 
         # Plot k, gamma, M
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter summary")
         plot_BW_params(delta_par_df, pdf)
 
         x = list(delta_par_df["Q2"].unique())
@@ -312,6 +329,7 @@ def run_analysis(analysis_scope):
         if DATASET_MODE == "2025":
             validate_2025_only_support(res_df, delta_par_df, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")
         bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)
 
         # Redefine w_max (if needed)
@@ -324,6 +342,7 @@ def run_analysis(analysis_scope):
 
         w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: DIS-transition fits")
         dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params,
                                                 bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                                                 bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
@@ -334,6 +353,7 @@ def run_analysis(analysis_scope):
                                                 dataset_tag=DATASET_TAG,
         )
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages")
         get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -346,6 +366,7 @@ def run_analysis(analysis_scope):
                         g1f1_df
         )
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages by Q2 bin")
         get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -358,6 +379,7 @@ def run_analysis(analysis_scope):
                         g1f1_df
         )
 
+        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Fit grid export")
         create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
                          res_df, dis_fit_params, dis_transition_fit,
                          bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -377,6 +399,9 @@ if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE:
     try:
         outputpdf = run_analysis("full")
     except Exception as exc:
+        if DEBUG_FULL_FAILURE_TRACEBACK:
+            print("Full-scope traceback:")
+            print(traceback.format_exc())
         print(f"Full scope failed ({exc.__class__.__name__}: {exc}). Falling back to DIS-only scope.")
         outputpdf = run_analysis("dis_only")
 else:

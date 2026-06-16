@@ -211,11 +211,17 @@ def _empty_frame(columns):
     return pd.DataFrame(columns=columns)
 
 
-def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None):
+def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full"):
 
     dataset_mode = dataset_mode.lower()
     if dataset_mode not in {"legacy", "2025"}:
         raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy' or '2025'.")
+
+    analysis_scope = analysis_scope.lower()
+    if analysis_scope == "dis":
+        analysis_scope = "dis_only"
+    if analysis_scope not in {"full", "dis_only"}:
+        raise ValueError(f"Unsupported analysis_scope '{analysis_scope}'. Expected 'full' or 'dis_only'.")
 
     if dataset_mode == "2025":
         if not g1f1_2025_path or not dis_2025_path:
@@ -273,7 +279,11 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None):
         }
     )
 
-    dis_df = pd.concat([temp_df, dis_df], ignore_index=True)  # add Mingyu data
+    if analysis_scope == "dis_only":
+        dis_df = temp_df.reset_index(drop=True)
+    else:
+        dis_df = pd.concat([temp_df, dis_df], ignore_index=True)  # add Mingyu data
+
     dis_df.head(100)
 
     return g1f1_df, g2f1_df, a1_df, a2_df, dis_df

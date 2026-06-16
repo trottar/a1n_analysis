@@ -35,6 +35,11 @@ EMPTY_FRAME_COLUMNS = {
     "a1": ["Q2", "W", "X", "A1", "A1.err", "Label"],
     "a2": ["Q2", "W", "X", "A2", "A2.err", "Label"],
 }
+LEGACY_G1F1_PATH = project_path("data", "g1f1_comb.csv")
+LEGACY_G2F1_PATH = project_path("data", "g2f1_comb.csv")
+LEGACY_A1_PATH = project_path("data", "a1_comb.csv")
+LEGACY_A2_PATH = project_path("data", "a2_comb.csv")
+MINGYU_DIS_PATH = project_path("data", "mingyu_g1f1_g2f1_dis.csv")
 
 
 def _convert_q2(q2):
@@ -223,7 +228,7 @@ def _build_dis_cut_df(g1f1_df, label=None):
 
 
 def _build_mingyu_dis_df():
-    mingyu_df = pd.read_csv(project_path("data", "mingyu_g1f1_g2f1_dis.csv"))
+    mingyu_df = pd.read_csv(MINGYU_DIS_PATH)
     return pd.DataFrame(
         {
             "Q2": mingyu_df["Q2"],
@@ -237,10 +242,10 @@ def _build_mingyu_dis_df():
 
 
 def _load_legacy_fit_support(analysis_scope):
-    legacy_g1f1_df = pd.read_csv(project_path("data", "g1f1_comb.csv"))
-    g2f1_df = pd.read_csv(project_path("data", "g2f1_comb.csv"))
-    a1_df = pd.read_csv(project_path("data", "a1_comb.csv"))
-    a2_df = pd.read_csv(project_path("data", "a2_comb.csv"))
+    legacy_g1f1_df = pd.read_csv(LEGACY_G1F1_PATH)
+    g2f1_df = pd.read_csv(LEGACY_G2F1_PATH)
+    a1_df = pd.read_csv(LEGACY_A1_PATH)
+    a2_df = pd.read_csv(LEGACY_A2_PATH)
 
     legacy_dis_df = _build_dis_cut_df(legacy_g1f1_df)
 
@@ -251,6 +256,55 @@ def _load_legacy_fit_support(analysis_scope):
         legacy_dis_df = pd.concat([mingyu_dis_df, legacy_dis_df], ignore_index=True)
 
     return legacy_g1f1_df, g2f1_df, a1_df, a2_df, legacy_dis_df
+
+
+def _format_label_counts(df):
+    if "Label" not in df.columns or df.empty:
+        return "none"
+    counts = df["Label"].value_counts().sort_index()
+    return ", ".join(f"{label}: {count}" for label, count in counts.items())
+
+
+def _describe_frame(name, df, sources, cuts):
+    print(f"[load_data] {name}")
+    print(f"  rows: {len(df)}")
+    print(f"  sources: {', '.join(str(source) for source in sources)}")
+    print(f"  cuts: {', '.join(cuts) if cuts else 'none'}")
+    print(f"  labels: {_format_label_counts(df)}")
+
+
+def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df, a2_df, dis_df,
+                         g1f1_2025_path=None, dis_2025_path=None):
+    print("\n" + "=" * 100)
+    print(f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope}")
+
+    if dataset_mode == "2025":
+        g1f1_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
+        dis_sources = [g1f1_2025_path, dis_2025_path]
+        dis_cuts = [
+            "2025 all DIS-cut uses Q2 > 1.0 and W > 2.0",
+            "2025 DIS file loaded directly",
+            "legacy DIS support excluded in 2025 mode",
+        ]
+    else:
+        g1f1_sources = [LEGACY_G1F1_PATH]
+        dis_sources = [LEGACY_G1F1_PATH, MINGYU_DIS_PATH]
+        dis_cuts = [
+            "legacy DIS-cut uses Q2 > 1.0 and W > 2.0",
+            "Mingyu DIS file appended",
+        ]
+
+    _describe_frame(
+        "g1f1_df",
+        g1f1_df,
+        g1f1_sources,
+        [f"excluded labels from g1f1_df: {', '.join(sorted(LEGACY_EXCLUDED_LABELS))}"],
+    )
+    _describe_frame("dis_df", dis_df, dis_sources, dis_cuts)
+    _describe_frame("g2f1_df", g2f1_df, [LEGACY_G2F1_PATH], [])
+    _describe_frame("a1_df", a1_df, [LEGACY_A1_PATH], [])
+    _describe_frame("a2_df", a2_df, [LEGACY_A2_PATH], [])
+    print("=" * 100 + "\n")
 
 
 def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full"):
@@ -279,9 +333,31 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
         dis_df = pd.concat([dis_2025_all_df, dis_2025_df], ignore_index=True)
 
+        _print_dataset_splash(
+            dataset_mode,
+            analysis_scope,
+            g1f1_df,
+            g2f1_df,
+            a1_df,
+            a2_df,
+            dis_df,
+            g1f1_2025_path=g1f1_2025_path,
+            dis_2025_path=dis_2025_path,
+        )
+
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = _load_legacy_fit_support(analysis_scope)
     g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
+
+    _print_dataset_splash(
+        dataset_mode,
+        analysis_scope,
+        g1f1_df,
+        g2f1_df,
+        a1_df,
+        a2_df,
+        dis_df,
+    )
 
     return g1f1_df, g2f1_df, a1_df, a2_df, dis_df

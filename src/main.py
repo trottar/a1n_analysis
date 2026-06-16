@@ -10,6 +10,8 @@
 #
 # Copyright (c) trottar
 #
+import os
+
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.interpolate import griddata, interp1d
@@ -30,17 +32,39 @@ w_res_min = 1.1
 w_res_max = 1.45
 
 DATASET_MODE = "legacy"
-DATASET_TAG = "legacy" if DATASET_MODE == "legacy" else "2025"
 DATASET_2025_ALL_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_all.csv"
 DATASET_2025_DIS_PATH = r"C:\Users\trott\Documents\Programs\a1n_analysis\data\g1F1he3_2025_dis.csv"
+
+
+def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
+    if dataset_mode == "legacy":
+        return "legacy"
+
+    g1f1_stem = os.path.splitext(os.path.basename(g1f1_path or dataset_mode))[0]
+    dis_stem = os.path.splitext(os.path.basename(dis_path or ""))[0]
+
+    if dis_stem and dis_stem != g1f1_stem:
+        common_prefix = os.path.commonprefix([g1f1_stem, dis_stem])
+        g1f1_suffix = g1f1_stem[len(common_prefix):]
+        dis_suffix = dis_stem[len(common_prefix):]
+        if common_prefix and g1f1_suffix and dis_suffix:
+            return f"{common_prefix}{g1f1_suffix}({dis_suffix})"
+        return f"{g1f1_stem}__{dis_stem}"
+
+    return g1f1_stem
+
+
+DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 
 
 def build_output_path(base_path, dataset_tag):
     if dataset_tag == "legacy":
         return base_path
 
-    stem, ext = base_path.rsplit(".", 1)
-    return f"{stem}_{dataset_tag}.{ext}"
+    output_dir, filename = os.path.split(base_path)
+    tagged_dir = os.path.join(output_dir, dataset_tag)
+    os.makedirs(tagged_dir, exist_ok=True)
+    return os.path.join(tagged_dir, filename)
 
 
 def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path):

@@ -28,8 +28,9 @@ def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
         return os.path.join("..", "fit_data", filename)
 
-    stem, ext = os.path.splitext(filename)
-    return os.path.join("..", "fit_data", f"{stem}_{dataset_tag}{ext}")
+    tagged_dir = os.path.join("..", "fit_data", dataset_tag)
+    os.makedirs(tagged_dir, exist_ok=True)
+    return os.path.join(tagged_dir, filename)
 
 
 def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):

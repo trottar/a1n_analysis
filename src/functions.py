@@ -328,9 +328,15 @@ def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_val
         # Trim arguments to match function signature if needed
         fit_args = fit_args[:len(param_names)]
         
-        model = fit_function(*fit_args)
-        
-        residuals = (y_data - model) / y_err
+        model = np.asarray(fit_function(*fit_args), dtype=np.float64)
+        if not np.all(np.isfinite(model)):
+            return np.inf
+
+        safe_y_err = np.where(np.abs(y_err) > 0, y_err, np.nan)
+        residuals = (y_data - model) / safe_y_err
+        if not np.all(np.isfinite(residuals)):
+            return np.inf
+
         chi2_value = np.sum(residuals ** 2)
         degrees_of_freedom = max(1, len(y_data) - num_params)
         
@@ -377,10 +383,37 @@ def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_val
         
         current_reduced_chi_squared, current_params = optimize_fit(search_bounds)
         print(f"Iteration {i + 1} - Reduced chi-squared: {current_reduced_chi_squared:.5f}")
-        
-        if abs(current_reduced_chi_squared-1) < abs(best_reduced_chi_squared-1):
+
+        if best_params is None and current_params is not None and np.all(np.isfinite(current_params)):
             best_reduced_chi_squared = current_reduced_chi_squared
             best_params = current_params
+            continue
+
+        if (
+            current_params is not None
+            and np.all(np.isfinite(current_params))
+            and abs(current_reduced_chi_squared-1) < abs(best_reduced_chi_squared-1)
+        ):
+            best_reduced_chi_squared = current_reduced_chi_squared
+            best_params = current_params
+
+    if best_params is None:
+        fallback_params = []
+        for lb, ub in search_bounds:
+            if np.isfinite(lb) and np.isfinite(ub):
+                fallback_params.append(0.5 * (lb + ub))
+            elif np.isfinite(lb):
+                fallback_params.append(lb)
+            elif np.isfinite(ub):
+                fallback_params.append(ub)
+            else:
+                fallback_params.append(0.0)
+        best_params = np.array(fallback_params, dtype=np.float64)
+        best_reduced_chi_squared = np.inf
+        print(
+            f"Warning: no valid optimization result found for '{var_name}'. "
+            "Using fallback parameters and NaN uncertainties."
+        )
     
     def compute_uncertainties(best_solution):
         """
@@ -393,6 +426,13 @@ def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_val
         Returns:
             array: Parameter uncertainties
         """
+        if best_solution is None:
+            return np.full(num_params, np.nan)
+
+        best_solution = np.asarray(best_solution, dtype=np.float64)
+        if best_solution.size != num_params or not np.all(np.isfinite(best_solution)):
+            return np.full(num_params, np.nan)
+
         degrees_of_freedom = max(1, len(y_data) - num_params)
         delta_chi2 = chi2.ppf(0.68, degrees_of_freedom) - chi2.ppf(0.32, degrees_of_freedom)
 
@@ -448,9 +488,9 @@ def fit_with_dynamic_params(var_name, x_data, y_data, y_err, param_bounds, p_val
             # Compute uncertainties from the diagonal elements of covariance matrix
             uncertainties = np.sqrt(np.abs(np.diag(covariance) * delta_chi2))
 
-        except (np.linalg.LinAlgError, ValueError):
+        except (np.linalg.LinAlgError, ValueError, TypeError, FloatingPointError):
             # If inversion fails, return NaNs for all uncertainties
-            uncertainties = np.full(len(best_solution), np.nan)
+            uncertainties = np.full(num_params, np.nan)
 
         return uncertainties
     

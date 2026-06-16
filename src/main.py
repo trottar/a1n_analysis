@@ -31,9 +31,29 @@ w_max = 3.0
 w_res_min = 1.1
 w_res_max = 1.45
 
+# Dataset mode variants:
+# DATASET_MODE = "legacy"
+# DATASET_MODE = "2025"
 DATASET_MODE = "legacy"
+
+# Analysis scope variants:
+# ANALYSIS_SCOPE = "full"
+# ANALYSIS_SCOPE = "dis_only"
+# ANALYSIS_SCOPE = "dis"
+ANALYSIS_SCOPE = "full"
+
+# Full-scope fallback variants:
+# FALLBACK_TO_DIS_ON_FULL_FAILURE = True
+# FALLBACK_TO_DIS_ON_FULL_FAILURE = False
+FALLBACK_TO_DIS_ON_FULL_FAILURE = True
+
 DATASET_2025_ALL_PATH = "../data/g1F1he3_2025_all.csv"
 DATASET_2025_DIS_PATH = "../data/g1F1he3_2025_dis.csv"
+
+DATASET_MODE = DATASET_MODE.lower()
+ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
+if ANALYSIS_SCOPE == "dis":
+    ANALYSIS_SCOPE = "dis_only"
 
 
 def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
@@ -57,12 +77,17 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
 DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 
 
-def build_output_path(base_path, dataset_tag):
-    if dataset_tag == "legacy":
+def build_output_path(base_path, dataset_tag, analysis_scope):
+    if dataset_tag == "legacy" and analysis_scope == "full":
         return base_path
 
     output_dir, filename = os.path.split(base_path)
-    tagged_dir = os.path.join(output_dir, dataset_tag)
+    tag_parts = []
+    if dataset_tag != "legacy":
+        tag_parts.append(dataset_tag)
+    if analysis_scope != "full":
+        tag_parts.append(analysis_scope)
+    tagged_dir = os.path.join(output_dir, *tag_parts)
     os.makedirs(tagged_dir, exist_ok=True)
     return os.path.join(tagged_dir, filename)
 
@@ -142,6 +167,9 @@ from functions import g1f1_quad_fullx_DIS, \
 if DATASET_MODE not in {"legacy", "2025"}:
     raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy' or '2025'.")
 
+if ANALYSIS_SCOPE not in {"full", "dis_only"}:
+    raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
+
 load_data_kwargs = {}
 if DATASET_MODE == "2025":
     load_data_kwargs = {
@@ -152,181 +180,198 @@ if DATASET_MODE == "2025":
 
 g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_data(**load_data_kwargs)
 
-# independent variable data to feed to curve fit, X and Q2
-indep_data = [dis_df['X'], dis_df['Q2']]
+def run_analysis(analysis_scope):
+    # independent variable data to feed to curve fit, X and Q2
+    indep_data = [dis_df['X'], dis_df['Q2']]
 
-outputpdf = build_output_path("../plots/g1f1_fits.pdf", DATASET_TAG)
+    outputpdf = build_output_path("../plots/g1f1_fits.pdf", DATASET_TAG, analysis_scope)
 
-# Create a PdfPages object to manage the PDF file
-with PdfPages(outputpdf) as pdf:
+    # Create a PdfPages object to manage the PDF file
+    with PdfPages(outputpdf) as pdf:
 
-    # DIS fit    
-    q2_interp = interp1d(dis_df['X'].values, dis_df['Q2'].values, kind='linear')
-    x_dense = np.linspace(dis_df['X'].min(), dis_df['X'].max(), 10000)
-    q2_dense = np.full(x_dense.size, 5.0) # array of q2 = 5.0 GeV^2
-    
-    dis_fit_params = get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf)    
+        # DIS fit
+        q2_interp = interp1d(dis_df['X'].values, dis_df['Q2'].values, kind='linear')
+        x_dense = np.linspace(dis_df['X'].min(), dis_df['X'].max(), 10000)
+        q2_dense = np.full(x_dense.size, 5.0) # array of q2 = 5.0 GeV^2
 
-    # Generate fitted curve using the fitted parameters for constant q2
-    x = np.linspace(0,1.0,1000, dtype=np.double)
-    q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
+        dis_fit_params = get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf)
 
-    args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
+        # Generate fitted curve using the fitted parameters for constant q2
+        x = np.linspace(0,1.0,1000, dtype=np.double)
+        q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
 
-    quad_new_fit_curve = g1f1_quad_fullx_DIS(*args_new)
+        args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
 
-    # Table F.1 from XZ's thesis
-    dis_fit_params["partials"] = [partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx]
-    
-    quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
+        quad_new_fit_curve = g1f1_quad_fullx_DIS(*args_new)
 
-    # Plot dis fit vs x
-    plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
+        # Table F.1 from XZ's thesis
+        dis_fit_params["partials"] = [partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx]
 
-    # make dataframe of Resonance values (1<W<2)
-    res_df = g1f1_df[g1f1_df['W']<2.0]    
-    res_df = res_df[res_df['W']>1.0]    
-    
-    n_bins = len(res_df['Q2_labels'])
+        quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
-    # Plot g1/f1 vs W
-    plot_3he_data_W(res_df, pdf)
-        
-    # initial guesses for k and M
-    k_init = [-.025, -.06, -.01, .02,
-              -.1, -.08, -.08, -.07,
-              -.06, -.06, -.05, -.2,
-              -.2, -.15, -.14, -.13,
-              -.13, -0.1, .01]
+        # Plot dis fit vs x
+        plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
-    mass_init = [1.3, 1.35, 1.2, 1.25,
-              1.23, 1.23, 1.23, 1.23,
-              1.2, 1.22, 1.22, 1.2,
-              1.22, 1.25, 1.3, 1.3,
-              1.3, 1.3, 1.5]
+        if analysis_scope == "dis_only":
+            print("DIS-only scope selected. Skipping resonance, BW, transition, and grid stages.")
+            return outputpdf
 
-    gamma_init = [0.1, 0.3, 0.1, 0.1,
-              0.1, 0.1, 0.1, 0.1,
-              0.1, 0.1, 0.1, 0.1,
-              0.1, 0.2, 0.2, 0.2,
-              0.2, 0.1, 0.1]
-    
-    # RLT (10/16/2024)
-    w_lims = [(1.125, 1.4), (1.125, 1.4), (1.100, 1.4), (1.100, 1.4),
-              (1.100, 1.4), (1.100, 1.4), (1.100, 1.4), (1.100, 1.35),
-              (1.085, 1.4), (1.085, 1.4), (1.085, 1.5), (1.100, 1.5),
-              (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
-              (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
+        # make dataframe of Resonance values (1<W<2)
+        res_df = g1f1_df[g1f1_df['W']<2.0]
+        res_df = res_df[res_df['W']>1.0]
 
-    if DATASET_MODE == "2025":
-        validate_2025_resonance_fit_support(res_df, w_lims, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
-    
-    delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
+        n_bins = len(res_df['Q2_labels'])
 
-    # Plot k, gamma, M
-    plot_BW_params(delta_par_df, pdf)
+        # Plot g1/f1 vs W
+        plot_3he_data_W(res_df, pdf)
 
-    x = list(delta_par_df["Q2"].unique())
-    k_unique = []
-    k_err_unique = []
-    gamma_unique = []
-    gamma_err_unique = []
-    mass_unique = []
-    mass_err_unique = []    
-    
-    # Go through each unique Q2 value and do weighted average of the points
-    for Q2 in x:
-        # average k's and their errors
-        k_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["k"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])
-        k_unique.append(k_avg)
-        k_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"]**2))
-        k_err_unique.append(k_avg_err)
+        # initial guesses for k and M
+        k_init = [-.025, -.06, -.01, .02,
+                  -.1, -.08, -.08, -.07,
+                  -.06, -.06, -.05, -.2,
+                  -.2, -.15, -.14, -.13,
+                  -.13, -0.1, .01]
 
-        # average gammas and their errors
-        gamma_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["gamma"], w=(1/delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]))
-        gamma_unique.append(gamma_avg)
-        gamma_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]**2))
-        gamma_err_unique.append(gamma_avg_err)
+        mass_init = [1.3, 1.35, 1.2, 1.25,
+                  1.23, 1.23, 1.23, 1.23,
+                  1.2, 1.22, 1.22, 1.2,
+                  1.22, 1.25, 1.3, 1.3,
+                  1.3, 1.3, 1.5]
 
-        mass_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["M"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])
-        mass_unique.append(mass_avg)
-        mass_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"]**2))
-        mass_err_unique.append(mass_avg_err)
-            
-    x0 = 4.0
-    for i in range(7):
-      x.append(x0+i)
-      k_unique.append(0.0)
-      k_err_unique.append(k_avg_err)
-      gamma_unique.append(0.25)
-      gamma_err_unique.append(gamma_avg_err)
-      mass_unique.append(1.232)
-      mass_err_unique.append(mass_avg_err)
-      
-    # Generate fitted curves using the fitted parameters
-    q2 = np.linspace(0.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
-    #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
-    #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
+        gamma_init = [0.1, 0.3, 0.1, 0.1,
+                  0.1, 0.1, 0.1, 0.1,
+                  0.1, 0.1, 0.1, 0.1,
+                  0.1, 0.2, 0.2, 0.2,
+                  0.2, 0.1, 0.1]
 
-    if DATASET_MODE == "2025":
-        validate_2025_only_support(res_df, delta_par_df, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+        # RLT (10/16/2024)
+        w_lims = [(1.125, 1.4), (1.125, 1.4), (1.100, 1.4), (1.100, 1.4),
+                  (1.100, 1.4), (1.100, 1.4), (1.100, 1.4), (1.100, 1.35),
+                  (1.085, 1.4), (1.085, 1.4), (1.085, 1.5), (1.100, 1.5),
+                  (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
+                  (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
 
-    bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)    
+        if DATASET_MODE == "2025":
+            validate_2025_resonance_fit_support(res_df, w_lims, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 
-    # Redefine w_max (if needed)
-    w_max = g1f1_df['W'].max()
+        delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
 
-    # Redefine dataframe for complete fit
-    res_df = g1f1_df
-    res_df = res_df[res_df['W']<2.0]
-    res_df = res_df[res_df['W']>1.0]
-    
-    w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
+        # Plot k, gamma, M
+        plot_BW_params(delta_par_df, pdf)
 
-    dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params, 
-                                            bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
-                                            bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
-                                            bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
-                                            bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
-                                            w_lims,
-                                            pdf,
-                                            dataset_tag=DATASET_TAG,
-    )
-    
-    get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
-                    res_df, dis_fit_params, dis_transition_fit,
-                    bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
-                    bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
-                    bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
-                    bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
-                    dis_fit_params["beta_val"],
-                    w_lims,                    
-                    pdf,
-                    g1f1_df
-    )
+        x = list(delta_par_df["Q2"].unique())
+        k_unique = []
+        k_err_unique = []
+        gamma_unique = []
+        gamma_err_unique = []
+        mass_unique = []
+        mass_err_unique = []
 
-    get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
-                    res_df, dis_fit_params, dis_transition_fit,
-                    bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
-                    bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
-                    bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
-                    bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
-                    dis_fit_params["beta_val"],
-                    w_lims,                    
-                    pdf,
-                    g1f1_df
-    )
+        # Go through each unique Q2 value and do weighted average of the points
+        for Q2 in x:
+            # average k's and their errors
+            k_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["k"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])
+            k_unique.append(k_avg)
+            k_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"]**2))
+            k_err_unique.append(k_avg_err)
 
-    create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
-                     res_df, dis_fit_params, dis_transition_fit,
-                     bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
-                     bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
-                     bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],                    
-                     bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
-                     dis_fit_params["beta_val"],
-                     w_lims,
-                     pdf,
-                     dataset_tag=DATASET_TAG,
+            # average gammas and their errors
+            gamma_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["gamma"], w=(1/delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]))
+            gamma_unique.append(gamma_avg)
+            gamma_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]**2))
+            gamma_err_unique.append(gamma_avg_err)
+
+            mass_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["M"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])
+            mass_unique.append(mass_avg)
+            mass_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"]**2))
+            mass_err_unique.append(mass_avg_err)
+
+        x0 = 4.0
+        for i in range(7):
+          x.append(x0+i)
+          k_unique.append(0.0)
+          k_err_unique.append(k_avg_err)
+          gamma_unique.append(0.25)
+          gamma_err_unique.append(gamma_avg_err)
+          mass_unique.append(1.232)
+          mass_err_unique.append(mass_avg_err)
+
+        # Generate fitted curves using the fitted parameters
+        q2 = np.linspace(0.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
+        #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
+        #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
+
+        if DATASET_MODE == "2025":
+            validate_2025_only_support(res_df, delta_par_df, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+
+        bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)
+
+        # Redefine w_max (if needed)
+        w_max = g1f1_df['W'].max()
+
+        # Redefine dataframe for complete fit
+        res_df = g1f1_df
+        res_df = res_df[res_df['W']<2.0]
+        res_df = res_df[res_df['W']>1.0]
+
+        w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
+
+        dis_transition_fit = fit_dis_transition(w_min, w_max, res_df, dis_fit_params,
+                                                bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                                                bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                                                bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],
+                                                bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                                                w_lims,
+                                                pdf,
+                                                dataset_tag=DATASET_TAG,
         )
-    
+
+        get_g1f1_W_fits(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                        res_df, dis_fit_params, dis_transition_fit,
+                        bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                        bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                        bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],
+                        bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                        dis_fit_params["beta_val"],
+                        w_lims,
+                        pdf,
+                        g1f1_df
+        )
+
+        get_g1f1_W_fits_q2_bin(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                        res_df, dis_fit_params, dis_transition_fit,
+                        bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                        bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                        bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],
+                        bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                        dis_fit_params["beta_val"],
+                        w_lims,
+                        pdf,
+                        g1f1_df
+        )
+
+        create_g1f1_grid(w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
+                         res_df, dis_fit_params, dis_transition_fit,
+                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
+                         bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
+                         bw_fit_params["mass params"]["nucl_par"], bw_fit_params["mass params"]["nucl_curve_err"],
+                         bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
+                         dis_fit_params["beta_val"],
+                         w_lims,
+                         pdf,
+                         dataset_tag=DATASET_TAG,
+            )
+
+    return outputpdf
+
+
+if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE:
+    try:
+        outputpdf = run_analysis("full")
+    except Exception as exc:
+        print(f"Full scope failed ({exc.__class__.__name__}: {exc}). Falling back to DIS-only scope.")
+        outputpdf = run_analysis("dis_only")
+else:
+    outputpdf = run_analysis(ANALYSIS_SCOPE)
+
 show_pdf_with_evince(outputpdf)

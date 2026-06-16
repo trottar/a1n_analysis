@@ -212,6 +212,15 @@ def _empty_frame(columns):
     return pd.DataFrame(columns=columns)
 
 
+def _build_dis_cut_df(g1f1_df, label=None):
+    dis_df = g1f1_df.copy()
+    dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
+    dis_df = dis_df[dis_df["Q2"] > 1.0].copy()
+    if label is not None:
+        dis_df["Label"] = label
+    return dis_df.reset_index(drop=True)
+
+
 def _build_mingyu_dis_df():
     mingyu_df = pd.read_csv(project_path("data", "mingyu_g1f1_g2f1_dis.csv"))
     return pd.DataFrame(
@@ -221,7 +230,7 @@ def _build_mingyu_dis_df():
             "X": mingyu_df["x"],
             "G1F1": mingyu_df["g1F1_3He"],
             "G1F1.err": mingyu_df["g1f1.err"],
-            "Label": ["Mingyu" for _ in range(len(mingyu_df["Q2"]))],
+            "Label": ["Mingyu DIS" for _ in range(len(mingyu_df["Q2"]))],
         }
     )
 
@@ -232,13 +241,11 @@ def _load_legacy_fit_support(analysis_scope):
     a1_df = pd.read_csv(project_path("data", "a1_comb.csv"))
     a2_df = pd.read_csv(project_path("data", "a2_comb.csv"))
 
-    legacy_dis_df = legacy_g1f1_df.copy()
-    legacy_dis_df["Q2"] = legacy_dis_df["Q2"].apply(_convert_q2)
-    legacy_dis_df = legacy_dis_df[legacy_dis_df["Q2"] > 1.0]
+    legacy_dis_df = _build_dis_cut_df(legacy_g1f1_df)
 
     mingyu_dis_df = _build_mingyu_dis_df()
     if analysis_scope == "dis_only":
-        legacy_dis_df = mingyu_dis_df.reset_index(drop=True)
+        legacy_dis_df = pd.concat([legacy_dis_df, mingyu_dis_df], ignore_index=True)
     else:
         legacy_dis_df = pd.concat([mingyu_dis_df, legacy_dis_df], ignore_index=True)
 
@@ -268,7 +275,11 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
 
         dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
-        dis_df = pd.concat([legacy_dis_df, dis_2025_df], ignore_index=True)
+        if analysis_scope == "dis_only":
+            dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
+            dis_df = pd.concat([dis_2025_all_df, dis_2025_df], ignore_index=True)
+        else:
+            dis_df = pd.concat([legacy_dis_df, dis_2025_df], ignore_index=True)
 
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 

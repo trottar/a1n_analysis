@@ -279,14 +279,24 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
     print(f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope}")
 
     if dataset_mode == "2025":
-        g1f1_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
-        dis_sources = [LEGACY_G1F1_PATH, g1f1_2025_path, dis_2025_path]
-        dis_cuts = [
-            "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
-            "2025 all DIS-cut uses Q2 > 1.0 and W > 2.0",
-            "2025 DIS file loaded directly",
-            "Mingyu DIS excluded in 2025 mode",
-        ]
+        if analysis_scope == "dis_only":
+            g1f1_sources = [LEGACY_G1F1_PATH]
+            dis_sources = [LEGACY_G1F1_PATH, dis_2025_path]
+            dis_cuts = [
+                "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
+                "2025 DIS file loaded directly",
+                "2025 all excluded in 2025/dis_only",
+                "Mingyu DIS excluded in 2025 mode",
+            ]
+        else:
+            g1f1_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
+            dis_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
+            dis_cuts = [
+                "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
+                "2025 all DIS-cut uses Q2 > 1.0 and W > 2.0",
+                "2025 DIS excluded in 2025/full",
+                "Mingyu DIS excluded in 2025 mode",
+            ]
     else:
         g1f1_sources = [LEGACY_G1F1_PATH]
         dis_sources = [LEGACY_G1F1_PATH, MINGYU_DIS_PATH]
@@ -327,13 +337,16 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         legacy_g1f1_df, g2f1_df, a1_df, a2_df, _legacy_dis_df = _load_legacy_fit_support(analysis_scope)
         legacy_dis_cut_df = _build_dis_cut_df(legacy_g1f1_df)
 
-        g1f1_2025_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
-        g1f1_df = pd.concat([legacy_g1f1_df, g1f1_2025_df], ignore_index=True)
-        g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
-
-        dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
-        dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
-        dis_df = pd.concat([legacy_dis_cut_df, dis_2025_all_df, dis_2025_df], ignore_index=True)
+        if analysis_scope == "dis_only":
+            g1f1_df = _prepare_g1f1_df(legacy_g1f1_df, remove_unwanted_labels=True)
+            dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
+            dis_df = pd.concat([legacy_dis_cut_df, dis_2025_df], ignore_index=True)
+        else:
+            g1f1_2025_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
+            g1f1_df = pd.concat([legacy_g1f1_df, g1f1_2025_df], ignore_index=True)
+            g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
+            dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
+            dis_df = pd.concat([legacy_dis_cut_df, dis_2025_all_df], ignore_index=True)
 
         _print_dataset_splash(
             dataset_mode,

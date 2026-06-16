@@ -14,6 +14,7 @@ import os
 import traceback
 
 import numpy as np
+import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.interpolate import griddata, interp1d
 
@@ -53,6 +54,11 @@ FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # DEBUG_FULL_FAILURE_TRACEBACK = False
 DEBUG_FULL_FAILURE_TRACEBACK = True
 
+# Sparse-2025 full-mode variants:
+# ALLOW_SPARSE_2025_FULL = True
+# ALLOW_SPARSE_2025_FULL = False
+ALLOW_SPARSE_2025_FULL = True
+
 DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
 DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
 
@@ -89,6 +95,8 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
 
 
 DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+if DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
+    DATASET_TAG = f"{DATASET_TAG}_sparse_full"
 
 
 def build_output_path(base_path, dataset_tag, analysis_scope):
@@ -106,7 +114,7 @@ def build_output_path(base_path, dataset_tag, analysis_scope):
     return os.path.join(tagged_dir, filename)
 
 
-def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path):
+def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path, strict=True):
     min_bw_fit_points = 11
     min_unique_q2_bins = 4
 
@@ -116,18 +124,23 @@ def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path):
     unique_q2_bins = delta_par_df["Q2"].nunique()
 
     if bw_fit_points >= min_bw_fit_points and unique_q2_bins >= min_unique_q2_bins:
-        return
+        return True
 
-    raise RuntimeError(
+    message = (
         "2025-only mode cannot continue to BW/global-fit stages. "
         f"Required at least {min_bw_fit_points} resonance fit points and {min_unique_q2_bins} unique Q2 bins, "
         f"but observed {bw_fit_points} fit points, {unique_q2_bins} unique Q2 bins, "
         f"{resonance_points} resonance-region rows, and {resonance_bins} resonance labels. "
         f"Inputs: all='{g1f1_path}', dis='{dis_path}'."
     )
+    if strict:
+        raise RuntimeError(message)
+
+    print(f"[2025/full] Sparse-full override: {message}")
+    return False
 
 
-def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path):
+def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path, strict=True):
     label_counts = []
     q2_labels = list(res_df["Q2_labels"].dropna().unique())
 
@@ -147,17 +160,94 @@ def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path):
 
     insufficient = [entry for entry in label_counts if entry[1] < 3]
     if not insufficient:
-        return
+        return True
 
     details = "; ".join(
         f"{label}: {count} points in [{w_min_fit:.3f}, {w_max_fit:.3f}]"
         for label, count, w_min_fit, w_max_fit in insufficient
     )
-    raise RuntimeError(
+    message = (
         "2025-only mode cannot start resonance Breit-Wigner fits. "
         "Each resonance Q2 label needs at least 3 points inside its configured W fit window. "
         f"Observed: {details}. Inputs: all='{g1f1_path}', dis='{dis_path}'."
     )
+    if strict:
+        raise RuntimeError(message)
+
+    print(f"[2025/full] Sparse-full override: {message}")
+    return False
+
+
+def build_sparse_2025_bw_fit_input(delta_par_df):
+    def finite_value(value, fallback):
+        return value if np.isfinite(value) else fallback
+
+    def positive_error(value, fallback):
+        if np.isfinite(value) and abs(value) > 0:
+            return abs(value)
+        return fallback
+
+    sparse_rows = []
+    for _, row in delta_par_df.iterrows():
+        q2_value = finite_value(row.get("Q2", np.nan), np.nan)
+        if not np.isfinite(q2_value):
+            continue
+
+        use_variable_fit = all(
+            np.isfinite(row.get(key, np.nan)) and abs(row.get(key, np.nan)) > 0
+            for key in ("k.err", "gamma.err", "M.err")
+        )
+
+        if use_variable_fit:
+            k_value = finite_value(row.get("k", np.nan), 0.0)
+            gamma_value = abs(finite_value(row.get("gamma", np.nan), 0.25))
+            mass_value = finite_value(row.get("M", np.nan), 1.232)
+            k_err = positive_error(row.get("k.err", np.nan), 0.02)
+            gamma_err = positive_error(row.get("gamma.err", np.nan), 0.05)
+            mass_err = positive_error(row.get("M.err", np.nan), 0.02)
+        else:
+            k_value = finite_value(row.get("k_constM", np.nan), 0.0)
+            gamma_value = abs(finite_value(row.get("gamma_constM", np.nan), 0.25))
+            mass_value = 1.232
+            k_err = positive_error(row.get("k_constM.err", np.nan), 0.02)
+            gamma_err = positive_error(row.get("gamma_constM.err", np.nan), 0.05)
+            mass_err = 0.02
+
+        sparse_rows.append(
+            {
+                "Q2": q2_value,
+                "k": k_value,
+                "k.err": k_err,
+                "gamma": gamma_value,
+                "gamma.err": gamma_err,
+                "M": mass_value,
+                "M.err": mass_err,
+            }
+        )
+
+    if not sparse_rows:
+        raise RuntimeError("2025 sparse-full override could not construct BW fit inputs from delta_par_df.")
+
+    reference_row = sparse_rows[-1]
+    for q2_anchor in range(4, 11):
+        sparse_rows.append(
+            {
+                "Q2": float(q2_anchor),
+                "k": 0.0,
+                "k.err": reference_row["k.err"],
+                "gamma": 0.25,
+                "gamma.err": reference_row["gamma.err"],
+                "M": 1.232,
+                "M.err": reference_row["M.err"],
+            }
+        )
+
+    bw_input_df = pd.DataFrame(sparse_rows)
+    print(
+        f"[2025/full] Sparse-full override: augmenting BW fits with "
+        f"{len(bw_input_df) - len(delta_par_df)} synthetic anchor rows."
+    )
+    return bw_input_df
 
 ##################################################################################################################################################
 
@@ -200,6 +290,7 @@ def load_analysis_data(analysis_scope):
 
 def run_analysis(analysis_scope):
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_analysis_data(analysis_scope)
+    force_sparse_2025_full = DATASET_MODE == "2025" and analysis_scope == "full" and ALLOW_SPARSE_2025_FULL
 
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
@@ -219,7 +310,7 @@ def run_analysis(analysis_scope):
         dis_fit_params = get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf)
 
         # Generate fitted curve using the fitted parameters for constant q2
-        x = np.linspace(0,1.0,1000, dtype=np.double)
+        x = np.linspace(1e-6, 1.0, 1000, dtype=np.double)
         q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
 
         args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
@@ -275,7 +366,13 @@ def run_analysis(analysis_scope):
                   (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
 
         if DATASET_MODE == "2025":
-            validate_2025_resonance_fit_support(res_df, w_lims, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+            validate_2025_resonance_fit_support(
+                res_df,
+                w_lims,
+                DATASET_2025_ALL_PATH,
+                DATASET_2025_DIS_PATH,
+                strict=not force_sparse_2025_full,
+            )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
         delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
@@ -283,54 +380,26 @@ def run_analysis(analysis_scope):
         # Plot k, gamma, M
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter summary")
         plot_BW_params(delta_par_df, pdf)
-
-        x = list(delta_par_df["Q2"].unique())
-        k_unique = []
-        k_err_unique = []
-        gamma_unique = []
-        gamma_err_unique = []
-        mass_unique = []
-        mass_err_unique = []
-
-        # Go through each unique Q2 value and do weighted average of the points
-        for Q2 in x:
-            # average k's and their errors
-            k_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["k"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])
-            k_unique.append(k_avg)
-            k_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["k.err"]**2))
-            k_err_unique.append(k_avg_err)
-
-            # average gammas and their errors
-            gamma_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["gamma"], w=(1/delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]))
-            gamma_unique.append(gamma_avg)
-            gamma_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["gamma.err"]**2))
-            gamma_err_unique.append(gamma_avg_err)
-
-            mass_avg = weighted_avg(delta_par_df[delta_par_df["Q2"]==Q2]["M"], w=1/delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])
-            mass_unique.append(mass_avg)
-            mass_avg_err = (1/len(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"])) * np.sqrt(np.sum(delta_par_df[delta_par_df["Q2"]==Q2]["M.err"]**2))
-            mass_err_unique.append(mass_avg_err)
-
-        x0 = 4.0
-        for i in range(7):
-          x.append(x0+i)
-          k_unique.append(0.0)
-          k_err_unique.append(k_avg_err)
-          gamma_unique.append(0.25)
-          gamma_err_unique.append(gamma_avg_err)
-          mass_unique.append(1.232)
-          mass_err_unique.append(mass_avg_err)
+        bw_delta_par_df = delta_par_df
+        if force_sparse_2025_full:
+            bw_delta_par_df = build_sparse_2025_bw_fit_input(delta_par_df)
 
         # Generate fitted curves using the fitted parameters
-        q2 = np.linspace(0.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
+        q2 = np.linspace(0.0, bw_delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
         #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
         #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
         if DATASET_MODE == "2025":
-            validate_2025_only_support(res_df, delta_par_df, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+            validate_2025_only_support(
+                res_df,
+                delta_par_df,
+                DATASET_2025_ALL_PATH,
+                DATASET_2025_DIS_PATH,
+                strict=not force_sparse_2025_full,
+            )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")
-        bw_fit_params = fit_BW_params(q2, delta_par_df, pdf, dataset_tag=DATASET_TAG)
+        bw_fit_params = fit_BW_params(q2, bw_delta_par_df, pdf, dataset_tag=DATASET_TAG)
 
         # Redefine the upper W coverage for the full combined fit stages.
         full_w_max = g1f1_df['W'].max()
@@ -395,7 +464,9 @@ def run_analysis(analysis_scope):
     return outputpdf
 
 
-if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE:
+disable_sparse_2025_dis_fallback = DATASET_MODE == "2025" and ANALYSIS_SCOPE == "full" and ALLOW_SPARSE_2025_FULL
+
+if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE and not disable_sparse_2025_dis_fallback:
     try:
         outputpdf = run_analysis("full")
     except Exception as exc:

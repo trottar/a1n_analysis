@@ -36,6 +36,35 @@ def _build_artifact_path(filename, dataset_tag):
 
 def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
+    delta_par_df = delta_par_df.copy()
+    if "Experiment" not in delta_par_df.columns:
+        delta_par_df["Experiment"] = delta_par_df.get("Label", "resonance data")
+    if "Label" not in delta_par_df.columns:
+        delta_par_df["Label"] = delta_par_df["Experiment"]
+
+    for err_col in ("k.err", "gamma.err", "M.err"):
+        if err_col in delta_par_df.columns:
+            delta_par_df[err_col] = delta_par_df[err_col].abs()
+
+    finite_mask = (
+        np.isfinite(delta_par_df["Q2"])
+        & np.isfinite(delta_par_df["k"])
+        & np.isfinite(delta_par_df["gamma"])
+        & np.isfinite(delta_par_df["M"])
+        & np.isfinite(delta_par_df["k.err"])
+        & np.isfinite(delta_par_df["gamma.err"])
+        & np.isfinite(delta_par_df["M.err"])
+        & (delta_par_df["k.err"] > 0)
+        & (delta_par_df["gamma.err"] > 0)
+        & (delta_par_df["M.err"] > 0)
+    )
+    dropped_count = int((~finite_mask).sum())
+    if dropped_count:
+        print(f"[fit_BW_params] Dropping {dropped_count} non-finite resonance rows before fitting.")
+    delta_par_df = delta_par_df.loc[finite_mask].reset_index(drop=True)
+    if delta_par_df.empty:
+        raise RuntimeError("No finite resonance Breit-Wigner rows remain for BW parameter fitting.")
+
     fit_results_csv = _build_artifact_path("fit_results.csv", dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]

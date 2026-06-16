@@ -258,6 +258,100 @@ def build_sparse_2025_bw_fit_input(delta_par_df):
     )
     return bw_input_df
 
+
+def sanitize_bw_delta_par_df(delta_par_df):
+    if delta_par_df.empty:
+        raise RuntimeError("No resonance Breit-Wigner fit rows were produced.")
+
+    def finite_positive(value):
+        return np.isfinite(value) and value > 0
+
+    def reasonable_mass(value):
+        return np.isfinite(value) and 1.0 <= value <= 1.6
+
+    def reasonable_k(value):
+        return np.isfinite(value) and abs(value) <= 1.0
+
+    def reasonable_gamma(value):
+        return np.isfinite(value) and 1.0e-6 <= abs(value) <= 1.0
+
+    cleaned_rows = []
+    recovered_labels = []
+    dropped_labels = []
+
+    for _, row in delta_par_df.iterrows():
+        cleaned_row = row.copy()
+        label = row.get("Label", row.get("Experiment", "<unknown>"))
+
+        if pd.isna(cleaned_row.get("Experiment", np.nan)):
+            cleaned_row["Experiment"] = label
+
+        variable_fit_valid = all(
+            [
+                np.isfinite(cleaned_row.get("Q2", np.nan)),
+                reasonable_mass(cleaned_row.get("M", np.nan)),
+                reasonable_k(cleaned_row.get("k", np.nan)),
+                reasonable_gamma(cleaned_row.get("gamma", np.nan)),
+                finite_positive(abs(cleaned_row.get("M.err", np.nan))),
+                finite_positive(abs(cleaned_row.get("k.err", np.nan))),
+                finite_positive(abs(cleaned_row.get("gamma.err", np.nan))),
+            ]
+        )
+
+        if not variable_fit_valid:
+            constm_fit_valid = all(
+                [
+                    np.isfinite(cleaned_row.get("Q2", np.nan)),
+                    reasonable_k(cleaned_row.get("k_constM", np.nan)),
+                    reasonable_gamma(cleaned_row.get("gamma_constM", np.nan)),
+                    finite_positive(abs(cleaned_row.get("k_constM.err", np.nan))),
+                    finite_positive(abs(cleaned_row.get("gamma_constM.err", np.nan))),
+                ]
+            )
+
+            if constm_fit_valid:
+                cleaned_row["M"] = 1.232
+                cleaned_row["M.err"] = 0.02
+                cleaned_row["k"] = cleaned_row["k_constM"]
+                cleaned_row["k.err"] = abs(cleaned_row["k_constM.err"])
+                cleaned_row["gamma"] = abs(cleaned_row["gamma_constM"])
+                cleaned_row["gamma.err"] = abs(cleaned_row["gamma_constM.err"])
+                recovered_labels.append(label)
+            else:
+                dropped_labels.append(label)
+                continue
+        else:
+            cleaned_row["M.err"] = abs(cleaned_row["M.err"])
+            cleaned_row["k.err"] = abs(cleaned_row["k.err"])
+            cleaned_row["gamma"] = abs(cleaned_row["gamma"])
+            cleaned_row["gamma.err"] = abs(cleaned_row["gamma.err"])
+
+        cleaned_rows.append(cleaned_row)
+
+    if not cleaned_rows:
+        raise RuntimeError(
+            "No usable resonance Breit-Wigner rows remained after sanitizing the fit results."
+        )
+
+    sanitized_df = pd.DataFrame(cleaned_rows).reset_index(drop=True)
+
+    if recovered_labels:
+        print(
+            "[BW sanitize] Recovered variable-mass failures with constant-mass fits for: "
+            + ", ".join(str(label) for label in recovered_labels)
+        )
+
+    if dropped_labels:
+        print(
+            "[BW sanitize] Dropped unusable resonance rows before global BW fits: "
+            + ", ".join(str(label) for label in dropped_labels)
+        )
+
+    print(
+        f"[BW sanitize] Using {len(sanitized_df)} of {len(delta_par_df)} resonance fit rows for global BW fits."
+    )
+    return sanitized_df
+
 ##################################################################################################################################################
 
 from load_data import load_data
@@ -391,6 +485,7 @@ def run_analysis(analysis_scope):
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
         delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
+        delta_par_df = sanitize_bw_delta_par_df(delta_par_df)
 
         # Plot k, gamma, M
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter summary")

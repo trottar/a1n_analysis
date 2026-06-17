@@ -49,6 +49,7 @@ def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_
         "cov_quad": np.asarray(dis_fit_results["cov_quad"], dtype=float).tolist(),
         "corr_quad": np.asarray(dis_fit_results["corr_quad"], dtype=float).tolist(),
         "chi2_quad": float(dis_fit_results["chi2_quad"]),
+        "chi2_distance_from_unity": float(dis_fit_results["chi2_distance_from_unity"]),
         "beta_val": float(dis_fit_results["beta_val"]),
         "residual_summary": {
             "mean": float(np.mean(dis_fit_results["residuals"])),
@@ -68,7 +69,7 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
     comparison_csv_path = _build_artifact_path("dis_fit_model_comparison.csv", dataset_tag)
 
     successful_payload = []
-    for rank, result in enumerate(sorted(fit_results, key=lambda item: item["chi2_quad"]), start=1):
+    for rank, result in enumerate(sorted(fit_results, key=_dis_fit_ranking_key), start=1):
         successful_payload.append(
             {
                 "rank": rank,
@@ -76,6 +77,7 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
                 "model_display_name": result["model_display_name"],
                 "curve_label": result["curve_label"],
                 "chi2_quad": float(result["chi2_quad"]),
+                "chi2_distance_from_unity": float(result["chi2_distance_from_unity"]),
                 "beta_val": float(result["beta_val"]),
                 "parameter_names": list(result["parameter_names"]),
                 "par_quad": np.asarray(result["par_quad"], dtype=float).tolist(),
@@ -102,6 +104,7 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
                 "model_key": item["model_key"],
                 "model_display_name": item["model_display_name"],
                 "chi2_quad": item["chi2_quad"],
+                "chi2_distance_from_unity": item["chi2_distance_from_unity"],
                 "beta_val": item["beta_val"],
                 "parameter_names": ", ".join(item["parameter_names"]),
                 "parameters": json.dumps(item["par_quad"]),
@@ -116,6 +119,7 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
                 "model_key": item["model_key"],
                 "model_display_name": item["model_display_name"],
                 "chi2_quad": None,
+                "chi2_distance_from_unity": None,
                 "beta_val": None,
                 "parameter_names": "",
                 "parameters": "",
@@ -131,6 +135,10 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
 def _covariance_to_correlation(cov_matrix):
     std_devs = np.sqrt(np.diag(cov_matrix))
     return cov_matrix / np.outer(std_devs, std_devs)
+
+
+def _dis_fit_ranking_key(result):
+    return (float(result["chi2_distance_from_unity"]), float(result["chi2_quad"]))
 
 
 def _randomize_init(params_init, bounds):
@@ -213,6 +221,7 @@ def _print_fit_summary(dis_fit_result):
     print("\nCorrelation matrix:")
     for row in dis_fit_result["corr_quad"]:
         print(" ".join(f"{val:6.2e}" for val in row))
+    print(f"|chi2_red - 1| = {dis_fit_result['chi2_distance_from_unity']:.4f}")
     print("-" * 25, "\n\n")
 
 
@@ -250,6 +259,7 @@ def _fit_single_dis_model(model_key, indep_data, dis_df, x_dense, q2_dense):
         "corr_quad": corr_quad,
         "par_err_quad": param_sigmas,
         "chi2_quad": chi2_quad,
+        "chi2_distance_from_unity": abs(float(chi2_quad) - 1.0),
         "beta_val": beta_val,
         "fit_vals": fit_vals,
         "residuals": residuals,
@@ -330,7 +340,7 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
     with open(src_path("config.json"), "r") as handle:
         config = json.load(handle)
 
-    ordered_results = sorted(fit_results, key=lambda item: item["chi2_quad"])
+    ordered_results = sorted(fit_results, key=_dis_fit_ranking_key)
     best_model_key = ordered_results[0]["model_key"]
 
     fig, axs = plt.subplots(2, 1, figsize=(18, 10), gridspec_kw={"height_ratios": [3, 1]})
@@ -356,7 +366,9 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
             result["fit_vals"],
             color=result["comparison_color"],
             linewidth=line_width,
-            label=f"{result['model_key']}: $\\chi^2_{{red}}$={result['chi2_quad']:.2f}",
+            label=(
+                f"{result['model_key']}: $\\chi^2_{{red}}$={result['chi2_quad']:.2f}"
+            ),
         )
 
     axs[0].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
@@ -428,11 +440,12 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_t
         raise RuntimeError("No DIS fit model converged successfully.")
 
     if requested_model_key == "all":
-        selected_result = min(fit_results, key=lambda item: item["chi2_quad"])
+        selected_result = min(fit_results, key=_dis_fit_ranking_key)
         print(
-            "[get_dis_fit] Selected best reduced-chi2 DIS model for downstream stages: "
+            "[get_dis_fit] Selected closest-to-unity reduced-chi2 DIS model for downstream stages: "
             f"{selected_result['model_key']} "
-            f"($\\chi^2_{{red}}$={selected_result['chi2_quad']:.2f})"
+            f"($\\chi^2_{{red}}$={selected_result['chi2_quad']:.2f}, "
+            f"|$\\chi^2_{{red}}$-1|={selected_result['chi2_distance_from_unity']:.2f})"
         )
     else:
         selected_result = fit_results[0]

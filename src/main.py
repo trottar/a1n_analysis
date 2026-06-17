@@ -153,6 +153,9 @@ def validate_bw_global_fit_support(dataset_mode, analysis_scope, res_df, delta_p
     min_bw_fit_points = 11
     min_unique_q2_bins = 4
 
+    if dataset_mode == "6gev":
+        min_bw_fit_points = 5
+
     resonance_points = len(res_df)
     resonance_bins = len(res_df["Q2_labels"].dropna().unique())
     bw_fit_points = len(delta_par_df)
@@ -213,6 +216,75 @@ def validate_resonance_fit_support(dataset_mode, analysis_scope, res_df, w_lims,
 
     print(f"[{mode_label}] Continuing despite validation failure: {message}")
     return False
+
+
+def prepare_resonance_fit_inputs(dataset_mode, analysis_scope, res_df, w_lims):
+    q2_labels = list(res_df["Q2_labels"].dropna().unique())
+    fit_w_lims = list(w_lims[:len(q2_labels)])
+
+    if dataset_mode != "6gev" or analysis_scope != "full":
+        return res_df.copy(), fit_w_lims
+
+    default_w_min = 1.1
+    default_w_max = 1.4
+    target_window_points = 5
+    min_window_points = 3
+    adjusted_labels = []
+    dropped_labels = []
+    kept_labels = []
+    adjusted_w_lims = []
+
+    for label in q2_labels:
+        label_w = np.sort(
+            res_df.loc[res_df["Q2_labels"] == label, "W"].to_numpy(dtype=np.double)
+        )
+        eligible_w = label_w[label_w > default_w_min]
+        w_max_fit = default_w_max
+
+        if eligible_w.size >= target_window_points:
+            w_max_fit = max(
+                w_max_fit,
+                float(np.nextafter(eligible_w[target_window_points - 1], np.inf)),
+            )
+        elif eligible_w.size >= min_window_points:
+            w_max_fit = max(
+                w_max_fit,
+                float(np.nextafter(eligible_w[min_window_points - 1], np.inf)),
+            )
+
+        fit_count = int(
+            np.count_nonzero((label_w > default_w_min) & (label_w < w_max_fit))
+        )
+
+        if fit_count >= min_window_points:
+            kept_labels.append(label)
+            adjusted_w_lims.append((default_w_min, w_max_fit))
+            if abs(w_max_fit - default_w_max) > 1.0e-9:
+                adjusted_labels.append((label, default_w_min, default_w_max, w_max_fit, fit_count))
+        else:
+            dropped_labels.append((label, fit_count, default_w_min, w_max_fit))
+
+    for label, w_min_fit, old_w_max, new_w_max, fit_count in adjusted_labels:
+        print(
+            f"[6gev/full] Adjusted BW window for {label}: "
+            f"[{w_min_fit:.3f}, {old_w_max:.3f}] -> [{w_min_fit:.3f}, {new_w_max:.3f}] "
+            f"to capture {fit_count} fit points."
+        )
+
+    for label, fit_count, w_min_fit, w_max_fit in dropped_labels:
+        print(
+            f"[6gev/full] Dropping BW fit bin {label}: only {fit_count} fit points "
+            f"remain in [{w_min_fit:.3f}, {w_max_fit:.3f}]."
+        )
+
+    if not kept_labels:
+        raise RuntimeError(
+            "6gev/full could not construct any resonance BW-fit bins with at least "
+            f"{min_window_points} usable points above W>{default_w_min:.3f}."
+        )
+
+    fit_res_df = res_df[res_df["Q2_labels"].isin(kept_labels)].copy().reset_index(drop=True)
+    return fit_res_df, adjusted_w_lims
 
 
 def build_sparse_2025_bw_fit_input(delta_par_df):
@@ -514,13 +586,16 @@ def run_analysis(analysis_scope):
                   (1.085, 1.4), (1.085, 1.4), (1.085, 1.5), (1.100, 1.5),
                   (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
                   (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
+        bw_res_df, bw_w_lims = prepare_resonance_fit_inputs(
+            DATASET_MODE, analysis_scope, res_df, w_lims
+        )
 
         if DATASET_MODE in {"2025", "6gev"}:
             validate_resonance_fit_support(
                 DATASET_MODE,
                 analysis_scope,
-                res_df,
-                w_lims,
+                bw_res_df,
+                bw_w_lims,
                 input_description,
                 strict=(
                     not (force_sparse_2025_full or uses_hybrid_2025_support)
@@ -530,7 +605,7 @@ def run_analysis(analysis_scope):
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
-        delta_par_df = get_res_fit(k_init, gamma_init, mass_init, w_lims, res_df, pdf)
+        delta_par_df = get_res_fit(k_init, gamma_init, mass_init, bw_w_lims, bw_res_df, pdf)
         delta_par_df = sanitize_bw_delta_par_df(delta_par_df)
 
         # Plot k, gamma, M
@@ -549,7 +624,7 @@ def run_analysis(analysis_scope):
             validate_bw_global_fit_support(
                 DATASET_MODE,
                 analysis_scope,
-                res_df,
+                bw_res_df,
                 delta_par_df,
                 input_description,
                 strict=(

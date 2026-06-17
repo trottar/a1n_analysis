@@ -1,6 +1,6 @@
 {
   "fit_data_root": "fit_data",
-  "generated_at": "2026-06-17T04:55:00",
+  "generated_at": "2026-06-17T05:00:31",
   "modes": [
     {
       "artifact_dir": "fit_data",
@@ -1628,6 +1628,11 @@
       "status": "splash_only"
     }
   ],
+  "plot_files": {
+    "plot_bw_chi2": "fit_data/fit_mode_comparison/bw_chi2_comparison.png",
+    "plot_splash_rows": "fit_data/fit_mode_comparison/splash_row_counts.png",
+    "plot_transition_parameters": "fit_data/fit_mode_comparison/transition_parameter_comparison.png"
+  },
   "unmapped_tagged_directories": [
     "fit_data/k_0506"
   ]

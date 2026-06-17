@@ -16,8 +16,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from utility import project_display_path, project_path, safe_tabulate as tabulate
 
@@ -27,6 +31,20 @@ REPORT_DIR_NAME = "fit_mode_comparison"
 BW_PARAMETERS = ("k", "gamma", "mass")
 TRANSITION_PARAMETERS = ("w_dis_transition", "damping_dis_width")
 TABLE_FORMAT = "github"
+FRAME_NAMES = ("g1f1_df", "dis_df", "g2f1_df", "a1_df", "a2_df")
+FRAME_DISPLAY_NAMES = {
+    "g1f1_df": "g1f1",
+    "dis_df": "dis",
+    "g2f1_df": "g2f1",
+    "a1_df": "a1",
+    "a2_df": "a2",
+}
+MODE_COLORS = {
+    "legacy": "tab:blue",
+    "2025": "tab:orange",
+    "6gev": "tab:green",
+}
+PLOT_MARKERS = ("o", "s", "^", "D", "v", "P", "X")
 CANONICAL_STAGE_FILES = (
     "fit_results.csv",
     "full_results.csv",
@@ -360,6 +378,248 @@ def normalize_discovery_note(note):
     return note
 
 
+def coerce_float(value, default=np.nan):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def compact_label(value, max_length=40):
+    text = str(value)
+    if len(text) <= max_length:
+        return text
+    return text[: max_length - 3] + "..."
+
+
+def get_mode_color(mode):
+    return MODE_COLORS.get(mode, f"C{abs(hash(mode)) % 10}")
+
+
+def save_plot_figure(fig, output_path):
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
+def build_splash_plot_label(record, splash_summary, summary_count):
+    dataset_mode = splash_summary.get("dataset_mode") or record["mode"]
+    scope = splash_summary.get("analysis_scope") or "unknown"
+    if summary_count > 1 or dataset_mode != record["mode"]:
+        return f"{dataset_mode}/{scope}"
+    return f"{record['mode']}/{scope}"
+
+
+def plot_splash_row_counts(mode_records, output_dir):
+    entries = []
+    for record in mode_records:
+        splash_summaries = record.get("splash_summaries", [])
+        for splash_summary in splash_summaries:
+            row_values = []
+            has_numeric_value = False
+            for frame_name in FRAME_NAMES:
+                value = coerce_float(
+                    splash_summary["frames"].get(frame_name, {}).get("rows", np.nan)
+                )
+                if math.isfinite(value):
+                    has_numeric_value = True
+                else:
+                    value = 0.0
+                row_values.append(value)
+            if not has_numeric_value:
+                continue
+            entries.append(
+                {
+                    "label": build_splash_plot_label(
+                        record, splash_summary, len(splash_summaries)
+                    ),
+                    "rows": row_values,
+                }
+            )
+
+    if not entries:
+        return None
+
+    output_path = output_dir / "splash_row_counts.png"
+    fig, ax = plt.subplots(figsize=(12, 6))
+    x_positions = np.arange(len(FRAME_NAMES))
+    width = 0.8 / max(len(entries), 1)
+    bar_width = min(width * 0.95, 0.6)
+
+    for index, entry in enumerate(entries):
+        offset = (index - (len(entries) - 1) / 2.0) * width
+        ax.bar(
+            x_positions + offset,
+            entry["rows"],
+            width=bar_width,
+            label=entry["label"],
+            color=f"C{index % 10}",
+            alpha=0.85,
+        )
+
+    ax.set_title("Load-Data Splash Row Counts")
+    ax.set_ylabel("Rows")
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels([FRAME_DISPLAY_NAMES[name] for name in FRAME_NAMES])
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend(loc="best")
+    return save_plot_figure(fig, output_path)
+
+
+def plot_bw_chi2(mode_records, output_dir):
+    bw_records = []
+    for record in mode_records:
+        bw_fit = record["results"]["bw_fit"]
+        if not bw_fit["available"]:
+            continue
+        chi2_values = []
+        has_value = False
+        for parameter in BW_PARAMETERS:
+            parameter_data = bw_fit["parameters"].get(parameter)
+            value = coerce_float(
+                parameter_data["chi_squared"] if parameter_data is not None else np.nan
+            )
+            if math.isfinite(value):
+                has_value = True
+            else:
+                value = np.nan
+            chi2_values.append(value)
+        if has_value:
+            bw_records.append({"mode": record["mode"], "chi2": chi2_values})
+
+    if not bw_records:
+        return None
+
+    output_path = output_dir / "bw_chi2_comparison.png"
+    fig, ax = plt.subplots(figsize=(9, 5))
+    x_positions = np.arange(len(BW_PARAMETERS))
+    width = 0.8 / max(len(bw_records), 1)
+
+    finite_values = [
+        value for record in bw_records for value in record["chi2"] if math.isfinite(value)
+    ]
+    use_log_scale = (
+        len(finite_values) >= 2
+        and min(finite_values) > 0.0
+        and max(finite_values) / min(finite_values) > 20.0
+    )
+
+    for index, record in enumerate(bw_records):
+        offset = (index - (len(bw_records) - 1) / 2.0) * width
+        plot_values = [value if math.isfinite(value) else 0.0 for value in record["chi2"]]
+        ax.bar(
+            x_positions + offset,
+            plot_values,
+            width=min(width * 0.95, 0.6),
+            label=record["mode"],
+            color=get_mode_color(record["mode"]),
+            alpha=0.85,
+        )
+
+    ax.set_title("BW Global-Fit Reduced Chi-Squared")
+    ax.set_ylabel(r"$\chi^2$")
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(BW_PARAMETERS)
+    if use_log_scale:
+        ax.set_yscale("log")
+    ax.grid(axis="y", alpha=0.3)
+    ax.legend(loc="best")
+    return save_plot_figure(fig, output_path)
+
+
+def plot_transition_parameters(mode_records, output_dir):
+    transition_records = []
+    ordered_labels = []
+    seen_labels = set()
+
+    for record in mode_records:
+        transition_fit = record["results"]["transition_fit"]
+        if not transition_fit["available"] or not transition_fit["bins"]:
+            continue
+
+        label_map = {}
+        for bin_record in transition_fit["bins"]:
+            label = normalize_label_text(bin_record["q2_label"])
+            label_map[label] = bin_record
+            if label not in seen_labels:
+                seen_labels.add(label)
+                ordered_labels.append(label)
+        transition_records.append({"mode": record["mode"], "bins": label_map})
+
+    if not transition_records or not ordered_labels:
+        return None
+
+    output_path = output_dir / "transition_parameter_comparison.png"
+    fig, axes = plt.subplots(
+        len(TRANSITION_PARAMETERS),
+        1,
+        figsize=(max(12, 0.7 * len(ordered_labels) + 4), 9),
+        sharex=True,
+    )
+    if not isinstance(axes, np.ndarray):
+        axes = np.asarray([axes])
+
+    x_positions = np.arange(len(ordered_labels))
+    for axis, parameter in zip(axes, TRANSITION_PARAMETERS):
+        for index, record in enumerate(transition_records):
+            xs = []
+            ys = []
+            y_errors = []
+            for label_index, label in enumerate(ordered_labels):
+                if label not in record["bins"]:
+                    continue
+                bin_record = record["bins"][label]
+                xs.append(label_index)
+                ys.append(coerce_float(bin_record.get(parameter), np.nan))
+                y_errors.append(coerce_float(bin_record.get(f"{parameter}_err"), np.nan))
+
+            if not xs:
+                continue
+
+            axis.errorbar(
+                xs,
+                ys,
+                yerr=y_errors,
+                fmt=f"{PLOT_MARKERS[index % len(PLOT_MARKERS)]}-",
+                capsize=3,
+                linewidth=1.5,
+                label=record["mode"],
+                color=get_mode_color(record["mode"]),
+            )
+
+        axis.set_ylabel(parameter)
+        axis.grid(alpha=0.3)
+        axis.legend(loc="best")
+
+    axes[0].set_title("DIS-Transition Parameter Comparison")
+    axes[-1].set_xticks(x_positions)
+    axes[-1].set_xticklabels(
+        [compact_label(label, max_length=36) for label in ordered_labels],
+        rotation=45,
+        ha="right",
+    )
+    return save_plot_figure(fig, output_path)
+
+
+def generate_comparison_plots(summary_payload, output_dir):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plot_files = {}
+
+    plot_builders = {
+        "plot_splash_rows": plot_splash_row_counts,
+        "plot_bw_chi2": plot_bw_chi2,
+        "plot_transition_parameters": plot_transition_parameters,
+    }
+
+    for label, plot_builder in plot_builders.items():
+        output_path = plot_builder(summary_payload["modes"], output_dir)
+        if output_path is not None:
+            plot_files[label] = output_path
+
+    return plot_files
+
+
 def load_bw_summary(artifact_dir):
     csv_path = artifact_dir / "fit_results.csv"
     if not csv_path.exists():
@@ -652,12 +912,19 @@ def build_dis_rows(mode_records):
 
 def render_report(summary_payload):
     mode_records = summary_payload["modes"]
+    plot_files = summary_payload.get("plot_files", {})
     lines = []
     lines.append("=" * 120)
     lines.append("Fit Comparison Report")
     lines.append(f"Generated: {summary_payload['generated_at']}")
     lines.append(f"Fit-data root: {project_display_path(summary_payload['fit_data_root'])}")
     lines.append("")
+
+    if plot_files:
+        lines.append("Generated Plots")
+        for label, path in plot_files.items():
+            lines.append(f"  {label}: {project_display_path(path)}")
+        lines.append("")
 
     lines.append("Mode Discovery")
     lines.append(
@@ -944,9 +1211,12 @@ def main():
         ],
     }
 
+    plot_files = generate_comparison_plots(summary_payload, output_dir)
+    summary_payload["plot_files"] = plot_files
     report_text = render_report(summary_payload)
     splash_breakdown_text = render_splash_breakdown(summary_payload)
     written_files = write_summary_files(output_dir, summary_payload, report_text, splash_breakdown_text)
+    written_files.update(plot_files)
 
     print_console_text(report_text)
     if summary_payload["unmapped_tagged_directories"]:

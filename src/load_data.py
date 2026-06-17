@@ -10,6 +10,7 @@
 #
 # Copyright (c) trottar
 #
+import os
 import re
 
 import numpy as np
@@ -21,6 +22,7 @@ from utility import project_path
 ##################################################################################################################################################
 
 LEGACY_EXCLUDED_LABELS = {"Flay E06-014 (2014)", "Kramer E97-103 (2003)"}
+LEGACY_BASE_LABELS = {"E94-010", "E97-110"}
 TWENTY25_COLUMNS = [
     "Ep", "xbj", "Q2",
     "Apar", "Apar_stat", "Apar_syst",
@@ -152,7 +154,7 @@ def _create_bins_for_category_maximize(df, category, min_count=5, gap_factor=2.0
     return pd.Series(bin_labels, index=indices)
 
 
-def _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False):
+def _prepare_g1f1_df(g1f1_df, excluded_labels=None):
     g1f1_df = g1f1_df.copy()
 
     print("Columns:", g1f1_df.columns.tolist())
@@ -162,8 +164,8 @@ def _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False):
     unique_q2 = sorted(g1f1_df["Q2"].dropna().unique())
     print("\nUnique Q2 values after cleaning:", unique_q2)
 
-    if remove_unwanted_labels and "Label" in g1f1_df.columns:
-        g1f1_df = g1f1_df[~g1f1_df["Label"].isin(LEGACY_EXCLUDED_LABELS)].copy()
+    if excluded_labels and "Label" in g1f1_df.columns:
+        g1f1_df = g1f1_df[~g1f1_df["Label"].isin(excluded_labels)].copy()
 
     g1f1_df["Q2_category"] = g1f1_df["Q2"].apply(_assign_q2_category)
 
@@ -178,6 +180,12 @@ def _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=False):
     g1f1_df["Q2_labels"] = all_bins
 
     return g1f1_df.reset_index(drop=True)
+
+
+def _exclude_labels(df, labels):
+    if not labels or "Label" not in df.columns:
+        return df.copy()
+    return df[~df["Label"].isin(labels)].copy().reset_index(drop=True)
 
 
 def _load_2025_g1f1_frame(path, label):
@@ -258,6 +266,16 @@ def _load_legacy_fit_support(analysis_scope):
     return legacy_g1f1_df, g2f1_df, a1_df, a2_df, legacy_dis_df
 
 
+def _load_6gev_support(analysis_scope):
+    g1f1_df, g2f1_df, a1_df, a2_df, _legacy_dis_df = _load_legacy_fit_support(analysis_scope)
+    g1f1_df = _exclude_labels(g1f1_df, LEGACY_BASE_LABELS)
+    g2f1_df = _exclude_labels(g2f1_df, LEGACY_BASE_LABELS)
+    a1_df = _exclude_labels(a1_df, LEGACY_BASE_LABELS)
+    a2_df = _exclude_labels(a2_df, LEGACY_BASE_LABELS)
+    dis_df = _build_dis_cut_df(g1f1_df)
+    return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
+
+
 def _format_label_counts(df):
     if "Label" not in df.columns or df.empty:
         return "none"
@@ -265,18 +283,44 @@ def _format_label_counts(df):
     return ", ".join(f"{label}: {count}" for label, count in counts.items())
 
 
-def _describe_frame(name, df, sources, cuts):
-    print(f"[load_data] {name}")
-    print(f"  rows: {len(df)}")
-    print(f"  sources: {', '.join(str(source) for source in sources)}")
-    print(f"  cuts: {', '.join(cuts) if cuts else 'none'}")
-    print(f"  labels: {_format_label_counts(df)}")
+def _collect_frame_lines(name, df, sources, cuts):
+    return [
+        f"[load_data] {name}",
+        f"  rows: {len(df)}",
+        f"  sources: {', '.join(str(source) for source in sources)}",
+        f"  cuts: {', '.join(cuts) if cuts else 'none'}",
+        f"  labels: {_format_label_counts(df)}",
+    ]
+
+
+def _build_splash_output_path(dataset_mode, analysis_scope, g1f1_2025_path=None, dis_2025_path=None):
+    if dataset_mode == "2025":
+        if analysis_scope == "dis_only":
+            tag = os.path.splitext(os.path.basename(dis_2025_path or "2025_dis"))[0]
+        else:
+            tag = os.path.splitext(os.path.basename(g1f1_2025_path or "2025_all"))[0]
+        filename = f"load_data_splash_{tag}_{analysis_scope}.txt"
+    else:
+        filename = f"load_data_splash_{dataset_mode}_{analysis_scope}.txt"
+    return project_path("fit_data", filename)
+
+
+def _write_splash_report(lines, dataset_mode, analysis_scope, g1f1_2025_path=None, dis_2025_path=None):
+    output_path = _build_splash_output_path(
+        dataset_mode,
+        analysis_scope,
+        g1f1_2025_path=g1f1_2025_path,
+        dis_2025_path=dis_2025_path,
+    )
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as splash_file:
+        splash_file.write("\n".join(lines) + "\n")
+    print(f"[load_data] splash report saved to {output_path}")
 
 
 def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df, a2_df, dis_df,
                          g1f1_2025_path=None, dis_2025_path=None):
-    print("\n" + "=" * 100)
-    print(f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope}")
+    lines = ["=" * 100, f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope}"]
 
     if dataset_mode == "2025":
         if analysis_scope == "dis_only":
@@ -297,6 +341,17 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
                 "2025 DIS excluded in 2025/full",
                 "Mingyu DIS excluded in 2025 mode",
             ]
+        excluded_labels = sorted(LEGACY_EXCLUDED_LABELS)
+    elif dataset_mode == "6gev":
+        g1f1_sources = [LEGACY_G1F1_PATH]
+        dis_sources = [LEGACY_G1F1_PATH]
+        dis_cuts = [
+            "6gev mode excludes legacy base labels E94-010 and E97-110",
+            "DIS-cut uses Q2 > 1.0 and W > 2.0",
+            "Mingyu DIS excluded",
+            "2025 datasets excluded",
+        ]
+        excluded_labels = sorted(LEGACY_BASE_LABELS)
     else:
         g1f1_sources = [LEGACY_G1F1_PATH]
         dis_sources = [LEGACY_G1F1_PATH, MINGYU_DIS_PATH]
@@ -304,25 +359,39 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
             "legacy DIS-cut uses Q2 > 1.0 and W > 2.0",
             "Mingyu DIS file appended",
         ]
+        excluded_labels = sorted(LEGACY_EXCLUDED_LABELS)
 
-    _describe_frame(
-        "g1f1_df",
-        g1f1_df,
-        g1f1_sources,
-        [f"excluded labels from g1f1_df: {', '.join(sorted(LEGACY_EXCLUDED_LABELS))}"],
+    lines.extend(
+        _collect_frame_lines(
+            "g1f1_df",
+            g1f1_df,
+            g1f1_sources,
+            [f"excluded labels from g1f1_df: {', '.join(excluded_labels)}"],
+        )
     )
-    _describe_frame("dis_df", dis_df, dis_sources, dis_cuts)
-    _describe_frame("g2f1_df", g2f1_df, [LEGACY_G2F1_PATH], [])
-    _describe_frame("a1_df", a1_df, [LEGACY_A1_PATH], [])
-    _describe_frame("a2_df", a2_df, [LEGACY_A2_PATH], [])
-    print("=" * 100 + "\n")
+    lines.extend(_collect_frame_lines("dis_df", dis_df, dis_sources, dis_cuts))
+    lines.extend(_collect_frame_lines("g2f1_df", g2f1_df, [LEGACY_G2F1_PATH], []))
+    lines.extend(_collect_frame_lines("a1_df", a1_df, [LEGACY_A1_PATH], []))
+    lines.extend(_collect_frame_lines("a2_df", a2_df, [LEGACY_A2_PATH], []))
+    lines.append("=" * 100)
+
+    print()
+    print("\n".join(lines))
+    print()
+    _write_splash_report(
+        lines,
+        dataset_mode,
+        analysis_scope,
+        g1f1_2025_path=g1f1_2025_path,
+        dis_2025_path=dis_2025_path,
+    )
 
 
 def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full"):
 
     dataset_mode = dataset_mode.lower()
-    if dataset_mode not in {"legacy", "2025"}:
-        raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy' or '2025'.")
+    if dataset_mode not in {"legacy", "2025", "6gev"}:
+        raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy', '2025', or '6gev'.")
 
     analysis_scope = analysis_scope.lower()
     if analysis_scope == "dis":
@@ -338,13 +407,13 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         legacy_dis_cut_df = _build_dis_cut_df(legacy_g1f1_df)
 
         if analysis_scope == "dis_only":
-            g1f1_df = _prepare_g1f1_df(legacy_g1f1_df, remove_unwanted_labels=True)
+            g1f1_df = _prepare_g1f1_df(legacy_g1f1_df, excluded_labels=LEGACY_EXCLUDED_LABELS)
             dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
             dis_df = pd.concat([legacy_dis_cut_df, dis_2025_df], ignore_index=True)
         else:
             g1f1_2025_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
             g1f1_df = pd.concat([legacy_g1f1_df, g1f1_2025_df], ignore_index=True)
-            g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
+            g1f1_df = _prepare_g1f1_df(g1f1_df, excluded_labels=LEGACY_EXCLUDED_LABELS)
             dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
             dis_df = pd.concat([legacy_dis_cut_df, dis_2025_all_df], ignore_index=True)
 
@@ -362,8 +431,24 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
 
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
+    if dataset_mode == "6gev":
+        g1f1_df, g2f1_df, a1_df, a2_df, dis_df = _load_6gev_support(analysis_scope)
+        g1f1_df = _prepare_g1f1_df(g1f1_df, excluded_labels=LEGACY_BASE_LABELS)
+
+        _print_dataset_splash(
+            dataset_mode,
+            analysis_scope,
+            g1f1_df,
+            g2f1_df,
+            a1_df,
+            a2_df,
+            dis_df,
+        )
+
+        return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
+
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = _load_legacy_fit_support(analysis_scope)
-    g1f1_df = _prepare_g1f1_df(g1f1_df, remove_unwanted_labels=True)
+    g1f1_df = _prepare_g1f1_df(g1f1_df, excluded_labels=LEGACY_EXCLUDED_LABELS)
 
     _print_dataset_splash(
         dataset_mode,

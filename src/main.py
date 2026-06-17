@@ -36,6 +36,7 @@ w_res_max = 1.45
 # Dataset mode variants:
 # DATASET_MODE = "legacy"
 # DATASET_MODE = "2025"
+# DATASET_MODE = "6gev"
 DATASET_MODE = "legacy"
 
 # Analysis scope variants:
@@ -99,7 +100,10 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
     return sanitize_dataset_tag(g1f1_stem)
 
 
-DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+if DATASET_MODE == "2025":
+    DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+else:
+    DATASET_TAG = derive_dataset_tag(DATASET_MODE)
 if DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
 
@@ -371,8 +375,8 @@ from functions import g1f1_quad_fullx_DIS, \
 
 ##################################################################################################################################################
 
-if DATASET_MODE not in {"legacy", "2025"}:
-    raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy' or '2025'.")
+if DATASET_MODE not in {"legacy", "2025", "6gev"}:
+    raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy', '2025', or '6gev'.")
 
 if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")

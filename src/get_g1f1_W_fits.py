@@ -27,11 +27,12 @@ from functions import (
     breit_wigner_bump_wrapper, breit_wigner_bump,
     breit_wigner_wrapper, breit_wigner_res, propagate_bw_error,
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    g1f1_quad_fullx_DIS, calculate_param_error, 
+    calculate_param_error, 
     damping_function, damping_function_err, 
     propagate_transition_error, propagate_complete_error, calculate_fit_residuals,
     propagate_dis_error
 )
+from dis_fit_models import evaluate_dis_fit
 from utility import src_path
 
 ##################################################################################################################################################
@@ -183,17 +184,16 @@ def get_g1f1_W_fits(
                 linewidth=config["error_bar"]["line_width"]
             )
 
-        quad_new_dis_par = dis_fit_params["par_quad"]
         w_dis = np.linspace(2.0, 3.0, 1000)
         q2_array = np.ones(w_dis.size) * q2
         x_dis = W_to_x(w_dis, q2_array)
-        y_dis = g1f1_quad_fullx_DIS([x_dis, q2_array], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, q2_array)
 
         axs[row, col].plot(
             w_dis, y_dis,
             color=config["colors"]["error_band"],
             linestyle="--",
-            label=f"Quad DIS Fit, $\\beta$ = {beta_val:.4f}",
+            label=f"{dis_fit_params['curve_label']}, $\\beta$ = {beta_val:.4f}",
             linewidth=config["error_bar"]["line_width"]
         )
 
@@ -352,8 +352,7 @@ def get_g1f1_W_fits(
         ):
             y_bw = breit_wigner_res(w_res, mass, k, gamma)
             x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-            quad_new_dis_par = dis_fit_params["par_quad"]
-            y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+            y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
             k_new = k_new_new(q2)
             y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
@@ -470,8 +469,7 @@ def get_g1f1_W_fits(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -629,8 +627,7 @@ def get_g1f1_W_fits(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -958,8 +955,7 @@ def get_g1f1_W_fits_q2_bin(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
@@ -1123,8 +1119,7 @@ def get_g1f1_W_fits_q2_bin(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
         k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error

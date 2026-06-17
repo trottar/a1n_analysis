@@ -24,8 +24,9 @@ from functions import (
     breit_wigner_bump_wrapper, breit_wigner_bump,
     breit_wigner_wrapper, breit_wigner_res,
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    g1f1_quad_fullx_DIS, damping_function,
+    damping_function,
 )
+from dis_fit_models import evaluate_dis_fit
 from utility import project_path, src_path
 
 def _build_artifact_path(filename, dataset_tag):
@@ -125,8 +126,7 @@ def create_g1f1_grid(
         xbj = x_grid
 
         # -- Compute DIS part --
-        quad_new_dis_par = dis_fit_params["par_quad"]
-        y_dis = g1f1_quad_fullx_DIS([xbj, np.full_like(xbj, q2_val)], *quad_new_dis_par)
+        y_dis = evaluate_dis_fit(dis_fit_params, xbj, np.full_like(xbj, q2_val))
 
         # -- Compute the transition/damping part and complete function --
         k_new_val = k_new_new(q2_val)

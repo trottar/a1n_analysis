@@ -21,6 +21,7 @@ from scipy.interpolate import griddata, interp1d
 ##################################################################################################################################################
 # Importing utility functions
 
+from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
 from utility import project_path, show_pdf_with_evince
 
 ##################################################################################################################################################
@@ -38,6 +39,15 @@ w_res_max = 1.45
 # DATASET_MODE = "2025"
 # DATASET_MODE = "6gev"
 DATASET_MODE = "legacy"
+
+# DIS fit model variants:
+# DIS_FIT_MODEL = "fullx"
+# DIS_FIT_MODEL = "quad_new"
+# DIS_FIT_MODEL = "quad2"
+# DIS_FIT_MODEL = "quad"
+# DIS_FIT_MODEL = "cubic"
+# DIS_FIT_MODEL = "all"
+DIS_FIT_MODEL = "fullx"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"
@@ -69,6 +79,7 @@ DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
 DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
 
 DATASET_MODE = DATASET_MODE.lower()
+DIS_FIT_MODEL = normalize_dis_fit_model(DIS_FIT_MODEL)
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
@@ -109,6 +120,7 @@ else:
     DATASET_TAG = derive_dataset_tag(DATASET_MODE)
 if DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
+ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
 
 
 def build_output_path(base_path, dataset_tag, analysis_scope):
@@ -469,9 +481,7 @@ from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
 
 from g1f1_grid import create_g1f1_grid
-from functions import g1f1_quad_fullx_DIS, \
-    partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx,\
-    fit_error, weighted_avg
+from functions import fit_error, weighted_avg
 
 ##################################################################################################################################################
 
@@ -509,8 +519,9 @@ def run_analysis(analysis_scope):
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
 
-    outputpdf = build_output_path(project_path("plots", "g1f1_fits.pdf"), DATASET_TAG, analysis_scope)
+    outputpdf = build_output_path(project_path("plots", "g1f1_fits.pdf"), ANALYSIS_TAG, analysis_scope)
     print(f"[{DATASET_MODE}/{analysis_scope}] Writing PDF to {outputpdf}")
+    print(f"[{DATASET_MODE}/{analysis_scope}] Requested DIS fit model: {DIS_FIT_MODEL}")
 
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
@@ -528,20 +539,15 @@ def run_analysis(analysis_scope):
             x_dense,
             q2_dense,
             pdf,
-            dataset_tag=DATASET_TAG,
+            dataset_tag=ANALYSIS_TAG,
+            dis_fit_model=DIS_FIT_MODEL,
         )
 
         # Generate fitted curve using the fitted parameters for constant q2
         x = np.linspace(1e-6, 1.0, 1000, dtype=np.double)
         q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
 
-        args_new = [[x, q2]] + [p for p in dis_fit_params["par_quad"]]
-
-        quad_new_fit_curve = g1f1_quad_fullx_DIS(*args_new)
-
-        # Table F.1 from XZ's thesis
-        dis_fit_params["partials"] = [partial_alpha_fullx, partial_a_fullx, partial_b_fullx, partial_c_fullx, partial_beta_fullx, partial_d_fullx, partial_x0_fullx, partial_sigma_fullx]
-
+        quad_new_fit_curve = evaluate_dis_fit(dis_fit_params, x, q2)
         quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
         # Plot dis fit vs x
@@ -635,7 +641,7 @@ def run_analysis(analysis_scope):
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")
-        bw_fit_params = fit_BW_params(q2, bw_delta_par_df, pdf, dataset_tag=DATASET_TAG)
+        bw_fit_params = fit_BW_params(q2, bw_delta_par_df, pdf, dataset_tag=ANALYSIS_TAG)
 
         # Redefine the upper W coverage for the full combined fit stages.
         full_w_max = g1f1_df['W'].max()
@@ -655,7 +661,7 @@ def run_analysis(analysis_scope):
                                                 bw_fit_params["k params"]["P_vals"], bw_fit_params["gamma params"]["P_vals"], bw_fit_params["mass params"]["P_vals"],
                                                 w_lims,
                                                 pdf,
-                                                dataset_tag=DATASET_TAG,
+                                                dataset_tag=ANALYSIS_TAG,
         )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages")
@@ -694,7 +700,7 @@ def run_analysis(analysis_scope):
                          dis_fit_params["beta_val"],
                          w_lims,
                          pdf,
-                         dataset_tag=DATASET_TAG,
+                         dataset_tag=ANALYSIS_TAG,
             )
 
     return outputpdf

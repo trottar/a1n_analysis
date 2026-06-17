@@ -25,11 +25,11 @@ from functions import (
     breit_wigner_bump,
     W_to_x,
     quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    g1f1_quad_fullx_DIS,
     damping_function,    
     k_gamma_mass_loop,
     k_new_new
 )
+from dis_fit_models import evaluate_dis_fit
 from utility import project_path, src_path
 
 ##################################################################################################################################################
@@ -125,8 +125,7 @@ def fit_dis_transition(
                 
                 # DIS piece
                 x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-                quad_new_dis_par = dis_fit_params["par_quad"]  # e.g. (a, b, c, d)
-                y_dis = g1f1_quad_fullx_DIS([x_dis, np.full_like(w_res, q2)], *quad_new_dis_par)
+                y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
 
                 # Additional example bump
                 k_new = k_new_new(q2)

@@ -54,7 +54,10 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
     # Plot fit and fit error
     ax1.plot(
         x, quad_new_fit_curve,
-        label="Quadratic Fit, $Q^2=5\ {GeV}^2$" + f" $\chi_v^2={dis_fit_params['chi2_quad']:.2f}$",
+        label=(
+            f"{dis_fit_params['model_display_name']} Fit, $Q^2=5\\ {{GeV}}^2$"
+            + f" $\\chi_v^2={dis_fit_params['chi2_quad']:.2f}$"
+        ),
         color=config["colors"]["fit"],
         linewidth=config["error_bar"]["line_width"]
     )

@@ -82,7 +82,7 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
     # Legend settings
     ax1.legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"], loc=config["legend"]["location"])
 
-    ax1.set_ylim(-0.4, 0.4)
+    ax1.set_ylim(-0.04, 0.04)
     
     # Adjust layout
     plt.tight_layout()

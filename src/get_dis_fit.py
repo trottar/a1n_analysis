@@ -195,6 +195,7 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_t
     # Labels, Titles, Legends
     axs[0].set_xlabel('x', fontsize=config["font_sizes"]["x_axis"])
     axs[0].set_ylabel('$g_1F_1$', fontsize=config["font_sizes"]["y_axis"])
+    axs[0].set_ylim(-0.4, 0.4)
     axs[0].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
 
     # Grid settings

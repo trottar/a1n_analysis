@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from utility import project_path, safe_tabulate as tabulate
+from utility import project_display_path, project_path, safe_tabulate as tabulate
 
 
 DEFAULT_MODES = ("legacy", "2025", "6gev")
@@ -100,6 +100,105 @@ def find_splash_files(fit_data_root, mode):
             unique_files.append(path)
             seen.add(path)
     return unique_files
+
+
+def parse_splash_list(raw_value):
+    raw_value = str(raw_value).strip()
+    if not raw_value or raw_value.lower() == "none":
+        return []
+    return [item.strip() for item in raw_value.split(", ") if item.strip()]
+
+
+def format_display_path_list(paths):
+    if not paths:
+        return "none"
+    return ", ".join(project_display_path(path) for path in paths)
+
+
+def parse_splash_label_counts(raw_value):
+    raw_value = str(raw_value).strip()
+    if not raw_value or raw_value.lower() == "none":
+        return {}
+
+    counts = {}
+    for item in raw_value.split(", "):
+        if ": " in item:
+            label, count = item.rsplit(": ", 1)
+            try:
+                counts[label] = int(count)
+            except ValueError:
+                counts[label] = count
+        elif item:
+            counts[item] = None
+    return counts
+
+
+def parse_splash_file(path):
+    parsed = {
+        "path": path,
+        "dataset_mode": None,
+        "analysis_scope": None,
+        "frames": {},
+    }
+    current_frame = None
+
+    with open(path, "r", encoding="utf-8") as handle:
+        lines = [line.rstrip("\n") for line in handle]
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("="):
+            continue
+
+        if stripped.startswith("[load_data] dataset_mode="):
+            match = re.search(r"dataset_mode=([^\s]+)\s+analysis_scope=([^\s]+)", stripped)
+            if match:
+                parsed["dataset_mode"] = match.group(1)
+                parsed["analysis_scope"] = match.group(2)
+            continue
+
+        if stripped.startswith("[load_data] ") and stripped.endswith("_df"):
+            current_frame = stripped.replace("[load_data] ", "", 1)
+            parsed["frames"][current_frame] = {
+                "rows": None,
+                "sources": [],
+                "sources_raw": "none",
+                "cuts": [],
+                "cuts_raw": "none",
+                "labels": {},
+                "labels_raw": "none",
+            }
+            continue
+
+        if current_frame is None:
+            continue
+
+        if stripped.startswith("rows:"):
+            raw_rows = stripped.split(":", 1)[1].strip()
+            try:
+                parsed["frames"][current_frame]["rows"] = int(raw_rows)
+            except ValueError:
+                parsed["frames"][current_frame]["rows"] = raw_rows
+        elif stripped.startswith("sources:"):
+            raw_value = stripped.split(":", 1)[1].strip()
+            parsed["frames"][current_frame]["sources"] = parse_splash_list(raw_value)
+            parsed["frames"][current_frame]["sources_raw"] = format_display_path_list(
+                parsed["frames"][current_frame]["sources"]
+            )
+        elif stripped.startswith("cuts:"):
+            raw_value = stripped.split(":", 1)[1].strip()
+            parsed["frames"][current_frame]["cuts_raw"] = raw_value or "none"
+            parsed["frames"][current_frame]["cuts"] = parse_splash_list(raw_value)
+        elif stripped.startswith("labels:"):
+            raw_value = stripped.split(":", 1)[1].strip()
+            parsed["frames"][current_frame]["labels_raw"] = raw_value or "none"
+            parsed["frames"][current_frame]["labels"] = parse_splash_label_counts(raw_value)
+
+    return parsed
+
+
+def load_splash_summaries(splash_files):
+    return [parse_splash_file(path) for path in splash_files]
 
 
 def discover_mode_directory(mode, fit_data_root, overrides):
@@ -212,7 +311,7 @@ def sanitize_for_json(value):
     if isinstance(value, tuple):
         return [sanitize_for_json(item) for item in value]
     if isinstance(value, Path):
-        return str(value)
+        return project_display_path(value)
     if isinstance(value, np.ndarray):
         return sanitize_for_json(value.tolist())
     if isinstance(value, (np.integer,)):
@@ -244,6 +343,21 @@ def format_matrix(values, precision=6):
 
 def normalize_label_text(value):
     return str(value).replace("±", "+/-")
+
+
+def format_label_counts(label_counts):
+    if not label_counts:
+        return "none"
+    return ", ".join(f"{label}: {count}" for label, count in label_counts.items())
+
+
+def normalize_discovery_note(note):
+    if not note:
+        return "none"
+    prefix = "user override -> "
+    if note.startswith(prefix):
+        return f"{prefix}{project_display_path(note[len(prefix):].strip())}"
+    return note
 
 
 def load_bw_summary(artifact_dir):
@@ -382,11 +496,57 @@ def build_discovery_rows(mode_records):
         rows.append([
             record["mode"],
             record["status"],
-            str(artifact_dir) if artifact_dir is not None else "missing",
+            project_display_path(artifact_dir) if artifact_dir is not None else "missing",
             ", ".join(record["existing_files"]) if record["existing_files"] else "none",
             ", ".join(path.name for path in record["splash_files"]) if record["splash_files"] else "none",
-            record["note"] or "none",
+            normalize_discovery_note(record["note"]),
         ])
+    return rows
+
+
+def build_splash_overview_rows(mode_records):
+    rows = []
+    frame_names = ("g1f1_df", "dis_df", "g2f1_df", "a1_df", "a2_df")
+    for record in mode_records:
+        splash_summaries = record.get("splash_summaries", [])
+        if not splash_summaries:
+            rows.append([record["mode"], "missing", "missing", "missing", "missing", "missing", "missing", "missing", "missing"])
+            continue
+
+        for splash_summary in splash_summaries:
+            row = [
+                record["mode"],
+                Path(splash_summary["path"]).name,
+                splash_summary.get("dataset_mode") or "unknown",
+                splash_summary.get("analysis_scope") or "unknown",
+            ]
+            for frame_name in frame_names:
+                row.append(splash_summary["frames"].get(frame_name, {}).get("rows", "missing"))
+            rows.append(row)
+    return rows
+
+
+def build_splash_detail_rows(mode_records):
+    rows = []
+    for record in mode_records:
+        splash_summaries = record.get("splash_summaries", [])
+        if not splash_summaries:
+            rows.append([record["mode"], "missing", "missing", "missing", "missing", "missing", "missing", "missing"])
+            continue
+
+        for splash_summary in splash_summaries:
+            splash_name = Path(splash_summary["path"]).name
+            for frame_name, frame_data in splash_summary["frames"].items():
+                rows.append([
+                    record["mode"],
+                    splash_name,
+                    splash_summary.get("analysis_scope") or "unknown",
+                    frame_name,
+                    frame_data.get("rows", "missing"),
+                    frame_data.get("sources_raw", "none"),
+                    frame_data.get("cuts_raw", "none"),
+                    frame_data.get("labels_raw", format_label_counts(frame_data.get("labels", {}))),
+                ])
     return rows
 
 
@@ -496,7 +656,7 @@ def render_report(summary_payload):
     lines.append("=" * 120)
     lines.append("Fit Comparison Report")
     lines.append(f"Generated: {summary_payload['generated_at']}")
-    lines.append(f"Fit-data root: {summary_payload['fit_data_root']}")
+    lines.append(f"Fit-data root: {project_display_path(summary_payload['fit_data_root'])}")
     lines.append("")
 
     lines.append("Mode Discovery")
@@ -518,6 +678,23 @@ def render_report(summary_payload):
         )
     )
     lines.append("")
+
+    lines.append("DIS Covariance / Correlation Matrices")
+    for record in mode_records:
+        dis_fit = record["results"]["dis_fit"]
+        lines.append(f"Mode: {record['mode']}")
+        if not dis_fit["available"]:
+            lines.append("  missing")
+            lines.append("")
+            continue
+        summary = dis_fit["summary"]
+        lines.append(f"  path: {project_display_path(dis_fit['path'])}")
+        lines.append(f"  parameter_names: {', '.join(summary.get('parameter_names', []))}")
+        lines.append("  covariance:")
+        lines.append(format_matrix(summary.get("cov_quad")))
+        lines.append("  correlation:")
+        lines.append(format_matrix(summary.get("corr_quad")))
+        lines.append("")
 
     lines.append("BW Global Fit Summary")
     lines.append(
@@ -566,12 +743,85 @@ def render_report(summary_payload):
             if not bootstrap["available"]:
                 lines.append("    missing")
                 continue
-            lines.append(f"    path: {bootstrap['path']}")
+            lines.append(f"    path: {project_display_path(bootstrap['path'])}")
             lines.append("    covariance:")
             lines.append(format_matrix(bootstrap["covariance"]))
             lines.append("    correlation:")
             lines.append(format_matrix(bootstrap["correlation"]))
         lines.append("")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_splash_breakdown(summary_payload):
+    mode_records = summary_payload["modes"]
+    lines = []
+    lines.append("=" * 120)
+    lines.append("Splash Breakdown Report")
+    lines.append(f"Generated: {summary_payload['generated_at']}")
+    lines.append(f"Fit-data root: {project_display_path(summary_payload['fit_data_root'])}")
+    lines.append("")
+
+    lines.append("Splash Overview")
+    lines.append(
+        tabulate(
+            build_splash_overview_rows(mode_records),
+            headers=[
+                "Mode",
+                "Splash File",
+                "Dataset Mode",
+                "Scope",
+                "g1f1 rows",
+                "dis rows",
+                "g2f1 rows",
+                "a1 rows",
+                "a2 rows",
+            ],
+            tablefmt=TABLE_FORMAT,
+        )
+    )
+    lines.append("")
+
+    lines.append("Splash Frame Details")
+    lines.append(
+        tabulate(
+            build_splash_detail_rows(mode_records),
+            headers=[
+                "Mode",
+                "Splash File",
+                "Scope",
+                "Frame",
+                "Rows",
+                "Sources",
+                "Cuts",
+                "Labels",
+            ],
+            tablefmt=TABLE_FORMAT,
+        )
+    )
+    lines.append("")
+
+    for record in mode_records:
+        splash_summaries = record.get("splash_summaries", [])
+        lines.append(f"Mode: {record['mode']}")
+        if not splash_summaries:
+            lines.append("  missing")
+            lines.append("")
+            continue
+
+        for splash_summary in splash_summaries:
+            lines.append(f"  File: {Path(splash_summary['path']).name}")
+            lines.append(
+                f"  dataset_mode={splash_summary.get('dataset_mode') or 'unknown'} "
+                f"analysis_scope={splash_summary.get('analysis_scope') or 'unknown'}"
+            )
+            for frame_name, frame_data in splash_summary["frames"].items():
+                lines.append(f"    {frame_name}:")
+                lines.append(f"      rows: {frame_data.get('rows', 'missing')}")
+                lines.append(f"      sources: {frame_data.get('sources_raw', 'none')}")
+                lines.append(f"      cuts: {frame_data.get('cuts_raw', 'none')}")
+                lines.append(f"      labels: {frame_data.get('labels_raw', format_label_counts(frame_data.get('labels', {})))}")
+            lines.append("")
 
     return "\n".join(lines).strip() + "\n"
 
@@ -582,22 +832,27 @@ def print_console_text(text):
     print(safe_text)
 
 
-def write_summary_files(output_dir, summary_payload, report_text):
+def write_summary_files(output_dir, summary_payload, report_text, splash_breakdown_text):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     json_path = output_dir / "comparison_summary.json"
     report_path = output_dir / "comparison_report.txt"
+    splash_report_path = output_dir / "splash_breakdown.txt"
     bw_csv_path = output_dir / "bw_global_summary.csv"
     transition_csv_path = output_dir / "transition_summary.csv"
     bootstrap_csv_path = output_dir / "bootstrap_summary.csv"
     discovery_csv_path = output_dir / "discovery_summary.csv"
     dis_csv_path = output_dir / "dis_fit_summary.csv"
+    splash_csv_path = output_dir / "splash_breakdown.csv"
 
     with open(json_path, "w", encoding="utf-8") as handle:
         json.dump(sanitize_for_json(summary_payload), handle, indent=2, sort_keys=True)
 
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write(report_text)
+
+    with open(splash_report_path, "w", encoding="utf-8") as handle:
+        handle.write(splash_breakdown_text)
 
     pd.DataFrame(
         build_discovery_rows(summary_payload["modes"]),
@@ -632,14 +887,21 @@ def write_summary_files(output_dir, summary_payload, report_text):
         columns=["mode", "parameter", "finite_samples", "bootstrap_mean", "bootstrap_std"],
     ).to_csv(bootstrap_csv_path, index=False)
 
+    pd.DataFrame(
+        build_splash_detail_rows(summary_payload["modes"]),
+        columns=["mode", "splash_file", "analysis_scope", "frame", "rows", "sources", "cuts", "labels"],
+    ).to_csv(splash_csv_path, index=False)
+
     return {
         "json": json_path,
         "report": report_path,
+        "splash_report": splash_report_path,
         "bw_csv": bw_csv_path,
         "transition_csv": transition_csv_path,
         "bootstrap_csv": bootstrap_csv_path,
         "discovery_csv": discovery_csv_path,
         "dis_csv": dis_csv_path,
+        "splash_csv": splash_csv_path,
     }
 
 
@@ -668,18 +930,23 @@ def main():
     mode_records = []
     for mode in modes:
         mode_info = discover_mode_directory(mode, fit_data_root, overrides)
+        mode_info["splash_summaries"] = load_splash_summaries(mode_info["splash_files"])
         mode_info["results"] = gather_mode_results(mode_info)
         mode_records.append(mode_info)
 
     summary_payload = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "fit_data_root": str(fit_data_root),
+        "fit_data_root": project_display_path(fit_data_root),
         "modes": mode_records,
-        "unmapped_tagged_directories": [str(path) for path in find_unmapped_tagged_directories(fit_data_root, mode_records)],
+        "unmapped_tagged_directories": [
+            project_display_path(path)
+            for path in find_unmapped_tagged_directories(fit_data_root, mode_records)
+        ],
     }
 
     report_text = render_report(summary_payload)
-    written_files = write_summary_files(output_dir, summary_payload, report_text)
+    splash_breakdown_text = render_splash_breakdown(summary_payload)
+    written_files = write_summary_files(output_dir, summary_payload, report_text, splash_breakdown_text)
 
     print_console_text(report_text)
     if summary_payload["unmapped_tagged_directories"]:
@@ -688,7 +955,7 @@ def main():
             print(f"  {directory}")
     print("Saved comparison outputs:")
     for label, path in written_files.items():
-        print(f"  {label}: {path}")
+        print(f"  {label}: {project_display_path(path)}")
 
 
 if __name__ == "__main__":

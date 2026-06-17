@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from functions import x_to_W
-from utility import project_path
+from utility import project_display_path, project_path
 
 ##################################################################################################################################################
 
@@ -287,7 +287,7 @@ def _collect_frame_lines(name, df, sources, cuts):
     return [
         f"[load_data] {name}",
         f"  rows: {len(df)}",
-        f"  sources: {', '.join(str(source) for source in sources)}",
+        f"  sources: {', '.join(project_display_path(source) for source in sources)}",
         f"  cuts: {', '.join(cuts) if cuts else 'none'}",
         f"  labels: {_format_label_counts(df)}",
     ]
@@ -315,7 +315,7 @@ def _write_splash_report(lines, dataset_mode, analysis_scope, g1f1_2025_path=Non
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as splash_file:
         splash_file.write("\n".join(lines) + "\n")
-    print(f"[load_data] splash report saved to {output_path}")
+    print(f"[load_data] splash report saved to {project_display_path(output_path)}")
 
 
 def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df, a2_df, dis_df,

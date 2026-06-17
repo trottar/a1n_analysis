@@ -1,14 +1,14 @@
 ========================================================================================================================
 Fit Comparison Report
-Generated: 2026-06-17T04:30:37
-Fit-data root: C:\Users\trott\Documents\Programs\a1n_analysis\fit_data
+Generated: 2026-06-17T04:55:00
+Fit-data root: fit_data
 
 Mode Discovery
-| Mode   | Status              | Artifact Dir                                            | Existing Files                                             | Splash Files                                                                                         | Notes                              |
-|--------|---------------------|---------------------------------------------------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------|------------------------------------|
-| legacy | artifacts_available | C:\Users\trott\Documents\Programs\a1n_analysis\fit_data | fit_results.csv, full_results.csv, full_results_errors.csv | none                                                                                                 | legacy artifacts use fit_data root |
-| 2025   | splash_only         | missing                                                 | none                                                       | load_data_splash_g1F1he3_2025_dis_dis_only.txt                                                       | none                               |
-| 6gev   | splash_only         | missing                                                 | none                                                       | load_data_splash_6gev_full.txt, load_data_splash_12gev_dis_only.txt, load_data_splash_12gev_full.txt | none                               |
+| Mode   | Status              | Artifact Dir   | Existing Files                                             | Splash Files                                                                                         | Notes                              |
+|--------|---------------------|----------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------|------------------------------------|
+| legacy | artifacts_available | fit_data       | fit_results.csv, full_results.csv, full_results_errors.csv | none                                                                                                 | legacy artifacts use fit_data root |
+| 2025   | splash_only         | missing        | none                                                       | load_data_splash_g1F1he3_2025_dis_dis_only.txt                                                       | none                               |
+| 6gev   | splash_only         | missing        | none                                                       | load_data_splash_6gev_full.txt, load_data_splash_12gev_dis_only.txt, load_data_splash_12gev_full.txt | none                               |
 
 DIS Fit Summary
 | Mode   | Chi2    | Parameters / Status            |
@@ -16,6 +16,16 @@ DIS Fit Summary
 | legacy | missing | DIS fit summary file not found |
 | 2025   | missing | DIS fit summary file not found |
 | 6gev   | missing | DIS fit summary file not found |
+
+DIS Covariance / Correlation Matrices
+Mode: legacy
+  missing
+
+Mode: 2025
+  missing
+
+Mode: 6gev
+  missing
 
 BW Global Fit Summary
 | Mode   | Parameter   | Chi2    | Best Fit Parameters                                                                                       | Parameter Uncertainties                                                                            | Best P Values        | P-Value Uncertainties   |
@@ -69,7 +79,7 @@ BW Bootstrap Summary
 Bootstrap Covariance / Correlation Matrices
 Mode: legacy
   k:
-    path: C:\Users\trott\Documents\Programs\a1n_analysis\fit_data\bootstrap_k_params.npy
+    path: fit_data/bootstrap_k_params.npy
     covariance:
 [[ 7.024474e-04, -4.574549e+03,  4.387426e-05, -1.254267e+05,  3.382728e+01, -1.853878e+02,  3.049424e-04,  3.165507e-10, -1.429529e-09,
   -1.342892e-09, -9.073088e-10],
@@ -117,7 +127,7 @@ Mode: legacy
  [-1.558660e-01, -3.796756e-03, -9.255704e-02, -8.340363e-02,  8.000247e-02, -7.601277e-02, -1.033901e-01, -2.987366e-01,  4.909782e-01,
    2.841801e-01,  1.000000e+00]]
   gamma:
-    path: C:\Users\trott\Documents\Programs\a1n_analysis\fit_data\bootstrap_gamma_params.npy
+    path: fit_data/bootstrap_gamma_params.npy
     covariance:
 [[ 9.521507e+00,  9.125051e+05, -2.615483e-02, -4.482090e+03,  8.745991e+03,  1.216294e+00, -4.591060e-09,  3.027799e-08, -2.531460e-08,
   -5.112982e-08],
@@ -161,7 +171,7 @@ Mode: legacy
  [-1.949560e-02, -2.660162e-02,  5.373066e-02, -1.747559e-02,  1.746106e-02, -2.361377e-02, -2.156187e-02, -6.922670e-01,  9.925238e-02,
    1.000000e+00]]
   mass:
-    path: C:\Users\trott\Documents\Programs\a1n_analysis\fit_data\bootstrap_mass_params.npy
+    path: fit_data/bootstrap_mass_params.npy
     covariance:
 [[ 2.099848e-02, -1.548467e+05, -2.133065e-03,  1.174112e+05, -5.028167e+05,  9.672251e-03,  2.244202e-08,  9.001114e-09,  2.953590e-09,
   -1.954994e-08],

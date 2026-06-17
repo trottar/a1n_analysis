@@ -449,7 +449,15 @@ def run_analysis(analysis_scope):
         x_dense = np.linspace(dis_df['X'].min(), dis_df['X'].max(), 10000)
         q2_dense = np.full(x_dense.size, 5.0) # array of q2 = 5.0 GeV^2
 
-        dis_fit_params = get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf)
+        dis_fit_params = get_dis_fit(
+            indep_data,
+            dis_df,
+            q2_interp,
+            x_dense,
+            q2_dense,
+            pdf,
+            dataset_tag=DATASET_TAG,
+        )
 
         # Generate fitted curve using the fitted parameters for constant q2
         x = np.linspace(1e-6, 1.0, 1000, dtype=np.double)

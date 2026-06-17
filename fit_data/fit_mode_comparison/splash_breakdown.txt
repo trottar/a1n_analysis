@@ -1,0 +1,155 @@
+========================================================================================================================
+Splash Breakdown Report
+Generated: 2026-06-17T04:55:00
+Fit-data root: fit_data
+
+Splash Overview
+| Mode   | Splash File                                    | Dataset Mode   | Scope    | g1f1 rows   | dis rows   | g2f1 rows   | a1 rows   | a2 rows   |
+|--------|------------------------------------------------|----------------|----------|-------------|------------|-------------|-----------|-----------|
+| legacy | missing                                        | missing        | missing  | missing     | missing    | missing     | missing   | missing   |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | 2025           | dis_only | 690         | 51         | 710         | 79        | 59        |
+| 6gev   | load_data_splash_6gev_full.txt                 | 6gev           | full     | 85          | 37         | 74          | 79        | 59        |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | 12gev          | dis_only | 85          | 37         | 74          | 79        | 59        |
+| 6gev   | load_data_splash_12gev_full.txt                | 12gev          | full     | 85          | 37         | 74          | 79        | 59        |
+
+Splash Frame Details
+| Mode   | Splash File                                    | Scope    | Frame   | Rows    | Sources                             | Cuts                                                                                                                                                   | Labels                                                                                                                                                 |
+|--------|------------------------------------------------|----------|---------|---------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| legacy | missing                                        | missing  | missing | missing | missing                             | missing                                                                                                                                                | missing                                                                                                                                                |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | dis_only | g1f1_df | 690     | g1f1_comb.csv                       | excluded labels from g1f1_df: Flay E06-014 (2014), Kramer E97-103 (2003)                                                                               | E94-010: 242, E97-110: 394, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3                              |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | dis_only | dis_df  | 51      | g1f1_comb.csv, g1F1he3_2025_dis.csv | legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0, 2025 DIS file loaded directly, 2025 all excluded in 2025/dis_only, Mingyu DIS excluded in 2025 mode | 2025 DIS: 14, Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3                    |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | dis_only | g2f1_df | 710     | g2f1_comb.csv                       | none                                                                                                                                                   | E94-010: 242, E97-110: 394, Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3 |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | dis_only | a1_df   | 79      | a1_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3               |
+| 2025   | load_data_splash_g1F1he3_2025_dis_dis_only.txt | dis_only | a2_df   | 59      | a2_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3                                                       |
+| 6gev   | load_data_splash_6gev_full.txt                 | full     | g1f1_df | 85      | g1f1_comb.csv                       | excluded labels from g1f1_df: E94-010, E97-110                                                                                                         | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3       |
+| 6gev   | load_data_splash_6gev_full.txt                 | full     | dis_df  | 37      | g1f1_comb.csv                       | 6gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded              | Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3                                  |
+| 6gev   | load_data_splash_6gev_full.txt                 | full     | g2f1_df | 74      | g2f1_comb.csv                       | none                                                                                                                                                   | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3                             |
+| 6gev   | load_data_splash_6gev_full.txt                 | full     | a1_df   | 79      | a1_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3               |
+| 6gev   | load_data_splash_6gev_full.txt                 | full     | a2_df   | 59      | a2_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3                                                       |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | dis_only | g1f1_df | 85      | g1f1_comb.csv                       | excluded labels from g1f1_df: E94-010, E97-110                                                                                                         | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3       |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | dis_only | dis_df  | 37      | g1f1_comb.csv                       | 12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded             | Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3                                  |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | dis_only | g2f1_df | 74      | g2f1_comb.csv                       | none                                                                                                                                                   | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3                             |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | dis_only | a1_df   | 79      | a1_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3               |
+| 6gev   | load_data_splash_12gev_dis_only.txt            | dis_only | a2_df   | 59      | a2_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3                                                       |
+| 6gev   | load_data_splash_12gev_full.txt                | full     | g1f1_df | 85      | g1f1_comb.csv                       | excluded labels from g1f1_df: E94-010, E97-110                                                                                                         | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3       |
+| 6gev   | load_data_splash_12gev_full.txt                | full     | dis_df  | 37      | g1f1_comb.csv                       | 12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded             | Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3                                  |
+| 6gev   | load_data_splash_12gev_full.txt                | full     | g2f1_df | 74      | g2f1_comb.csv                       | none                                                                                                                                                   | Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3                             |
+| 6gev   | load_data_splash_12gev_full.txt                | full     | a1_df   | 79      | a1_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3               |
+| 6gev   | load_data_splash_12gev_full.txt                | full     | a2_df   | 59      | a2_comb.csv                         | none                                                                                                                                                   | Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3                                                       |
+
+Mode: legacy
+  missing
+
+Mode: 2025
+  File: load_data_splash_g1F1he3_2025_dis_dis_only.txt
+  dataset_mode=2025 analysis_scope=dis_only
+    g1f1_df:
+      rows: 690
+      sources: g1f1_comb.csv
+      cuts: excluded labels from g1f1_df: Flay E06-014 (2014), Kramer E97-103 (2003)
+      labels: E94-010: 242, E97-110: 394, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    dis_df:
+      rows: 51
+      sources: g1f1_comb.csv, g1F1he3_2025_dis.csv
+      cuts: legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0, 2025 DIS file loaded directly, 2025 all excluded in 2025/dis_only, Mingyu DIS excluded in 2025 mode
+      labels: 2025 DIS: 14, Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3
+    g2f1_df:
+      rows: 710
+      sources: g2f1_comb.csv
+      cuts: none
+      labels: E94-010: 242, E97-110: 394, Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    a1_df:
+      rows: 79
+      sources: a1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+    a2_df:
+      rows: 59
+      sources: a2_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+
+Mode: 6gev
+  File: load_data_splash_6gev_full.txt
+  dataset_mode=6gev analysis_scope=full
+    g1f1_df:
+      rows: 85
+      sources: g1f1_comb.csv
+      cuts: excluded labels from g1f1_df: E94-010, E97-110
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    dis_df:
+      rows: 37
+      sources: g1f1_comb.csv
+      cuts: 6gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded
+      labels: Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3
+    g2f1_df:
+      rows: 74
+      sources: g2f1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    a1_df:
+      rows: 79
+      sources: a1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+    a2_df:
+      rows: 59
+      sources: a2_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+
+  File: load_data_splash_12gev_dis_only.txt
+  dataset_mode=12gev analysis_scope=dis_only
+    g1f1_df:
+      rows: 85
+      sources: g1f1_comb.csv
+      cuts: excluded labels from g1f1_df: E94-010, E97-110
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    dis_df:
+      rows: 37
+      sources: g1f1_comb.csv
+      cuts: 12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded
+      labels: Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3
+    g2f1_df:
+      rows: 74
+      sources: g2f1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    a1_df:
+      rows: 79
+      sources: a1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+    a2_df:
+      rows: 59
+      sources: a2_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+
+  File: load_data_splash_12gev_full.txt
+  dataset_mode=12gev analysis_scope=full
+    g1f1_df:
+      rows: 85
+      sources: g1f1_comb.csv
+      cuts: excluded labels from g1f1_df: E94-010, E97-110
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    dis_df:
+      rows: 37
+      sources: g1f1_comb.csv
+      cuts: 12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded
+      labels: Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3
+    g2f1_df:
+      rows: 74
+      sources: g2f1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3
+    a1_df:
+      rows: 79
+      sources: a1_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3
+    a2_df:
+      rows: 59
+      sources: a2_comb.csv
+      cuts: none
+      labels: Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3

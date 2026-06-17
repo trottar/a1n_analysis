@@ -10,6 +10,7 @@
 #
 # Copyright (c) trottar
 #
+import os
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
@@ -18,11 +19,53 @@ import json
 ##################################################################################################################################################
 
 from functions import g1f1_quad_fullx_DIS
-from utility import safe_tabulate as tabulate, src_path
+from utility import project_path, safe_tabulate as tabulate, src_path
 
 ##################################################################################################################################################
 
-def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
+def _build_artifact_path(filename, dataset_tag):
+    if dataset_tag == "legacy":
+        return project_path("fit_data", filename)
+
+    tagged_dir = project_path("fit_data", dataset_tag)
+    os.makedirs(tagged_dir, exist_ok=True)
+    return os.path.join(tagged_dir, filename)
+
+
+def _save_dis_fit_summary(dataset_tag, quad_param_names, dis_df, dis_fit_results):
+    summary_path = _build_artifact_path("dis_fit_summary.json", dataset_tag)
+    payload = {
+        "dataset_tag": dataset_tag,
+        "n_points": int(len(dis_df)),
+        "x_range": [
+            float(np.min(dis_df["X"])),
+            float(np.max(dis_df["X"])),
+        ],
+        "q2_range": [
+            float(np.min(dis_df["Q2"])),
+            float(np.max(dis_df["Q2"])),
+        ],
+        "parameter_names": list(quad_param_names),
+        "par_quad": np.asarray(dis_fit_results["par_quad"], dtype=float).tolist(),
+        "par_err_quad": np.asarray(dis_fit_results["par_err_quad"], dtype=float).tolist(),
+        "cov_quad": np.asarray(dis_fit_results["cov_quad"], dtype=float).tolist(),
+        "corr_quad": np.asarray(dis_fit_results["corr_quad"], dtype=float).tolist(),
+        "chi2_quad": float(dis_fit_results["chi2_quad"]),
+        "beta_val": float(dis_fit_results["beta_val"]),
+        "residual_summary": {
+            "mean": float(np.mean(dis_fit_results["residuals"])),
+            "std": float(np.std(dis_fit_results["residuals"])),
+            "min": float(np.min(dis_fit_results["residuals"])),
+            "max": float(np.max(dis_fit_results["residuals"])),
+        },
+    }
+
+    with open(summary_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+    print(f"[get_dis_fit] Saved DIS fit summary to {summary_path}")
+
+
+def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_tag="legacy"):
 
     # fit the g1f1 DIS data with constrained quadratic form
 
@@ -181,4 +224,14 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf):
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
 
-    return {"par_quad" : par_quad, "cov_quad" : cov_quad, "corr_quad" : corr_quad, "par_err_quad" : par_err_quad, "chi2_quad" : chi2_quad, "beta_val" : beta_val, "residuals" : residuals}
+    dis_fit_results = {
+        "par_quad": par_quad,
+        "cov_quad": cov_quad,
+        "corr_quad": corr_quad,
+        "par_err_quad": par_err_quad,
+        "chi2_quad": chi2_quad,
+        "beta_val": beta_val,
+        "residuals": residuals,
+    }
+    _save_dis_fit_summary(dataset_tag, quad_param_names, dis_df, dis_fit_results)
+    return dis_fit_results

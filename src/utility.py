@@ -33,6 +33,31 @@ def project_path(*parts):
     return os.path.join(PROJECT_ROOT, *parts)
 
 
+def project_display_path(path):
+    if path is None:
+        return "none"
+
+    path_str = os.fspath(path)
+    if not path_str:
+        return ""
+
+    normalized_path = os.path.normpath(path_str)
+    absolute_path = os.path.abspath(normalized_path)
+    project_root = os.path.abspath(PROJECT_ROOT)
+
+    try:
+        if os.path.commonpath([absolute_path, project_root]) == project_root:
+            relative_path = os.path.relpath(absolute_path, project_root)
+            return relative_path.replace("\\", "/")
+    except ValueError:
+        pass
+
+    if os.path.isabs(normalized_path):
+        return os.path.basename(normalized_path).replace("\\", "/")
+
+    return normalized_path.replace("\\", "/")
+
+
 ################################################################################################################################################
 
 def safe_tabulate(rows, headers=(), tablefmt=None):

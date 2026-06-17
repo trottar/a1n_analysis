@@ -1,11 +1,11 @@
 {
-  "fit_data_root": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data",
-  "generated_at": "2026-06-17T04:30:37",
+  "fit_data_root": "fit_data",
+  "generated_at": "2026-06-17T04:55:00",
   "modes": [
     {
-      "artifact_dir": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data",
+      "artifact_dir": "fit_data",
       "candidate_dirs": [
-        "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data"
+        "fit_data"
       ],
       "existing_files": [
         "fit_results.csv",
@@ -278,7 +278,7 @@
             "n_finite_samples": 10000,
             "n_parameters": 10,
             "n_samples": 10000,
-            "path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\bootstrap_gamma_params.npy",
+            "path": "fit_data/bootstrap_gamma_params.npy",
             "std": [
               3.085539697129565,
               202175403.6081977,
@@ -600,7 +600,7 @@
             "n_finite_samples": 10000,
             "n_parameters": 11,
             "n_samples": 10000,
-            "path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\bootstrap_k_params.npy",
+            "path": "fit_data/bootstrap_k_params.npy",
             "std": [
               0.026502399121050055,
               539970818.8878567,
@@ -876,7 +876,7 @@
             "n_finite_samples": 10000,
             "n_parameters": 10,
             "n_samples": 10000,
-            "path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\bootstrap_mass_params.npy",
+            "path": "fit_data/bootstrap_mass_params.npy",
             "std": [
               0.1449012883796651,
               10626017.409187086,
@@ -990,11 +990,11 @@
               ]
             }
           },
-          "path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\fit_results.csv"
+          "path": "fit_data/fit_results.csv"
         },
         "dis_fit": {
           "available": false,
-          "path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\dis_fit_summary.json"
+          "path": "fit_data/dis_fit_summary.json"
         },
         "transition_fit": {
           "available": true,
@@ -1119,11 +1119,12 @@
               "w_dis_transition_err": 174.58627931954368
             }
           ],
-          "errors_path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\full_results_errors.csv",
-          "results_path": "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\full_results.csv"
+          "errors_path": "fit_data/full_results_errors.csv",
+          "results_path": "fit_data/full_results.csv"
         }
       },
       "splash_files": [],
+      "splash_summaries": [],
       "status": "artifacts_available"
     },
     {
@@ -1165,7 +1166,114 @@
         }
       },
       "splash_files": [
-        "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\load_data_splash_g1F1he3_2025_dis_dis_only.txt"
+        "fit_data/load_data_splash_g1F1he3_2025_dis_dis_only.txt"
+      ],
+      "splash_summaries": [
+        {
+          "analysis_scope": "dis_only",
+          "dataset_mode": "2025",
+          "frames": {
+            "a1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "HERMES (2000)": 9,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 79,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a1_comb.csv"
+              ],
+              "sources_raw": "a1_comb.csv"
+            },
+            "a2_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 59,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a2_comb.csv"
+              ],
+              "sources_raw": "a2_comb.csv"
+            },
+            "dis_df": {
+              "cuts": [
+                "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
+                "2025 DIS file loaded directly",
+                "2025 all excluded in 2025/dis_only",
+                "Mingyu DIS excluded in 2025 mode"
+              ],
+              "cuts_raw": "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0, 2025 DIS file loaded directly, 2025 all excluded in 2025/dis_only, Mingyu DIS excluded in 2025 mode",
+              "labels": {
+                "2025 DIS": 14,
+                "Flay E06-014 (2014)": 13,
+                "Kramer E97-103 (2003)": 2,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "2025 DIS: 14, Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3",
+              "rows": 51,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv",
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1F1he3_2025_dis.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv, g1F1he3_2025_dis.csv"
+            },
+            "g1f1_df": {
+              "cuts": [
+                "excluded labels from g1f1_df: Flay E06-014 (2014)",
+                "Kramer E97-103 (2003)"
+              ],
+              "cuts_raw": "excluded labels from g1f1_df: Flay E06-014 (2014), Kramer E97-103 (2003)",
+              "labels": {
+                "E94-010": 242,
+                "E97-110": 394,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "E94-010: 242, E97-110: 394, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 690,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g2f1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "E94-010": 242,
+                "E97-110": 394,
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "E94-010: 242, E97-110: 394, Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 710,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g2f1_comb.csv"
+              ],
+              "sources_raw": "g2f1_comb.csv"
+            }
+          },
+          "path": "fit_data/load_data_splash_g1F1he3_2025_dis_dis_only.txt"
+        }
       ],
       "status": "splash_only"
     },
@@ -1208,14 +1316,319 @@
         }
       },
       "splash_files": [
-        "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\load_data_splash_6gev_full.txt",
-        "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\load_data_splash_12gev_dis_only.txt",
-        "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\load_data_splash_12gev_full.txt"
+        "fit_data/load_data_splash_6gev_full.txt",
+        "fit_data/load_data_splash_12gev_dis_only.txt",
+        "fit_data/load_data_splash_12gev_full.txt"
+      ],
+      "splash_summaries": [
+        {
+          "analysis_scope": "full",
+          "dataset_mode": "6gev",
+          "frames": {
+            "a1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "HERMES (2000)": 9,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 79,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a1_comb.csv"
+              ],
+              "sources_raw": "a1_comb.csv"
+            },
+            "a2_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 59,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a2_comb.csv"
+              ],
+              "sources_raw": "a2_comb.csv"
+            },
+            "dis_df": {
+              "cuts": [
+                "6gev mode excludes legacy base labels E94-010 and E97-110",
+                "DIS-cut uses Q2 > 1.0 and W > 2.0",
+                "Mingyu DIS excluded",
+                "2025 datasets excluded"
+              ],
+              "cuts_raw": "6gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded",
+              "labels": {
+                "Flay E06-014 (2014)": 13,
+                "Kramer E97-103 (2003)": 2,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3",
+              "rows": 37,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g1f1_df": {
+              "cuts": [
+                "excluded labels from g1f1_df: E94-010",
+                "E97-110"
+              ],
+              "cuts_raw": "excluded labels from g1f1_df: E94-010, E97-110",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 85,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g2f1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 74,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g2f1_comb.csv"
+              ],
+              "sources_raw": "g2f1_comb.csv"
+            }
+          },
+          "path": "fit_data/load_data_splash_6gev_full.txt"
+        },
+        {
+          "analysis_scope": "dis_only",
+          "dataset_mode": "12gev",
+          "frames": {
+            "a1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "HERMES (2000)": 9,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 79,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a1_comb.csv"
+              ],
+              "sources_raw": "a1_comb.csv"
+            },
+            "a2_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 59,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a2_comb.csv"
+              ],
+              "sources_raw": "a2_comb.csv"
+            },
+            "dis_df": {
+              "cuts": [
+                "12gev mode excludes legacy base labels E94-010 and E97-110",
+                "DIS-cut uses Q2 > 1.0 and W > 2.0",
+                "Mingyu DIS excluded",
+                "2025 datasets excluded"
+              ],
+              "cuts_raw": "12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded",
+              "labels": {
+                "Flay E06-014 (2014)": 13,
+                "Kramer E97-103 (2003)": 2,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3",
+              "rows": 37,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g1f1_df": {
+              "cuts": [
+                "excluded labels from g1f1_df: E94-010",
+                "E97-110"
+              ],
+              "cuts_raw": "excluded labels from g1f1_df: E94-010, E97-110",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 85,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g2f1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 74,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g2f1_comb.csv"
+              ],
+              "sources_raw": "g2f1_comb.csv"
+            }
+          },
+          "path": "fit_data/load_data_splash_12gev_dis_only.txt"
+        },
+        {
+          "analysis_scope": "full",
+          "dataset_mode": "12gev",
+          "frames": {
+            "a1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "HERMES (2000)": 9,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, HERMES (2000): 9, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 79,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a1_comb.csv"
+              ],
+              "sources_raw": "a1_comb.csv"
+            },
+            "a2_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 22,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 22, Zheng E99-117 (2002): 3",
+              "rows": 59,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\a2_comb.csv"
+              ],
+              "sources_raw": "a2_comb.csv"
+            },
+            "dis_df": {
+              "cuts": [
+                "12gev mode excludes legacy base labels E94-010 and E97-110",
+                "DIS-cut uses Q2 > 1.0 and W > 2.0",
+                "Mingyu DIS excluded",
+                "2025 datasets excluded"
+              ],
+              "cuts_raw": "12gev mode excludes legacy base labels E94-010 and E97-110, DIS-cut uses Q2 > 1.0 and W > 2.0, Mingyu DIS excluded, 2025 datasets excluded",
+              "labels": {
+                "Flay E06-014 (2014)": 13,
+                "Kramer E97-103 (2003)": 2,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 13, Kramer E97-103 (2003): 2, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Zheng E99-117 (2002): 3",
+              "rows": 37,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g1f1_df": {
+              "cuts": [
+                "excluded labels from g1f1_df: E94-010",
+                "E97-110"
+              ],
+              "cuts_raw": "excluded labels from g1f1_df: E94-010, E97-110",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "SLAC E154 (1997)": 11,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, SLAC E154 (1997): 11, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 85,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g1f1_comb.csv"
+              ],
+              "sources_raw": "g1f1_comb.csv"
+            },
+            "g2f1_df": {
+              "cuts": [],
+              "cuts_raw": "none",
+              "labels": {
+                "Flay E06-014 (2014)": 26,
+                "Kramer E97-103 (2003)": 5,
+                "SLAC E142 (1996)": 8,
+                "Solvg. E01-012 (2006)": 32,
+                "Zheng E99-117 (2002)": 3
+              },
+              "labels_raw": "Flay E06-014 (2014): 26, Kramer E97-103 (2003): 5, SLAC E142 (1996): 8, Solvg. E01-012 (2006): 32, Zheng E99-117 (2002): 3",
+              "rows": 74,
+              "sources": [
+                "c:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\data\\g2f1_comb.csv"
+              ],
+              "sources_raw": "g2f1_comb.csv"
+            }
+          },
+          "path": "fit_data/load_data_splash_12gev_full.txt"
+        }
       ],
       "status": "splash_only"
     }
   ],
   "unmapped_tagged_directories": [
-    "C:\\Users\\trott\\Documents\\Programs\\a1n_analysis\\fit_data\\k_0506"
+    "fit_data/k_0506"
   ]
 }

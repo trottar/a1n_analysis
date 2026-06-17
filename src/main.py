@@ -73,6 +73,9 @@ ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
 
+LEGACY_G1F1_INPUT = os.path.join("data", "g1f1_comb.csv")
+MINGYU_DIS_INPUT = os.path.join("data", "mingyu_g1f1_g2f1_dis.csv")
+
 
 def sanitize_dataset_tag(tag):
     safe_tag = tag.replace("(", "_").replace(")", "")
@@ -123,7 +126,30 @@ def build_output_path(base_path, dataset_tag, analysis_scope):
     return os.path.join(tagged_dir, filename)
 
 
-def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path, strict=True):
+def describe_fit_inputs(dataset_mode, analysis_scope):
+    if dataset_mode == "2025":
+        if analysis_scope == "dis_only":
+            return (
+                f"legacy DIS baseline from '{LEGACY_G1F1_INPUT}' plus "
+                f"2025 DIS input '{os.path.join('data', os.path.basename(DATASET_2025_DIS_PATH))}'"
+            )
+        return (
+            f"legacy DIS baseline from '{LEGACY_G1F1_INPUT}' plus "
+            f"2025 all input '{os.path.join('data', os.path.basename(DATASET_2025_ALL_PATH))}'"
+        )
+
+    if dataset_mode == "6gev":
+        return (
+            f"'{LEGACY_G1F1_INPUT}' with E94-010 and E97-110 removed; "
+            "Mingyu DIS excluded; 2025 datasets excluded"
+        )
+
+    if analysis_scope == "dis_only":
+        return f"legacy DIS baseline from '{LEGACY_G1F1_INPUT}' plus Mingyu DIS '{MINGYU_DIS_INPUT}'"
+    return f"legacy full input '{LEGACY_G1F1_INPUT}'"
+
+
+def validate_bw_global_fit_support(dataset_mode, analysis_scope, res_df, delta_par_df, input_description, strict=True):
     min_bw_fit_points = 11
     min_unique_q2_bins = 4
 
@@ -135,21 +161,22 @@ def validate_2025_only_support(res_df, delta_par_df, g1f1_path, dis_path, strict
     if bw_fit_points >= min_bw_fit_points and unique_q2_bins >= min_unique_q2_bins:
         return True
 
+    mode_label = f"{dataset_mode}/{analysis_scope}"
     message = (
-        "2025-only mode cannot continue to BW/global-fit stages. "
+        f"{mode_label} cannot continue to BW/global-fit stages. "
         f"Required at least {min_bw_fit_points} resonance fit points and {min_unique_q2_bins} unique Q2 bins, "
         f"but observed {bw_fit_points} fit points, {unique_q2_bins} unique Q2 bins, "
         f"{resonance_points} resonance-region rows, and {resonance_bins} resonance labels. "
-        f"Inputs: all='{g1f1_path}', dis='{dis_path}'."
+        f"Inputs: {input_description}."
     )
     if strict:
         raise RuntimeError(message)
 
-    print(f"[2025/full] Continuing despite validation failure: {message}")
+    print(f"[{mode_label}] Continuing despite validation failure: {message}")
     return False
 
 
-def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path, strict=True):
+def validate_resonance_fit_support(dataset_mode, analysis_scope, res_df, w_lims, input_description, strict=True):
     label_counts = []
     q2_labels = list(res_df["Q2_labels"].dropna().unique())
 
@@ -175,15 +202,16 @@ def validate_2025_resonance_fit_support(res_df, w_lims, g1f1_path, dis_path, str
         f"{label}: {count} points in [{w_min_fit:.3f}, {w_max_fit:.3f}]"
         for label, count, w_min_fit, w_max_fit in insufficient
     )
+    mode_label = f"{dataset_mode}/{analysis_scope}"
     message = (
-        "2025-only mode cannot start resonance Breit-Wigner fits. "
+        f"{mode_label} cannot start resonance Breit-Wigner fits. "
         "Each resonance Q2 label needs at least 3 points inside its configured W fit window. "
-        f"Observed: {details}. Inputs: all='{g1f1_path}', dis='{dis_path}'."
+        f"Observed: {details}. Inputs: {input_description}."
     )
     if strict:
         raise RuntimeError(message)
 
-    print(f"[2025/full] Continuing despite validation failure: {message}")
+    print(f"[{mode_label}] Continuing despite validation failure: {message}")
     return False
 
 
@@ -404,6 +432,7 @@ def run_analysis(analysis_scope):
         and ALLOW_SPARSE_2025_FULL
         and not uses_hybrid_2025_support
     )
+    input_description = describe_fit_inputs(DATASET_MODE, analysis_scope)
 
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
@@ -478,13 +507,18 @@ def run_analysis(analysis_scope):
                   (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
                   (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
 
-        if DATASET_MODE == "2025":
-            validate_2025_resonance_fit_support(
+        if DATASET_MODE in {"2025", "6gev"}:
+            validate_resonance_fit_support(
+                DATASET_MODE,
+                analysis_scope,
                 res_df,
                 w_lims,
-                DATASET_2025_ALL_PATH,
-                DATASET_2025_DIS_PATH,
-                strict=not (force_sparse_2025_full or uses_hybrid_2025_support),
+                input_description,
+                strict=(
+                    not (force_sparse_2025_full or uses_hybrid_2025_support)
+                    if DATASET_MODE == "2025"
+                    else True
+                ),
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
@@ -503,13 +537,18 @@ def run_analysis(analysis_scope):
         #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
         #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
-        if DATASET_MODE == "2025":
-            validate_2025_only_support(
+        if DATASET_MODE in {"2025", "6gev"}:
+            validate_bw_global_fit_support(
+                DATASET_MODE,
+                analysis_scope,
                 res_df,
                 delta_par_df,
-                DATASET_2025_ALL_PATH,
-                DATASET_2025_DIS_PATH,
-                strict=not (force_sparse_2025_full or uses_hybrid_2025_support),
+                input_description,
+                strict=(
+                    not (force_sparse_2025_full or uses_hybrid_2025_support)
+                    if DATASET_MODE == "2025"
+                    else True
+                ),
             )
 
         print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")

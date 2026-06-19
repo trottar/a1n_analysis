@@ -27,5 +27,6 @@ __pycache__
 .ipynb_checkpoints
 data
 fit_data
+plots
 
 $HOME

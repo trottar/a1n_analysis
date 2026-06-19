@@ -38,7 +38,7 @@ w_res_max = 1.45
 # DATASET_MODE = "legacy"
 # DATASET_MODE = "2025"
 # DATASET_MODE = "6gev"
-DATASET_MODE = "6gev"
+DATASET_MODE = "2025"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
@@ -47,7 +47,7 @@ DATASET_MODE = "6gev"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "all"
+DIS_FIT_MODEL = "quad_new"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

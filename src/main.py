@@ -42,7 +42,8 @@ DATASET_MODE = "2025"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
-# DIS_FIT_MODEL = "quad_new"
+# DIS_FIT_MODEL = "quad_alpha"
+# DIS_FIT_MODEL = "cubic_alpha"
 # DIS_FIT_MODEL = "quad2"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
@@ -547,11 +548,11 @@ def run_analysis(analysis_scope):
         x = np.linspace(1e-6, 1.0, 1000, dtype=np.double)
         q2 = np.full(x.size, 5.0) # array of q2 = 5.0 GeV^2
 
-        quad_new_fit_curve = evaluate_dis_fit(dis_fit_params, x, q2)
+        dis_fit_curve = evaluate_dis_fit(dis_fit_params, x, q2)
         quad_fit_err = fit_error(x, q2, dis_fit_params["par_quad"], dis_fit_params["par_err_quad"], dis_fit_params["corr_quad"], dis_fit_params["partials"])
 
         # Plot dis fit vs x
-        plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
+        plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
         if analysis_scope == "dis_only":
             print("DIS-only scope selected. Skipping resonance, BW, transition, and grid stages.")

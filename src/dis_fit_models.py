@@ -4,10 +4,11 @@ import numpy as np
 
 from functions import (
     g1f1_cubic_DIS,
+    g1f1_cubic_alpha_DIS,
+    g1f1_quad_alpha_DIS,
     g1f1_quad2_DIS,
     g1f1_quad_DIS,
     g1f1_quad_fullx_DIS,
-    g1f1_quad_new_DIS,
     partial_a2,
     partial_a3,
     partial_a_fullx,
@@ -59,6 +60,45 @@ def partial_beta_new(x, q2, par):
     return (x ** alpha) * poly / q2
 
 
+partial_alpha_quad_alpha = partial_alpha_new
+partial_a_quad_alpha = partial_a_new
+partial_b_quad_alpha = partial_b_new
+partial_c_quad_alpha = partial_c_new
+partial_beta_quad_alpha = partial_beta_new
+
+
+def partial_alpha_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    poly = a + b * x + c * x * x + d * x * x * x
+    return np.log(x) * (x ** alpha) * poly * (1.0 + beta / q2)
+
+
+def partial_a_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    return (x ** alpha) * (1.0 + beta / q2)
+
+
+def partial_b_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    return (x ** (alpha + 1.0)) * (1.0 + beta / q2)
+
+
+def partial_c_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    return (x ** (alpha + 2.0)) * (1.0 + beta / q2)
+
+
+def partial_d_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    return (x ** (alpha + 3.0)) * (1.0 + beta / q2)
+
+
+def partial_beta_cubic_alpha(x, q2, par):
+    alpha, a, b, c, d, beta = par
+    poly = a + b * x + c * x * x + d * x * x * x
+    return (x ** alpha) * poly / q2
+
+
 DIS_FIT_MODEL_REGISTRY = {
     "fullx": {
         "func": g1f1_quad_fullx_DIS,
@@ -83,8 +123,8 @@ DIS_FIT_MODEL_REGISTRY = {
         "curve_label": "Full-x DIS Fit",
         "comparison_color": "tab:red",
     },
-    "quad_new": {
-        "func": g1f1_quad_new_DIS,
+    "quad_alpha": {
+        "func": g1f1_quad_alpha_DIS,
         "param_names": ["alpha", "a", "b", "c", "beta"],
         "init": [0.66084205, -0.23606144, -1.25499178, 2.65987975, 0.09666789],
         "bounds": (
@@ -92,16 +132,37 @@ DIS_FIT_MODEL_REGISTRY = {
             [np.inf, np.inf, 0.0, np.inf, np.inf],
         ),
         "partials": [
-            partial_alpha_new,
-            partial_a_new,
-            partial_b_new,
-            partial_c_new,
-            partial_beta_new,
+            partial_alpha_quad_alpha,
+            partial_a_quad_alpha,
+            partial_b_quad_alpha,
+            partial_c_quad_alpha,
+            partial_beta_quad_alpha,
         ],
         "beta_index": 4,
         "display_name": "Power-Law Quadratic",
-        "curve_label": "Power-Law Quadratic DIS Fit",
+        "curve_label": "Power-Law Quadratic Alpha DIS Fit",
         "comparison_color": "tab:orange",
+    },
+    "cubic_alpha": {
+        "func": g1f1_cubic_alpha_DIS,
+        "param_names": ["alpha", "a", "b", "c", "d", "beta"],
+        "init": [0.66084205, -0.23606144, -1.25499178, 2.65987975, -0.22, 0.09666789],
+        "bounds": (
+            [-np.inf, -np.inf, -np.inf, 0.0, -np.inf, -np.inf],
+            [np.inf, np.inf, 0.0, np.inf, np.inf, np.inf],
+        ),
+        "partials": [
+            partial_alpha_cubic_alpha,
+            partial_a_cubic_alpha,
+            partial_b_cubic_alpha,
+            partial_c_cubic_alpha,
+            partial_d_cubic_alpha,
+            partial_beta_cubic_alpha,
+        ],
+        "beta_index": 5,
+        "display_name": "Power-Law Cubic",
+        "curve_label": "Power-Law Cubic Alpha DIS Fit",
+        "comparison_color": "tab:brown",
     },
     "quad2": {
         "func": g1f1_quad2_DIS,
@@ -142,12 +203,18 @@ DIS_FIT_MODEL_REGISTRY = {
 }
 
 
-DIS_FIT_MODEL_ORDER = ("fullx", "quad_new", "quad2", "quad", "cubic")
+DIS_FIT_MODEL_ORDER = ("fullx", "quad_alpha", "cubic_alpha", "quad2", "quad", "cubic")
 
 DIS_FIT_MODEL_ALIASES = {
     "full_x": "fullx",
-    "quadnew": "quad_new",
-    "new": "quad_new",
+    "quad_alpha": "quad_alpha",
+    "quadnew": "quad_alpha",
+    "quad_new": "quad_alpha",
+    "cubicalpha": "cubic_alpha",
+    "cubic_alpha": "cubic_alpha",
+    "cubicnew": "cubic_alpha",
+    "cubic_new": "cubic_alpha",
+    "new": "quad_alpha",
     "quadratic": "quad",
     "constrained_quadratic": "quad2",
 }

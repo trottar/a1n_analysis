@@ -1,0 +1,220 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\title{DIS Fit Model Mapping Reference}
+\author{a1n\_analysis}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Purpose}
+
+This note documents the Deep Inelastic Scattering (DIS) fit models currently
+wired into the \texttt{a1n\_analysis} pipeline through
+\texttt{src/dis\_fit\_models.py}.  For each selectable model key, this note
+records the functional form, parameter ordering, and the partial-derivative
+mapping used for uncertainty propagation through \texttt{fit\_error(...)}.
+
+\section{Selector Keys}
+
+\begin{longtable}{llll}
+\toprule
+Model key & Python function & Display name & Beta index \\
+\midrule
+\texttt{fullx}        & \texttt{g1f1\_quad\_fullx\_DIS}   & Full-x Quadratic      & 4 \\
+\texttt{quad\_alpha}  & \texttt{g1f1\_quad\_alpha\_DIS}   & Power-Law Quadratic   & 4 \\
+\texttt{cubic\_alpha} & \texttt{g1f1\_cubic\_alpha\_DIS}  & Power-Law Cubic       & 5 \\
+\texttt{quad2}        & \texttt{g1f1\_quad2\_DIS}         & Constrained Quadratic & 3 \\
+\texttt{quad}         & \texttt{g1f1\_quad\_DIS}          & Quadratic             & 3 \\
+\texttt{cubic}        & \texttt{g1f1\_cubic\_DIS}         & Cubic                 & 4 \\
+\bottomrule
+\end{longtable}
+
+Backward-compatible aliases accepted by the code:
+\begin{itemize}
+\item \texttt{quad\_new} $\rightarrow$ \texttt{quad\_alpha}
+\item \texttt{cubic\_new} $\rightarrow$ \texttt{cubic\_alpha}
+\item \texttt{quadnew} $\rightarrow$ \texttt{quad\_alpha}
+\item \texttt{cubicnew} $\rightarrow$ \texttt{cubic\_alpha}
+\end{itemize}
+
+The special selector \texttt{DIS\_FIT\_MODEL = "all"} does not define a new
+functional form.  It runs all supported models and selects the one minimizing
+\[
+\left| \chi^2_{\mathrm{red}} - 1 \right|.
+\]
+
+\section{Model-by-Model Mapping}
+
+\subsection{\texttt{fullx}}
+
+Parameter order:
+\[
+(\alpha, a, b, c, \beta, d, x_0, \sigma).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+x^\alpha
+\left[
+a + bx + cx^2 + d \exp\!\left(-\frac{1}{2}\left(\frac{x-x_0}{\sigma}\right)^2\right)
+\right]
+\left(1 + \frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+\alpha &\rightarrow \texttt{partial\_alpha\_fullx}, &
+a      &\rightarrow \texttt{partial\_a\_fullx}, \\
+b      &\rightarrow \texttt{partial\_b\_fullx}, &
+c      &\rightarrow \texttt{partial\_c\_fullx}, \\
+\beta  &\rightarrow \texttt{partial\_beta\_fullx}, &
+d      &\rightarrow \texttt{partial\_d\_fullx}, \\
+x_0    &\rightarrow \texttt{partial\_x0\_fullx}, &
+\sigma &\rightarrow \texttt{partial\_sigma\_fullx}.
+\end{align*}
+
+\subsection{\texttt{quad\_alpha}}
+
+Parameter order:
+\[
+(\alpha, a, b, c, \beta).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+x^\alpha (a + bx + cx^2)\left(1 + \frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+\alpha &\rightarrow \texttt{partial\_alpha\_quad\_alpha}, &
+a      &\rightarrow \texttt{partial\_a\_quad\_alpha}, \\
+b      &\rightarrow \texttt{partial\_b\_quad\_alpha}, &
+c      &\rightarrow \texttt{partial\_c\_quad\_alpha}, \\
+\beta  &\rightarrow \texttt{partial\_beta\_quad\_alpha}.
+\end{align*}
+
+\subsection{\texttt{cubic\_alpha}}
+
+Parameter order:
+\[
+(\alpha, a, b, c, d, \beta).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+x^\alpha (a + bx + cx^2 + dx^3)\left(1 + \frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+\alpha &\rightarrow \texttt{partial\_alpha\_cubic\_new}, &
+a      &\rightarrow \texttt{partial\_a\_cubic\_new}, \\
+b      &\rightarrow \texttt{partial\_b\_cubic\_new}, &
+c      &\rightarrow \texttt{partial\_c\_cubic\_new}, \\
+d      &\rightarrow \texttt{partial\_d\_cubic\_new}, &
+\beta  &\rightarrow \texttt{partial\_beta\_cubic\_new}.
+\end{align*}
+
+\subsection{\texttt{quad2}}
+
+Parameter order:
+\[
+(x_0, y_0, c, \beta).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+\left[c(x-x_0)^2 + y_0\right]\left(1+\frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+x_0   &\rightarrow \texttt{partial\_x0}, &
+y_0   &\rightarrow \texttt{partial\_y0}, \\
+c     &\rightarrow \texttt{partial\_c4}, &
+\beta &\rightarrow \texttt{partial\_beta4}.
+\end{align*}
+
+\subsection{\texttt{quad}}
+
+Parameter order:
+\[
+(a, b, c, \beta).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+(a + bx + cx^2)\left(1+\frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+a     &\rightarrow \texttt{partial\_a2}, &
+b     &\rightarrow \texttt{partial\_b2}, \\
+c     &\rightarrow \texttt{partial\_c2}, &
+\beta &\rightarrow \texttt{partial\_beta2}.
+\end{align*}
+
+\subsection{\texttt{cubic}}
+
+Parameter order:
+\[
+(a, b, c, d, \beta).
+\]
+
+Functional form:
+\begin{equation}
+\frac{g_1}{F_1}(x,Q^2)
+=
+(a + bx + cx^2 + dx^3)\left(1+\frac{\beta}{Q^2}\right).
+\end{equation}
+
+Partials used by the code:
+\begin{align*}
+a     &\rightarrow \texttt{partial\_a3}, &
+b     &\rightarrow \texttt{partial\_b3}, \\
+c     &\rightarrow \texttt{partial\_c3}, &
+d     &\rightarrow \texttt{partial\_d3}, \\
+\beta &\rightarrow \texttt{partial\_beta3}.
+\end{align*}
+
+\section{Legacy Partial Naming Note}
+
+The comment in \texttt{src/functions.py}
+\begin{quote}
+\texttt{\# partial functions for quadratic and cubic forms} \\
+\texttt{\# 2 means for quad form, 3 means for cubic form}
+\end{quote}
+describes only a legacy subset of derivative names:
+\begin{itemize}
+\item \texttt{*2} for the plain quadratic model,
+\item \texttt{*3} for the plain cubic model,
+\item \texttt{*4} for the constrained quadratic model,
+\item \texttt{*\_fullx} for the full-x quadratic model,
+\item \texttt{*\_new} for the original power-law quadratic notation.
+\end{itemize}
+
+The active model selection path does not infer derivative mappings from that
+comment.  Instead, \texttt{src/dis\_fit\_models.py} explicitly binds each model
+key to its fit function, parameter order, and partial list.
+
+\end{document}

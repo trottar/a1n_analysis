@@ -806,11 +806,25 @@ def g1f1_quad_DIS(x_q2, a, b , c, beta):
 def g1f1_quad2_DIS(x_q2, x0, y0, c, beta):
   return (c*(x_q2[0]-x0)**2+y0)*(1+(beta/x_q2[1]))
 
-# Table F.1 from XZ's thesis
-#def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, d, beta):
-#    return (x_q2[0]**alpha) * (a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0]) * (1+(beta/x_q2[1]))
-def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, beta):
+# Canonical alpha-prefactor quadratic DIS form
+def g1f1_quad_alpha_DIS(x_q2, alpha, a, b, c, beta):
     return (x_q2[0]**alpha) * (a + b*x_q2[0] + c*x_q2[0]*x_q2[0]) * (1+(beta/x_q2[1]))
+
+
+# Canonical alpha-prefactor cubic DIS form
+def g1f1_cubic_alpha_DIS(x_q2, alpha, a, b, c, d, beta):
+    return (x_q2[0]**alpha) * (
+        a + b*x_q2[0] + c*x_q2[0]*x_q2[0] + d*x_q2[0]*x_q2[0]*x_q2[0]
+    ) * (1 + (beta / x_q2[1]))
+
+
+# Backward-compatible aliases for historical *_new naming.
+def g1f1_quad_new_DIS(x_q2, alpha, a, b, c, beta):
+    return g1f1_quad_alpha_DIS(x_q2, alpha, a, b, c, beta)
+
+
+def g1f1_cubic_new_DIS(x_q2, alpha, a, b, c, d, beta):
+    return g1f1_cubic_alpha_DIS(x_q2, alpha, a, b, c, d, beta)
 
 # Modified Table F.1 from XZ's thesis with fit for full x range
 def g1f1_quad_fullx_DIS(x_q2, alpha, a, b, c, beta, d, x0, sigma):

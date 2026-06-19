@@ -18,7 +18,7 @@ from utility import src_path
 
 ##################################################################################################################################################
 
-def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf):
+def plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf):
 
     # Load configuration
     with open(src_path("config.json"), "r") as f:
@@ -53,7 +53,7 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
     # Plot fit and fit error
     ax1.plot(
-        x, quad_new_fit_curve,
+        x, dis_fit_curve,
         label=(
             f"{dis_fit_params['model_display_name']} Fit, $Q^2=5\\ {{GeV}}^2$"
             + f" $\\chi_v^2={dis_fit_params['chi2_quad']:.2f}$"
@@ -63,7 +63,7 @@ def plot_dis_x(x, quad_new_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
     )
 
     ax1.fill_between(
-        x, quad_new_fit_curve - quad_fit_err, quad_new_fit_curve + quad_fit_err,
+        x, dis_fit_curve - quad_fit_err, dis_fit_curve + quad_fit_err,
         alpha=0.5, color=config["colors"]["error_band"]
     )
 

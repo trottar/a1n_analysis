@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-04-22 01:16:03 trottar"
+# Time-stamp: "2026-06-17 17:45:25 trottar"
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -38,7 +38,7 @@ w_res_max = 1.45
 # DATASET_MODE = "legacy"
 # DATASET_MODE = "2025"
 # DATASET_MODE = "6gev"
-DATASET_MODE = "legacy"
+DATASET_MODE = "6gev"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
@@ -47,7 +47,7 @@ DATASET_MODE = "legacy"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "fullx"
+DIS_FIT_MODEL = "all"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

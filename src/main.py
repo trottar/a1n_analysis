@@ -47,7 +47,7 @@ DATASET_MODE = "2025"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "quad_new"
+DIS_FIT_MODEL = "cubic"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

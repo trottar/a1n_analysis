@@ -37,7 +37,7 @@ from utility import src_path
 
 ##################################################################################################################################################
 
-ALL_FIT_LINE_STYLES = [
+ALL_DIS_MODEL_LINE_STYLES = [
     "-",
     "--",
     "-.",
@@ -157,84 +157,60 @@ def get_g1f1_W_fits(
             float(result.get("chi2_quad", np.inf)),
         ),
     )
-    overlay_all_dis_models = requested_model_key == "all" and len(ordered_dis_fit_results) > 1
-    selected_dis_model_key = dis_fit_params.get("model_key")
+    propagate_dis_fit_family = requested_model_key == "all" and len(ordered_dis_fit_results) > 1
 
-    def iter_dis_fit_variants(default_linestyle):
-        if overlay_all_dis_models:
-            for idx, dis_result in enumerate(ordered_dis_fit_results):
-                yield (
-                    dis_result,
-                    ALL_FIT_LINE_STYLES[idx % len(ALL_FIT_LINE_STYLES)],
-                    config["error_bar"]["line_width"] * (
-                        1.35 if dis_result.get("model_key") == selected_dis_model_key else 1.0
-                    ),
-                )
-            return
+    def iter_dis_fit_results():
+        if propagate_dis_fit_family:
+            return ordered_dis_fit_results
+        return [dis_fit_params]
 
-        yield dis_fit_params, default_linestyle, config["error_bar"]["line_width"]
+    def dis_model_name(dis_result):
+        return str(dis_result.get("model_key", dis_result.get("curve_label", "dis")))
 
-    def dis_model_label(dis_result, include_beta=False):
-        if overlay_all_dis_models:
-            chi2_val = dis_result.get("chi2_quad")
-            if chi2_val is not None and np.isfinite(chi2_val):
-                return f"{dis_result['model_key']}: $\\chi_v^2$={chi2_val:.2f}"
-            return str(dis_result.get("model_key", "dis"))
+    def dis_model_linestyle(index, fallback):
+        if propagate_dis_fit_family:
+            return ALL_DIS_MODEL_LINE_STYLES[index % len(ALL_DIS_MODEL_LINE_STYLES)]
+        return fallback
 
-        if include_beta:
-            return f"{dis_fit_params['curve_label']}, $\\beta$ = {beta_val:.4f}"
-        return dis_fit_params["curve_label"]
+    def dis_model_linewidth(index):
+        base_width = config["error_bar"]["line_width"]
+        if propagate_dis_fit_family and index == 0:
+            return base_width * 1.25
+        return base_width
 
-    def plot_complete_fit_family(ax, x_axis_values, w_res, q2, y_bw, y_bw_bump, damping_dis, data_w, data_y, data_y_err):
-        q2_array = np.full_like(w_res, q2)
-        x_dis = W_to_x(w_res, q2_array)
+    def build_dis_model_curve_set(dis_result, q2, w_values, y_bw=None, damping_dis=None):
+        q2_array = np.full_like(w_values, q2, dtype=np.double)
+        x_values = W_to_x(w_values, q2_array)
+        y_dis = evaluate_dis_fit(dis_result, x_values, q2_array)
 
-        if overlay_all_dis_models:
-            for dis_result, linestyle, line_width in iter_dis_fit_variants("solid"):
-                y_dis_variant = evaluate_dis_fit(dis_result, x_dis, q2_array)
-                y_transition_variant = y_bw_bump + (y_bw - y_dis_variant)
-                y_complete_variant = y_transition_variant * damping_dis + y_dis_variant
-                y_complete_variant = np.nan_to_num(y_complete_variant, nan=0.0)
+        curve_set = {
+            "model_name": dis_model_name(dis_result),
+            "x": x_values,
+            "y_dis": y_dis,
+        }
 
-                interp_func_variant = interp1d(
-                    w_res,
-                    y_complete_variant,
-                    kind='linear',
-                    bounds_error=False,
-                    fill_value="extrapolate",
-                )
-                y_complete_interpolated_variant = interp_func_variant(data_w)
-                nu_variant = abs(len(y_complete_interpolated_variant) - len([w_dis_transition, damping_dis_width]))
-                chi2_variant = red_chi_sqr(y_complete_interpolated_variant, data_y, data_y_err, nu_variant)
+        if y_bw is None:
+            return curve_set
 
-                ax.plot(
-                    x_axis_values,
-                    y_complete_variant,
-                    color=dis_result["comparison_color"],
-                    linestyle=linestyle,
-                    linewidth=line_width,
-                    label=f"{dis_result['model_key']}: $\\chi_v^2$={chi2_variant:.2f}",
-                )
-            return
-
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, q2_array)
+        k_new = k_new_new(q2)
+        y_bw_bump = breit_wigner_bump(w_values, 1.55, k_new, 0.25)
         y_transition = y_bw_bump + (y_bw - y_dis)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)
+        curve_set["y_transition"] = y_transition
 
-        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
+        if damping_dis is None:
+            return curve_set
+
+        curve_set["y_dis_damped"] = (1 - damping_dis) * y_dis
+        curve_set["y_transition_damped"] = y_transition * damping_dis
+        curve_set["y_complete"] = np.nan_to_num(y_transition * damping_dis + y_dis, nan=0.0)
+        return curve_set
+
+    def compute_complete_curve_chi2(w_values, y_complete, data_w, data_y, data_y_err):
+        interp_func = interp1d(w_values, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
         y_complete_interpolated = interp_func(data_w)
-        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
+        nu = abs(len(y_complete_interpolated) - 2)
         chi2 = red_chi_sqr(y_complete_interpolated, data_y, data_y_err, nu)
-
-        ax.plot(
-            x_axis_values,
-            y_complete,
-            color=config["colors"]["scatter"],
-            linestyle="solid",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"$\\chi_v^2$={chi2:.2f}",
-        )
+        return chi2, y_complete_interpolated
 
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
@@ -284,19 +260,19 @@ def get_g1f1_W_fits(
         w_dis = np.linspace(2.0, 3.0, 1000)
         q2_array = np.ones(w_dis.size) * q2
         x_dis = W_to_x(w_dis, q2_array)
-        for dis_result, linestyle, line_width in iter_dis_fit_variants("--"):
-            y_dis = evaluate_dis_fit(dis_result, x_dis, q2_array)
-            line_color = (
-                dis_result["comparison_color"]
-                if overlay_all_dis_models
-                else config["colors"]["error_band"]
+        for idx, dis_result in enumerate(iter_dis_fit_results()):
+            curve_set = build_dis_model_curve_set(dis_result, q2, w_dis)
+            line_label = (
+                f"{curve_set['model_name']}, $\\beta$ = {dis_result['beta_val']:.4f}"
+                if propagate_dis_fit_family
+                else f"{dis_fit_params['curve_label']}, $\\beta$ = {beta_val:.4f}"
             )
             axs[row, col].plot(
-                w_dis, y_dis,
-                color=line_color,
-                linestyle=linestyle,
-                label=dis_model_label(dis_result, include_beta=True),
-                linewidth=line_width
+                w_dis, curve_set["y_dis"],
+                color=config["colors"]["error_band"],
+                linestyle=dis_model_linestyle(idx, "--"),
+                label=line_label,
+                linewidth=dis_model_linewidth(idx)
             )
 
         axs[row, col].errorbar(
@@ -453,13 +429,10 @@ def get_g1f1_W_fits(
             k_nucl_err, gamma_nucl_err, mass_nucl_err
         ):
             y_bw = breit_wigner_res(w_res, mass, k, gamma)
-            x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-            y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
-
-            k_new = k_new_new(q2)
-            y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
-            y_transition = y_bw_bump + (y_bw - y_dis)
             damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
+            selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+            y_dis = selected_curve_set["y_dis"]
+            y_transition = selected_curve_set["y_transition"]
 
             axs[row, col].plot(
                 w_res, y_transition,
@@ -480,28 +453,31 @@ def get_g1f1_W_fits(
                 label=f"y_transition * damping_dis"
             )
 
-            y_complete = y_transition * damping_dis + y_dis
-            y_complete = np.nan_to_num(y_complete, nan=0.0)            
-            axs[row, col].plot(
-                w_res, y_complete,
-                color=config["colors"]["grid"], linestyle="solid",
-                linewidth=config["error_bar"]["line_width"],
-                label=f"y_complete"
-            )
-
-            if overlay_all_dis_models:
-                q2_array = np.full_like(w_res, q2)
-                x_dis = W_to_x(w_res, q2_array)
-                for dis_result, linestyle, line_width in iter_dis_fit_variants(":"):
-                    y_dis_variant = evaluate_dis_fit(dis_result, x_dis, q2_array)
+            if propagate_dis_fit_family:
+                for idx, dis_result in enumerate(iter_dis_fit_results()):
+                    curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
                     axs[row, col].plot(
-                        w_res, y_dis_variant,
-                        color=dis_result["comparison_color"],
-                        linestyle=linestyle,
-                        linewidth=line_width,
-                        label=f"{dis_result['model_key']} y_dis"
+                        w_res, curve_set["y_complete"],
+                        color=config["colors"]["grid"],
+                        linestyle=dis_model_linestyle(idx, "solid"),
+                        linewidth=dis_model_linewidth(idx),
+                        label=f"y_complete ({curve_set['model_name']})"
+                    )
+                    axs[row, col].plot(
+                        w_res, curve_set["y_dis"],
+                        color="purple",
+                        linestyle=dis_model_linestyle(idx, ":"),
+                        linewidth=dis_model_linewidth(idx),
+                        label=f"y_dis ({curve_set['model_name']})"
                     )
             else:
+                axs[row, col].plot(
+                    w_res, selected_curve_set["y_complete"],
+                    color=config["colors"]["grid"], linestyle="solid",
+                    linewidth=config["error_bar"]["line_width"],
+                    label=f"y_complete"
+                )
+
                 axs[row, col].plot(
                     w_res, y_dis,
                     color="purple", linestyle=":",
@@ -584,23 +560,19 @@ def get_g1f1_W_fits(
         ))
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
-        x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
-
-        k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
-        y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
-        y_transition = y_bw_bump + (y_bw - y_dis)
 
         damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)        
+        selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+        y_complete = selected_curve_set["y_complete"]
 
-        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
-        y_complete_interpolated = interp_func(res_df['W'][res_df['Q2_labels'] == l])
-
-        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
-        chi2 = red_chi_sqr(y_complete_interpolated, res_df['G1F1'][res_df['Q2_labels'] == l], res_df['G1F1.err'][res_df['Q2_labels'] == l], nu)
+        chi2, y_complete_interpolated = compute_complete_curve_chi2(
+            w_res,
+            y_complete,
+            res_df['W'][res_df['Q2_labels'] == l],
+            res_df['G1F1'][res_df['Q2_labels'] == l],
+            res_df['G1F1.err'][res_df['Q2_labels'] == l],
+        )
 
         # Compute Residuals
         residuals, normalized_residuals = calculate_fit_residuals(
@@ -611,18 +583,31 @@ def get_g1f1_W_fits(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        plot_complete_fit_family(
-            axs[row, col],
-            w_res,
-            w_res,
-            q2,
-            y_bw,
-            y_bw_bump,
-            damping_dis,
-            res_df['W'][res_df['Q2_labels'] == l],
-            res_df['G1F1'][res_df['Q2_labels'] == l],
-            res_df['G1F1.err'][res_df['Q2_labels'] == l],
-        )
+        if propagate_dis_fit_family:
+            for idx, dis_result in enumerate(iter_dis_fit_results()):
+                curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+                variant_chi2, _ = compute_complete_curve_chi2(
+                    w_res,
+                    curve_set["y_complete"],
+                    res_df['W'][res_df['Q2_labels'] == l],
+                    res_df['G1F1'][res_df['Q2_labels'] == l],
+                    res_df['G1F1.err'][res_df['Q2_labels'] == l],
+                )
+                axs[row, col].plot(
+                    w_res, curve_set["y_complete"],
+                    color=config["colors"]["scatter"],
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
+                )
+        else:
+            axs[row, col].plot(
+                w_res, y_complete,
+                color=config["colors"]["scatter"],
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"$\\chi_v^2$={chi2:.2f}",
+            )
 
         axs[row, col].errorbar(
             res_df['W'][res_df['Q2_labels'] == l],
@@ -748,22 +733,20 @@ def get_g1f1_W_fits(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
-
-        k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
-        y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
-        y_transition = y_bw_bump + (y_bw - y_dis)
 
         damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)        
+        selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+        y_dis = selected_curve_set["y_dis"]
+        y_complete = selected_curve_set["y_complete"]
 
-        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
-        y_complete_interpolated = interp_func(res_df['W'][res_df['Q2_labels'] == l])
-
-        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
-        chi2 = red_chi_sqr(y_complete_interpolated, res_df['G1F1'][res_df['Q2_labels'] == l], res_df['G1F1.err'][res_df['Q2_labels'] == l], nu)
+        chi2, y_complete_interpolated = compute_complete_curve_chi2(
+            w_res,
+            y_complete,
+            res_df['W'][res_df['Q2_labels'] == l],
+            res_df['G1F1'][res_df['Q2_labels'] == l],
+            res_df['G1F1.err'][res_df['Q2_labels'] == l],
+        )
 
         # Compute Residuals
         residuals, normalized_residuals = calculate_fit_residuals(
@@ -774,20 +757,39 @@ def get_g1f1_W_fits(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        plot_complete_fit_family(
-            axs[row, col],
-            x_dis,
-            w_res,
-            q2,
-            y_bw,
-            y_bw_bump,
-            damping_dis,
-            res_df['W'][res_df['Q2_labels'] == l],
-            res_df['G1F1'][res_df['Q2_labels'] == l],
-            res_df['G1F1.err'][res_df['Q2_labels'] == l],
-        )
+        if propagate_dis_fit_family:
+            for idx, dis_result in enumerate(iter_dis_fit_results()):
+                curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+                variant_chi2, _ = compute_complete_curve_chi2(
+                    w_res,
+                    curve_set["y_complete"],
+                    res_df['W'][res_df['Q2_labels'] == l],
+                    res_df['G1F1'][res_df['Q2_labels'] == l],
+                    res_df['G1F1.err'][res_df['Q2_labels'] == l],
+                )
+                axs[row, col].plot(
+                    curve_set["x"], curve_set["y_complete"],
+                    color=config["colors"]["scatter"],
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
+                )
+                axs[row, col].plot(
+                    curve_set["x"], curve_set["y_dis"],
+                    color=config["colors"]["fit"],
+                    linestyle=dis_model_linestyle(idx, "-."),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"y_dis ({curve_set['model_name']})",
+                )
+        else:
+            axs[row, col].plot(
+                x_dis, y_complete,
+                color=config["colors"]["scatter"],
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"$\\chi_v^2$={chi2:.2f}",
+            )
 
-        if not overlay_all_dis_models:
             axs[row, col].plot(
                 x_dis, y_dis,
                 color=config["colors"]["fit"],
@@ -1081,23 +1083,19 @@ def get_g1f1_W_fits_q2_bin(
         ))
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
-        x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
-
-        k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
-        y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
-        y_transition = y_bw_bump + (y_bw - y_dis)
 
         damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)        
+        selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+        y_complete = selected_curve_set["y_complete"]
 
-        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
-        y_complete_interpolated = interp_func(g1f1_df['W'][g1f1_df['Q2_labels'] == l])
-
-        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
-        chi2 = red_chi_sqr(y_complete_interpolated, g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l], g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l], nu)
+        chi2, y_complete_interpolated = compute_complete_curve_chi2(
+            w_res,
+            y_complete,
+            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
+        )
 
         # Compute Residuals
         residuals, normalized_residuals = calculate_fit_residuals(
@@ -1108,18 +1106,31 @@ def get_g1f1_W_fits_q2_bin(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        plot_complete_fit_family(
-            axs[row, col],
-            w_res,
-            w_res,
-            q2,
-            y_bw,
-            y_bw_bump,
-            damping_dis,
-            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
-            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
-            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
-        )
+        if propagate_dis_fit_family:
+            for idx, dis_result in enumerate(iter_dis_fit_results()):
+                curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+                variant_chi2, _ = compute_complete_curve_chi2(
+                    w_res,
+                    curve_set["y_complete"],
+                    g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+                    g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+                    g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
+                )
+                axs[row, col].plot(
+                    w_res, curve_set["y_complete"],
+                    color=config["colors"]["scatter"],
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
+                )
+        else:
+            axs[row, col].plot(
+                w_res, y_complete,
+                color=config["colors"]["scatter"],
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"$\\chi_v^2$={chi2:.2f}",
+            )
 
         axs[row, col].errorbar(
             g1f1_df['W'][g1f1_df['Q2_labels'] == l],
@@ -1251,22 +1262,20 @@ def get_g1f1_W_fits_q2_bin(
 
         y_bw = breit_wigner_res(w_res, mass, k, gamma)
         x_dis = W_to_x(w_res, np.full_like(w_res, q2))
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, np.full_like(w_res, q2))
-
-        k_new = k_new_new(q2)
         k_new_err = k_new_new_err(q2, 0.01)  # 1% Q2 error
-        y_bw_bump = breit_wigner_bump(w_res, 1.55, k_new, 0.25)
-        y_transition = y_bw_bump + (y_bw - y_dis)
 
         damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)        
+        selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+        y_dis = selected_curve_set["y_dis"]
+        y_complete = selected_curve_set["y_complete"]
 
-        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
-        y_complete_interpolated = interp_func(g1f1_df['W'][g1f1_df['Q2_labels'] == l])
-
-        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
-        chi2 = red_chi_sqr(y_complete_interpolated, g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l], g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l], nu)
+        chi2, y_complete_interpolated = compute_complete_curve_chi2(
+            w_res,
+            y_complete,
+            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
+        )
 
         # Compute Residuals
         residuals, normalized_residuals = calculate_fit_residuals(
@@ -1277,20 +1286,39 @@ def get_g1f1_W_fits_q2_bin(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        plot_complete_fit_family(
-            axs[row, col],
-            x_dis,
-            w_res,
-            q2,
-            y_bw,
-            y_bw_bump,
-            damping_dis,
-            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
-            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
-            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
-        )
+        if propagate_dis_fit_family:
+            for idx, dis_result in enumerate(iter_dis_fit_results()):
+                curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+                variant_chi2, _ = compute_complete_curve_chi2(
+                    w_res,
+                    curve_set["y_complete"],
+                    g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+                    g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+                    g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
+                )
+                axs[row, col].plot(
+                    curve_set["x"], curve_set["y_complete"],
+                    color=config["colors"]["scatter"],
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
+                )
+                axs[row, col].plot(
+                    curve_set["x"], curve_set["y_dis"],
+                    color=config["colors"]["fit"],
+                    linestyle=dis_model_linestyle(idx, "-."),
+                    linewidth=dis_model_linewidth(idx),
+                    label=f"y_dis ({curve_set['model_name']})",
+                )
+        else:
+            axs[row, col].plot(
+                x_dis, y_complete,
+                color=config["colors"]["scatter"],
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"$\\chi_v^2$={chi2:.2f}",
+            )
 
-        if not overlay_all_dis_models:
             axs[row, col].plot(
                 x_dis, y_dis,
                 color=config["colors"]["fit"],

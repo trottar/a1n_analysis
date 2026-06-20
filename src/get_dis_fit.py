@@ -141,6 +141,21 @@ def _dis_fit_ranking_key(result):
     return (float(result["chi2_distance_from_unity"]), float(result["chi2_quad"]))
 
 
+ALL_FIT_LINE_STYLES = [
+    "-",
+    "--",
+    "-.",
+    ":",
+    (0, (5, 1)),
+    (0, (3, 1, 1, 1)),
+    (0, (1, 1)),
+]
+
+
+def _ordered_fit_results(fit_results):
+    return sorted(fit_results, key=_dis_fit_ranking_key)
+
+
 def _randomize_init(params_init, bounds):
     params_init = np.asarray(params_init, dtype=float)
     if bounds is None:
@@ -340,8 +355,10 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
     with open(src_path("config.json"), "r") as handle:
         config = json.load(handle)
 
-    ordered_results = sorted(fit_results, key=_dis_fit_ranking_key)
+    ordered_results = _ordered_fit_results(fit_results)
     best_model_key = ordered_results[0]["model_key"]
+    sort_idx = np.argsort(np.asarray(dis_df["X"], dtype=float))
+    x_sorted = np.asarray(dis_df["X"], dtype=float)[sort_idx]
 
     fig, axs = plt.subplots(2, 1, figsize=(18, 10), gridspec_kw={"height_ratios": [3, 1]})
 
@@ -360,11 +377,13 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
     )
 
     for result in ordered_results:
-        line_width = 2.5 if result["model_key"] == best_model_key else 1.5
+        style_index = ordered_results.index(result) % len(ALL_FIT_LINE_STYLES)
+        line_width = 2.3 if result["model_key"] == best_model_key else 1.6
         axs[0].plot(
             x_dense,
             result["fit_vals"],
             color=result["comparison_color"],
+            linestyle=ALL_FIT_LINE_STYLES[style_index],
             linewidth=line_width,
             label=(
                 f"{result['model_key']}: $\\chi^2_{{red}}$={result['chi2_quad']:.2f}"
@@ -385,17 +404,26 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
             color=config["colors"]["grid"],
         )
 
-    model_labels = [result["model_key"] for result in ordered_results]
-    chi2_values = [result["chi2_quad"] for result in ordered_results]
-    bar_colors = [result["comparison_color"] for result in ordered_results]
-    axs[1].bar(model_labels, chi2_values, color=bar_colors)
-    axs[1].set_ylabel("$\\chi^2_{red}$", fontsize=config["font_sizes"]["y_axis"])
-    axs[1].set_xlabel("DIS model", fontsize=config["font_sizes"]["x_axis"])
+    for result in ordered_results:
+        style_index = ordered_results.index(result) % len(ALL_FIT_LINE_STYLES)
+        residuals_sorted = np.asarray(result["residuals"], dtype=float)[sort_idx]
+        axs[1].plot(
+            x_sorted,
+            residuals_sorted,
+            color=result["comparison_color"],
+            linestyle=ALL_FIT_LINE_STYLES[style_index],
+            linewidth=1.5,
+            label=result["model_key"],
+        )
+
+    axs[1].axhline(y=0.0, color=config["colors"]["error_band"], linestyle="-", alpha=0.5)
+    axs[1].set_ylabel("Residuals ($\\sigma$)", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
 
     if config["grid"]["enabled"]:
         axs[1].grid(
             True,
-            axis="y",
             linestyle=config["grid"]["line_style"],
             linewidth=config["grid"]["line_width"],
             alpha=config["grid"]["alpha"],
@@ -450,10 +478,11 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_t
     else:
         selected_result = fit_results[0]
 
-    _plot_active_dis_fit(selected_result, dis_df, x_dense, q2_dense, pdf)
-    if len(fit_results) > 1:
+    if requested_model_key == "all" and len(fit_results) > 1:
         _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf)
         _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, failed_results)
+    else:
+        _plot_active_dis_fit(selected_result, dis_df, x_dense, q2_dense, pdf)
 
     _save_dis_fit_summary(dataset_tag, dis_df, selected_result, requested_model_key)
     selected_result["comparison_results"] = fit_results

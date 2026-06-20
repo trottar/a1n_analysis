@@ -37,6 +37,16 @@ from utility import src_path
 
 ##################################################################################################################################################
 
+ALL_FIT_LINE_STYLES = [
+    "-",
+    "--",
+    "-.",
+    ":",
+    (0, (5, 1)),
+    (0, (3, 1, 1, 1)),
+    (0, (1, 1)),
+]
+
 def get_g1f1_W_fits(
         w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
         res_df, dis_fit_params, dis_transition_fit,
@@ -139,6 +149,93 @@ def get_g1f1_W_fits(
     with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
+    requested_model_key = dis_fit_params.get("requested_model_key", dis_fit_params.get("model_key"))
+    ordered_dis_fit_results = sorted(
+        dis_fit_params.get("comparison_results", [dis_fit_params]),
+        key=lambda result: (
+            float(result.get("chi2_distance_from_unity", abs(float(result.get("chi2_quad", np.inf)) - 1.0))),
+            float(result.get("chi2_quad", np.inf)),
+        ),
+    )
+    overlay_all_dis_models = requested_model_key == "all" and len(ordered_dis_fit_results) > 1
+    selected_dis_model_key = dis_fit_params.get("model_key")
+
+    def iter_dis_fit_variants(default_linestyle):
+        if overlay_all_dis_models:
+            for idx, dis_result in enumerate(ordered_dis_fit_results):
+                yield (
+                    dis_result,
+                    ALL_FIT_LINE_STYLES[idx % len(ALL_FIT_LINE_STYLES)],
+                    config["error_bar"]["line_width"] * (
+                        1.35 if dis_result.get("model_key") == selected_dis_model_key else 1.0
+                    ),
+                )
+            return
+
+        yield dis_fit_params, default_linestyle, config["error_bar"]["line_width"]
+
+    def dis_model_label(dis_result, include_beta=False):
+        if overlay_all_dis_models:
+            chi2_val = dis_result.get("chi2_quad")
+            if chi2_val is not None and np.isfinite(chi2_val):
+                return f"{dis_result['model_key']}: $\\chi_v^2$={chi2_val:.2f}"
+            return str(dis_result.get("model_key", "dis"))
+
+        if include_beta:
+            return f"{dis_fit_params['curve_label']}, $\\beta$ = {beta_val:.4f}"
+        return dis_fit_params["curve_label"]
+
+    def plot_complete_fit_family(ax, x_axis_values, w_res, q2, y_bw, y_bw_bump, damping_dis, data_w, data_y, data_y_err):
+        q2_array = np.full_like(w_res, q2)
+        x_dis = W_to_x(w_res, q2_array)
+
+        if overlay_all_dis_models:
+            for dis_result, linestyle, line_width in iter_dis_fit_variants("solid"):
+                y_dis_variant = evaluate_dis_fit(dis_result, x_dis, q2_array)
+                y_transition_variant = y_bw_bump + (y_bw - y_dis_variant)
+                y_complete_variant = y_transition_variant * damping_dis + y_dis_variant
+                y_complete_variant = np.nan_to_num(y_complete_variant, nan=0.0)
+
+                interp_func_variant = interp1d(
+                    w_res,
+                    y_complete_variant,
+                    kind='linear',
+                    bounds_error=False,
+                    fill_value="extrapolate",
+                )
+                y_complete_interpolated_variant = interp_func_variant(data_w)
+                nu_variant = abs(len(y_complete_interpolated_variant) - len([w_dis_transition, damping_dis_width]))
+                chi2_variant = red_chi_sqr(y_complete_interpolated_variant, data_y, data_y_err, nu_variant)
+
+                ax.plot(
+                    x_axis_values,
+                    y_complete_variant,
+                    color=dis_result["comparison_color"],
+                    linestyle=linestyle,
+                    linewidth=line_width,
+                    label=f"{dis_result['model_key']}: $\\chi_v^2$={chi2_variant:.2f}",
+                )
+            return
+
+        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, q2_array)
+        y_transition = y_bw_bump + (y_bw - y_dis)
+        y_complete = y_transition * damping_dis + y_dis
+        y_complete = np.nan_to_num(y_complete, nan=0.0)
+
+        interp_func = interp1d(w_res, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
+        y_complete_interpolated = interp_func(data_w)
+        nu = abs(len(y_complete_interpolated) - len([w_dis_transition, damping_dis_width]))
+        chi2 = red_chi_sqr(y_complete_interpolated, data_y, data_y_err, nu)
+
+        ax.plot(
+            x_axis_values,
+            y_complete,
+            color=config["colors"]["scatter"],
+            linestyle="solid",
+            linewidth=config["error_bar"]["line_width"],
+            label=f"$\\chi_v^2$={chi2:.2f}",
+        )
+
     n_col = 5
     num_plots = len(res_df['Q2_labels'].unique())
     n_rows = num_plots // n_col + 1
@@ -187,15 +284,20 @@ def get_g1f1_W_fits(
         w_dis = np.linspace(2.0, 3.0, 1000)
         q2_array = np.ones(w_dis.size) * q2
         x_dis = W_to_x(w_dis, q2_array)
-        y_dis = evaluate_dis_fit(dis_fit_params, x_dis, q2_array)
-
-        axs[row, col].plot(
-            w_dis, y_dis,
-            color=config["colors"]["error_band"],
-            linestyle="--",
-            label=f"{dis_fit_params['curve_label']}, $\\beta$ = {beta_val:.4f}",
-            linewidth=config["error_bar"]["line_width"]
-        )
+        for dis_result, linestyle, line_width in iter_dis_fit_variants("--"):
+            y_dis = evaluate_dis_fit(dis_result, x_dis, q2_array)
+            line_color = (
+                dis_result["comparison_color"]
+                if overlay_all_dis_models
+                else config["colors"]["error_band"]
+            )
+            axs[row, col].plot(
+                w_dis, y_dis,
+                color=line_color,
+                linestyle=linestyle,
+                label=dis_model_label(dis_result, include_beta=True),
+                linewidth=line_width
+            )
 
         axs[row, col].errorbar(
             res_df['W'][res_df['Q2_labels'] == l],
@@ -386,12 +488,26 @@ def get_g1f1_W_fits(
                 linewidth=config["error_bar"]["line_width"],
                 label=f"y_complete"
             )
-            axs[row, col].plot(
-                w_res, y_dis,
-                color="purple", linestyle=":",
-                linewidth=config["error_bar"]["line_width"],
-                label=f"y_dis"
-            )
+
+            if overlay_all_dis_models:
+                q2_array = np.full_like(w_res, q2)
+                x_dis = W_to_x(w_res, q2_array)
+                for dis_result, linestyle, line_width in iter_dis_fit_variants(":"):
+                    y_dis_variant = evaluate_dis_fit(dis_result, x_dis, q2_array)
+                    axs[row, col].plot(
+                        w_res, y_dis_variant,
+                        color=dis_result["comparison_color"],
+                        linestyle=linestyle,
+                        linewidth=line_width,
+                        label=f"{dis_result['model_key']} y_dis"
+                    )
+            else:
+                axs[row, col].plot(
+                    w_res, y_dis,
+                    color="purple", linestyle=":",
+                    linewidth=config["error_bar"]["line_width"],
+                    label=f"y_dis"
+                )
 
         axs[row, col].errorbar(
             res_df['W'][res_df['Q2_labels'] == l],
@@ -495,12 +611,17 @@ def get_g1f1_W_fits(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        axs[row, col].plot(
-            w_res, y_complete,
-            color=config["colors"]["scatter"],
-            linestyle="solid",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"$\\chi_v^2$={chi2:.2f}",
+        plot_complete_fit_family(
+            axs[row, col],
+            w_res,
+            w_res,
+            q2,
+            y_bw,
+            y_bw_bump,
+            damping_dis,
+            res_df['W'][res_df['Q2_labels'] == l],
+            res_df['G1F1'][res_df['Q2_labels'] == l],
+            res_df['G1F1.err'][res_df['Q2_labels'] == l],
         )
 
         axs[row, col].errorbar(
@@ -653,21 +774,27 @@ def get_g1f1_W_fits(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        axs[row, col].plot(
-            x_dis, y_complete,
-            color=config["colors"]["scatter"],
-            linestyle="solid",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"$\\chi_v^2$={chi2:.2f}",
+        plot_complete_fit_family(
+            axs[row, col],
+            x_dis,
+            w_res,
+            q2,
+            y_bw,
+            y_bw_bump,
+            damping_dis,
+            res_df['W'][res_df['Q2_labels'] == l],
+            res_df['G1F1'][res_df['Q2_labels'] == l],
+            res_df['G1F1.err'][res_df['Q2_labels'] == l],
         )
 
-        axs[row, col].plot(
-            x_dis, y_dis,
-            color=config["colors"]["fit"],
-            linestyle="-.",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"y_dis",
-        )
+        if not overlay_all_dis_models:
+            axs[row, col].plot(
+                x_dis, y_dis,
+                color=config["colors"]["fit"],
+                linestyle="-.",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"y_dis",
+            )
 
         axs[row, col].errorbar(
             xbj,
@@ -981,12 +1108,17 @@ def get_g1f1_W_fits_q2_bin(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        axs[row, col].plot(
-            w_res, y_complete,
-            color=config["colors"]["scatter"],
-            linestyle="solid",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"$\\chi_v^2$={chi2:.2f}",
+        plot_complete_fit_family(
+            axs[row, col],
+            w_res,
+            w_res,
+            q2,
+            y_bw,
+            y_bw_bump,
+            damping_dis,
+            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
         )
 
         axs[row, col].errorbar(
@@ -1145,21 +1277,27 @@ def get_g1f1_W_fits_q2_bin(
 
         ### **TOP PLOT: Fit vs. Data**
         axs[row, col] = fig.add_subplot(gs[row, col])
-        axs[row, col].plot(
-            x_dis, y_complete,
-            color=config["colors"]["scatter"],
-            linestyle="solid",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"$\\chi_v^2$={chi2:.2f}",
+        plot_complete_fit_family(
+            axs[row, col],
+            x_dis,
+            w_res,
+            q2,
+            y_bw,
+            y_bw_bump,
+            damping_dis,
+            g1f1_df['W'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],
+            g1f1_df['G1F1.err'][g1f1_df['Q2_labels'] == l],
         )
 
-        axs[row, col].plot(
-            x_dis, y_dis,
-            color=config["colors"]["fit"],
-            linestyle="-.",
-            linewidth=config["error_bar"]["line_width"],
-            label=f"y_dis",
-        )
+        if not overlay_all_dis_models:
+            axs[row, col].plot(
+                x_dis, y_dis,
+                color=config["colors"]["fit"],
+                linestyle="-.",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"y_dis",
+            )
         
         axs[row, col].errorbar(
             xbj,g1f1_df['G1F1'][g1f1_df['Q2_labels'] == l],

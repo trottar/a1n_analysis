@@ -32,8 +32,6 @@ from functions import (
     partial_alpha_fullx,
 )
 
-MIN_ALPHA_BOUND = 1.0e-6
-
 
 def partial_alpha_new(x, q2, par):
     alpha, a, b, c, beta = par
@@ -107,7 +105,7 @@ DIS_FIT_MODEL_REGISTRY = {
         "param_names": ["alpha", "a", "b", "c", "beta", "d", "x0", "sigma"],
         "init": [0.66084205, -0.23606144, -1.25499178, 2.65987975, 0.09666789, 0.0, 0.2, 0.35],
         "bounds": (
-            [MIN_ALPHA_BOUND, -np.inf, -np.inf, 0.0, -np.inf, -np.inf, 0.1, 0.2],
+            [-np.inf, -np.inf, -np.inf, 0.0, -np.inf, -np.inf, 0.1, 0.2],
             [np.inf, np.inf, 0.0, np.inf, np.inf, np.inf, 0.3, 0.5],
         ),
         "partials": [
@@ -130,7 +128,7 @@ DIS_FIT_MODEL_REGISTRY = {
         "param_names": ["alpha", "a", "b", "c", "beta"],
         "init": [0.66084205, -0.23606144, -1.25499178, 2.65987975, 0.09666789],
         "bounds": (
-            [MIN_ALPHA_BOUND, -np.inf, -np.inf, 0.0, -np.inf],
+            [-np.inf, -np.inf, -np.inf, 0.0, -np.inf],
             [np.inf, np.inf, 0.0, np.inf, np.inf],
         ),
         "partials": [
@@ -150,7 +148,7 @@ DIS_FIT_MODEL_REGISTRY = {
         "param_names": ["alpha", "a", "b", "c", "d", "beta"],
         "init": [0.66084205, -0.23606144, -1.25499178, 2.65987975, -0.22, 0.09666789],
         "bounds": (
-            [MIN_ALPHA_BOUND, -np.inf, -np.inf, 0.0, -np.inf, -np.inf],
+            [-np.inf, -np.inf, -np.inf, 0.0, -np.inf, -np.inf],
             [np.inf, np.inf, 0.0, np.inf, np.inf, np.inf],
         ),
         "partials": [

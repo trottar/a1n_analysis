@@ -85,7 +85,7 @@ DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "cubic"
+DIS_FIT_MODEL = "cubic_alpha"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

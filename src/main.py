@@ -76,7 +76,7 @@ DIS_W_MIN = 2.0
 # Source-aware per-source DIS-cut override variants:
 # DIS_UNCUT_SOURCE_KEYS = []
 # DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
-DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
+DIS_UNCUT_SOURCE_KEYS = []
 
 # BW k(Q2) variants:
 # BW_K_CURVE_MODEL = "non_tune"

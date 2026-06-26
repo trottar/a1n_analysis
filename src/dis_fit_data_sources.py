@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utility import project_display_path, project_path
+from utility import project_display_path, project_path, src_path
 
 MANIFEST_FILENAME = "source_manifest_3he_dis.json"
 DEFAULT_SOURCE_GROUP = "full_current_global_2025"
@@ -94,11 +94,29 @@ for group_name, source_keys in list(SOURCE_GROUPS.items()):
 
 
 def manifest_path():
-    return project_path("data", MANIFEST_FILENAME)
+    return src_path(MANIFEST_FILENAME)
 
 
 def load_source_manifest(path=None):
-    manifest_file = path or manifest_path()
+    candidate_paths = []
+    if path is not None:
+        candidate_paths.append(path)
+    candidate_paths.append(manifest_path())
+    candidate_paths.append(project_path("data", MANIFEST_FILENAME))
+
+    manifest_file = None
+    for candidate in candidate_paths:
+        if candidate and os.path.exists(candidate):
+            manifest_file = candidate
+            break
+
+    if manifest_file is None:
+        searched = ", ".join(project_display_path(candidate) for candidate in candidate_paths if candidate)
+        raise FileNotFoundError(
+            "Could not locate the 3He DIS source manifest. "
+            f"Searched: {searched}."
+        )
+
     with open(manifest_file, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
     if "sources" not in manifest:

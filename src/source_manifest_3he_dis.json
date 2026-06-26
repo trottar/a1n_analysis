@@ -1,0 +1,205 @@
+{
+  "sources": {
+    "e142": {
+      "label": "SLAC E142 (1996)",
+      "file": "data/slac_e142.csv",
+      "status": "include",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "PRD54(1996)6620; hep-ex/9610007",
+      "table": "Table 7",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W.cal",
+        "G1F1": "G1F1.cal",
+        "G1F1.err": "G1F1.cal.err"
+      },
+      "notes": "Use calculated G1F1 columns from the processed local CSV."
+    },
+    "e154_yury": {
+      "label": "SLAC E154 / Yury",
+      "file": "data/slac_e154.csv",
+      "status": "include",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "Yury Kolomensky thesis and private communication",
+      "table": "Yury thesis / private communication table",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W.cal",
+        "G1F1": "G1F1.cal",
+        "G1F1.err": "G1F1.cal.err"
+      },
+      "notes": "Preserve explicit Yury/private-communication provenance in audits and manifests."
+    },
+    "hermes_2000": {
+      "label": "HERMES (2000)",
+      "file": "data/hermes_2000.csv",
+      "status": "add",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "hep-ex/9906035",
+      "table": "Table V, inclusive 3He top block only",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "G1F1": "A1He3.mes",
+        "G1F1.err": "A1He3.mes.err"
+      },
+      "recompute_W": true,
+      "notes": "Use only the inclusive 3He block already stored in this CSV and treat A1He3 as a g1/F1 proxy."
+    },
+    "e99117_zheng": {
+      "label": "Zheng E99-117 (2002)",
+      "file": "data/zheng_thesis_pub_e99117.csv",
+      "status": "include",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "PRC / nucl-ex/0405006",
+      "table": "Published / thesis E99-117 table",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W",
+        "G1F1": "G1F1.mes",
+        "G1F1.err": "G1F1.mes.err"
+      },
+      "notes": "Published 3He DIS points."
+    },
+    "e06014_flay": {
+      "label": "Flay E06-014 (2014)",
+      "file": "data/dflay_e06014.csv",
+      "status": "include",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "David Flay long PRD paper",
+      "table": "Tables VI and VII",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W",
+        "G1F1": "G1F1.mes",
+        "G1F1.err": "G1F1.err.total"
+      },
+      "no_source_level_W_cut": true,
+      "notes": "Contains DIS and RES points. Apply W cuts only at fit/config time."
+    },
+    "e97103_kramer": {
+      "label": "Kramer E97-103 (2003)",
+      "file": "data/kramer_e97103.csv",
+      "status": "optional",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "Kramer E97-103 processed local table",
+      "table": "Processed local CSV",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W.cal",
+        "G1F1": "G1F1.cal",
+        "G1F1.err": "G1F1.cal.err"
+      },
+      "notes": "Explicitly controlled by source-group membership only."
+    },
+    "a1n_2025_dis": {
+      "label": "A1n 2025 DIS",
+      "file": "data/g1F1he3_2025_dis.csv",
+      "status": "current",
+      "kind": "internal",
+      "legacy": false,
+      "parser": "a1n_2025_whitespace",
+      "reference": "A1n 2025 internal extraction",
+      "table": "DIS subset",
+      "columns": {
+        "Q2": "Q2",
+        "X": "xbj",
+        "G1F1": "g1/F1_He3",
+        "G1F1.stat": "g1/F1 stat",
+        "G1F1.syst": "g1/F1 syst"
+      },
+      "recompute_W": true,
+      "notes": "Current nominal internal DIS source. Total uncertainty is sqrt(stat^2 + syst^2)."
+    },
+    "a1n_2025_all": {
+      "label": "A1n 2025 all",
+      "file": "data/g1F1he3_2025_all.csv",
+      "status": "diagnostic",
+      "kind": "internal",
+      "legacy": false,
+      "parser": "a1n_2025_whitespace",
+      "reference": "A1n 2025 internal extraction",
+      "table": "All / broader extraction",
+      "columns": {
+        "Q2": "Q2",
+        "X": "xbj",
+        "G1F1": "g1/F1_He3",
+        "G1F1.stat": "g1/F1 stat",
+        "G1F1.syst": "g1/F1 syst"
+      },
+      "recompute_W": true,
+      "notes": "Diagnostic broader 2025 extraction. Keep separate from strict nominal DIS groups."
+    },
+    "mingyu_legacy_dis": {
+      "label": "Mingyu DIS legacy",
+      "file": "data/mingyu_g1f1_g2f1_dis.csv",
+      "status": "legacy",
+      "kind": "internal",
+      "legacy": true,
+      "parser": "csv",
+      "reference": "Legacy Mingyu internal extraction",
+      "table": "DIS",
+      "columns": {
+        "Q2": "Q2",
+        "X": "x",
+        "W": "W.cal",
+        "G1F1": "g1F1_3He",
+        "G1F1.err": "g1f1.err"
+      },
+      "notes": "Legacy-only source. Do not mix with 2025 sources in nominal groups."
+    },
+    "e94010": {
+      "label": "E94-010",
+      "file": "data/e94010.csv",
+      "status": "full_support",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "E94-010 processed local resonance-support table",
+      "table": "Processed local CSV",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W",
+        "G1F1": "G1F1.cal",
+        "G1F1.err": "G1F1.cal.err"
+      },
+      "notes": "Full-analysis resonance support source derived from the historical combined-table build."
+    },
+    "e97110": {
+      "label": "E97-110",
+      "file": "data/e97110.csv",
+      "status": "full_support",
+      "kind": "external",
+      "legacy": false,
+      "parser": "csv",
+      "reference": "E97-110 processed local resonance-support table",
+      "table": "Processed local CSV",
+      "columns": {
+        "Q2": "Q2",
+        "X": "X",
+        "W": "W",
+        "G1F1": "G1F1.cal",
+        "G1F1.err": "G1F1.cal.err"
+      },
+      "notes": "Full-analysis resonance support source derived from the historical combined-table build."
+    }
+  }
+}

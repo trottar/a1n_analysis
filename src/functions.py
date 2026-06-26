@@ -128,11 +128,13 @@ def k_curve_tune(x, a, b, c, d, f, e):
     as the exponential falloff scale. High Q² keeps the tuned sine-modulated
     tail.
     """
-    x = np.asarray(x, dtype=np.float64)
+    scalar_input = np.isscalar(x) or np.ndim(x) == 0
+    x = np.atleast_1d(np.asarray(x, dtype=np.float64))
 
     # Non-tune-like low/mid-Q² structure, but using the tuned falloff scale `d`.
     linear_part = f + e * x
-    low_mid_nonlinear = -a * np.exp(-x / d) + (c / x)
+    reciprocal_term = np.divide(c, x, out=np.zeros_like(x), where=x != 0)
+    low_mid_nonlinear = -a * np.exp(-x / d) + reciprocal_term
     low_mid_switch = 1 / (1 + np.exp(-100 * (x - 0.1)))
     low_mid_curve = (1 - low_mid_switch) * linear_part + low_mid_switch * low_mid_nonlinear
 
@@ -149,7 +151,10 @@ def k_curve_tune(x, a, b, c, d, f, e):
     # Smoothly hand off to the tuned high-Q² branch near the original transition.
     high_q2_blend = 1 / (1 + np.exp(-12 * (x - 2.75)))
 
-    return (1 - high_q2_blend) * low_mid_curve + high_q2_blend * high_q2_curve
+    result = (1 - high_q2_blend) * low_mid_curve + high_q2_blend * high_q2_curve
+    if scalar_input:
+        return float(result[0])
+    return result
 
 
 # Backward-compatible default alias.

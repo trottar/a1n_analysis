@@ -527,7 +527,7 @@ def sanitize_bw_delta_par_df(delta_par_df):
 
 ##################################################################################################################################################
 
-from load_data import load_data
+from load_data import load_data, _prepare_g1f1_df
 from get_dis_fit import get_dis_fit
 from plot_dis_x import plot_dis_x
 from plot_3he_data_W import plot_3he_data_W
@@ -646,6 +646,12 @@ def run_analysis(analysis_scope):
         res_df = g1f1_df[g1f1_df['W']<2.0]
         res_df = res_df[res_df['W']>1.0]
 
+        # Source-aware runs assemble a broader full g1f1 input than the old combined-table path.
+        # Re-bin on the actual resonance subset before BW stages so DIS-heavy additions do not
+        # fracture the resonance Q2 labels used by the BW / transition pipeline.
+        if DIS_DATA_MODE == "source_group":
+            res_df = _prepare_g1f1_df(res_df)
+
         n_bins = len(res_df['Q2_labels'])
 
         # Plot g1/f1 vs W
@@ -690,9 +696,13 @@ def run_analysis(analysis_scope):
                 bw_w_lims,
                 input_description,
                 strict=(
-                    not (force_sparse_2025_full or uses_hybrid_2025_support)
-                    if DATASET_MODE == "2025"
-                    else True
+                    False
+                    if DIS_DATA_MODE == "source_group"
+                    else (
+                        not (force_sparse_2025_full or uses_hybrid_2025_support)
+                        if DATASET_MODE == "2025"
+                        else True
+                    )
                 ),
             )
 
@@ -733,9 +743,12 @@ def run_analysis(analysis_scope):
         full_w_max = g1f1_df['W'].max()
 
         # Redefine dataframe for complete fit
-        res_df = g1f1_df
-        res_df = res_df[res_df['W']<2.0]
-        res_df = res_df[res_df['W']>1.0]
+        if DIS_DATA_MODE == "source_group":
+            res_df = bw_res_df.copy()
+        else:
+            res_df = g1f1_df
+            res_df = res_df[res_df['W']<2.0]
+            res_df = res_df[res_df['W']>1.0]
 
         w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 

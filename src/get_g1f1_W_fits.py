@@ -1043,6 +1043,69 @@ def get_g1f1_W_fits_q2_bin(
     with open(src_path("config.json"), "r") as f:
         config = json.load(f)
 
+    requested_model_key = dis_fit_params.get("requested_model_key", dis_fit_params.get("model_key"))
+    ordered_dis_fit_results = sorted(
+        dis_fit_params.get("comparison_results", [dis_fit_params]),
+        key=lambda result: (
+            float(result.get("chi2_distance_from_unity", abs(float(result.get("chi2_quad", np.inf)) - 1.0))),
+            float(result.get("chi2_quad", np.inf)),
+        ),
+    )
+    propagate_dis_fit_family = requested_model_key == "all" and len(ordered_dis_fit_results) > 1
+
+    def iter_dis_fit_results():
+        if propagate_dis_fit_family:
+            return ordered_dis_fit_results
+        return [dis_fit_params]
+
+    def dis_model_name(dis_result):
+        return str(dis_result.get("model_key", dis_result.get("curve_label", "dis")))
+
+    def dis_model_linestyle(index, fallback):
+        if propagate_dis_fit_family:
+            return ALL_DIS_MODEL_LINE_STYLES[index % len(ALL_DIS_MODEL_LINE_STYLES)]
+        return fallback
+
+    def dis_model_linewidth(index):
+        base_width = config["error_bar"]["line_width"]
+        if propagate_dis_fit_family and index == 0:
+            return base_width * 1.25
+        return base_width
+
+    def build_dis_model_curve_set(dis_result, q2, w_values, y_bw=None, damping_dis=None):
+        q2_array = np.full_like(w_values, q2, dtype=np.double)
+        x_values = W_to_x(w_values, q2_array)
+        y_dis = evaluate_dis_fit(dis_result, x_values, q2_array)
+
+        curve_set = {
+            "model_name": dis_model_name(dis_result),
+            "x": x_values,
+            "y_dis": y_dis,
+        }
+
+        if y_bw is None:
+            return curve_set
+
+        k_new = k_new_new(q2)
+        y_bw_bump = breit_wigner_bump(w_values, 1.55, k_new, 0.25)
+        y_transition = y_bw_bump + (y_bw - y_dis)
+        curve_set["y_transition"] = y_transition
+
+        if damping_dis is None:
+            return curve_set
+
+        curve_set["y_dis_damped"] = (1 - damping_dis) * y_dis
+        curve_set["y_transition_damped"] = y_transition * damping_dis
+        curve_set["y_complete"] = np.nan_to_num(y_transition * damping_dis + y_dis, nan=0.0)
+        return curve_set
+
+    def compute_complete_curve_chi2(w_values, y_complete, data_w, data_y, data_y_err):
+        interp_func = interp1d(w_values, y_complete, kind='linear', bounds_error=False, fill_value="extrapolate")
+        y_complete_interpolated = interp_func(data_w)
+        nu = abs(len(y_complete_interpolated) - 2)
+        chi2 = red_chi_sqr(y_complete_interpolated, data_y, data_y_err, nu)
+        return chi2, y_complete_interpolated
+
     n_col = 5
     num_plots = len(g1f1_df['Q2_labels'].unique())
     n_rows = num_plots // n_col + 1

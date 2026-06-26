@@ -17,6 +17,7 @@ import matplotlib.gridspec as gridspec
 from scipy.interpolate import interp1d
 import os
 import json
+import re
 
 ##################################################################################################################################################
 
@@ -46,6 +47,33 @@ ALL_DIS_MODEL_LINE_STYLES = [
     (0, (3, 1, 1, 1)),
     (0, (1, 1)),
 ]
+
+
+def _dis_model_color(dis_result, fallback):
+    return dis_result.get("comparison_color", fallback)
+
+
+def _apply_resonance_legend(ax, config, use_external_box):
+    legend_kwargs = {
+        "fontsize": config["font_sizes"]["legend"],
+        "frameon": config["legend"]["frame_on"],
+    }
+    if use_external_box:
+        legend_kwargs.update(
+            {
+                "loc": "upper left",
+                "bbox_to_anchor": (1.02, 1.0),
+                "borderaxespad": 0.0,
+            }
+        )
+    ax.legend(**legend_kwargs)
+
+
+def _apply_resonance_tight_layout(fig, use_external_box):
+    if use_external_box:
+        fig.tight_layout(rect=(0.0, 0.0, 0.82, 1.0))
+    else:
+        fig.tight_layout()
 
 def get_g1f1_W_fits(
         w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
@@ -185,6 +213,7 @@ def get_g1f1_W_fits(
 
         curve_set = {
             "model_name": dis_model_name(dis_result),
+            "comparison_color": _dis_model_color(dis_result, config["colors"]["fit"]),
             "x": x_values,
             "y_dis": y_dis,
         }
@@ -269,7 +298,7 @@ def get_g1f1_W_fits(
             )
             axs[row, col].plot(
                 w_dis, curve_set["y_dis"],
-                color=config["colors"]["error_band"],
+                color=curve_set["comparison_color"],
                 linestyle=dis_model_linestyle(idx, "--"),
                 label=line_label,
                 linewidth=dis_model_linewidth(idx)
@@ -288,7 +317,7 @@ def get_g1f1_W_fits(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].axhline(0, color="black", linestyle="--")
         axs[row, col].set_ylim(-.15, 0.1)
         axs[row, col].set_xlim(0.9, 2.5)
@@ -302,7 +331,7 @@ def get_g1f1_W_fits(
                 color=config["colors"]["grid"]
             )
 
-    fig.tight_layout()
+    _apply_resonance_tight_layout(fig, propagate_dis_fit_family)
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
     fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', fontsize=config["font_sizes"]["y_axis"])
 
@@ -371,7 +400,7 @@ def get_g1f1_W_fits(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].axhline(0, color="black", linestyle="--")
         axs[row, col].set_xlim(0.9, 2.5)
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
@@ -384,7 +413,7 @@ def get_g1f1_W_fits(
                 color=config["colors"]["grid"]
             )
 
-    fig.tight_layout()
+    _apply_resonance_tight_layout(fig, propagate_dis_fit_family)
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
     fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', fontsize=config["font_sizes"]["y_axis"])
 
@@ -458,14 +487,14 @@ def get_g1f1_W_fits(
                     curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
                     axs[row, col].plot(
                         w_res, curve_set["y_complete"],
-                        color=config["colors"]["grid"],
+                        color=curve_set["comparison_color"],
                         linestyle=dis_model_linestyle(idx, "solid"),
                         linewidth=dis_model_linewidth(idx),
                         label=f"y_complete ({curve_set['model_name']})"
                     )
                     axs[row, col].plot(
                         w_res, curve_set["y_dis"],
-                        color="purple",
+                        color=curve_set["comparison_color"],
                         linestyle=dis_model_linestyle(idx, ":"),
                         linewidth=dis_model_linewidth(idx),
                         label=f"y_dis ({curve_set['model_name']})"
@@ -498,7 +527,7 @@ def get_g1f1_W_fits(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].axhline(0, color="black", linestyle="--")
         axs[row, col].set_ylim(-.15, 0.1)
         axs[row, col].set_xlim(0.9, 2.5)
@@ -512,7 +541,7 @@ def get_g1f1_W_fits(
                 color=config["colors"]["grid"]
             )
 
-    fig.tight_layout()
+    _apply_resonance_tight_layout(fig, propagate_dis_fit_family)
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
     fig.text(0.0001, 0.5, "$g_1^{3He}/F_1^{3He}$", ha='center', va='center', rotation='vertical', fontsize=config["font_sizes"]["y_axis"])
 
@@ -595,7 +624,7 @@ def get_g1f1_W_fits(
                 )
                 axs[row, col].plot(
                     w_res, curve_set["y_complete"],
-                    color=config["colors"]["scatter"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "solid"),
                     linewidth=dis_model_linewidth(idx),
                     label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
@@ -622,7 +651,7 @@ def get_g1f1_W_fits(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
@@ -682,7 +711,7 @@ def get_g1f1_W_fits(
             )
         
     # Force gaps between Q² bins, but keep residuals attached to g₁/F₁
-    fig.subplots_adjust(hspace=0.0)  
+    fig.subplots_adjust(right=0.82 if propagate_dis_fit_family else 1.0, hspace=0.0)  
 
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
@@ -769,14 +798,14 @@ def get_g1f1_W_fits(
                 )
                 axs[row, col].plot(
                     curve_set["x"], curve_set["y_complete"],
-                    color=config["colors"]["scatter"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "solid"),
                     linewidth=dis_model_linewidth(idx),
                     label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
                 )
                 axs[row, col].plot(
                     curve_set["x"], curve_set["y_dis"],
-                    color=config["colors"]["fit"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "-."),
                     linewidth=dis_model_linewidth(idx),
                     label=f"y_dis ({curve_set['model_name']})",
@@ -812,7 +841,7 @@ def get_g1f1_W_fits(
         )
 
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
@@ -838,7 +867,7 @@ def get_g1f1_W_fits(
             )
                 
     # Force gaps between Q² bins, but keep residuals attached to g₁/F₁
-    fig.subplots_adjust(hspace=0.0)  
+    fig.subplots_adjust(right=0.82 if propagate_dis_fit_family else 1.0, hspace=0.0)  
 
     fig.text(0.5, 0.001, "x", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
@@ -1079,6 +1108,7 @@ def get_g1f1_W_fits_q2_bin(
 
         curve_set = {
             "model_name": dis_model_name(dis_result),
+            "comparison_color": _dis_model_color(dis_result, config["colors"]["fit"]),
             "x": x_values,
             "y_dis": y_dis,
         }
@@ -1181,7 +1211,7 @@ def get_g1f1_W_fits_q2_bin(
                 )
                 axs[row, col].plot(
                     w_res, curve_set["y_complete"],
-                    color=config["colors"]["scatter"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "solid"),
                     linewidth=dis_model_linewidth(idx),
                     label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
@@ -1208,7 +1238,7 @@ def get_g1f1_W_fits_q2_bin(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
@@ -1274,7 +1304,7 @@ def get_g1f1_W_fits_q2_bin(
             )
         
     # Force gaps between Q² bins, but keep residuals attached to g₁/F₁
-    fig.subplots_adjust(hspace=0.0)  
+    fig.subplots_adjust(right=0.82 if propagate_dis_fit_family else 1.0, hspace=0.0)  
 
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
@@ -1361,14 +1391,14 @@ def get_g1f1_W_fits_q2_bin(
                 )
                 axs[row, col].plot(
                     curve_set["x"], curve_set["y_complete"],
-                    color=config["colors"]["scatter"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "solid"),
                     linewidth=dis_model_linewidth(idx),
                     label=f"{curve_set['model_name']}: $\\chi_v^2$={variant_chi2:.2f}",
                 )
                 axs[row, col].plot(
                     curve_set["x"], curve_set["y_dis"],
-                    color=config["colors"]["fit"],
+                    color=curve_set["comparison_color"],
                     linestyle=dis_model_linestyle(idx, "-."),
                     linewidth=dis_model_linewidth(idx),
                     label=f"y_dis ({curve_set['model_name']})",
@@ -1402,7 +1432,7 @@ def get_g1f1_W_fits_q2_bin(
             ecolor=config["colors"]["error_bar"]
         )
 
-        axs[row, col].legend(fontsize=config["font_sizes"]["legend"], frameon=config["legend"]["frame_on"])
+        _apply_resonance_legend(axs[row, col], config, propagate_dis_fit_family)
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_xlabel("x", fontsize=config["font_sizes"]["x_axis"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
@@ -1428,7 +1458,7 @@ def get_g1f1_W_fits_q2_bin(
             )
         
     # Force gaps between Q² bins, but keep residuals attached to g₁/F₁
-    fig.subplots_adjust(hspace=0.0)  
+    fig.subplots_adjust(right=0.82 if propagate_dis_fit_family else 1.0, hspace=0.0)  
 
     fig.text(0.5, 0.001, "x", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 

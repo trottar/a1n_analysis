@@ -350,9 +350,18 @@ def _apply_dis_cut(df, q2_min=None, dis_w_min=None):
     return selected_df, cut_descriptions
 
 
-def build_3he_g1f1_group_bundle(group_name, manifest, source_groups=None, *, dis_w_min=None, q2_min=None):
+def build_3he_g1f1_group_bundle(
+    group_name,
+    manifest,
+    source_groups=None,
+    *,
+    dis_w_min=None,
+    q2_min=None,
+    dis_uncut_source_keys=None,
+):
     resolved_source_groups = source_groups or SOURCE_GROUPS
     source_keys = get_source_group_source_keys(group_name, source_groups=resolved_source_groups)
+    dis_uncut_source_keys = {str(source_key) for source_key in (dis_uncut_source_keys or [])}
 
     full_frames = []
     dis_frames = []
@@ -367,11 +376,15 @@ def build_3he_g1f1_group_bundle(group_name, manifest, source_groups=None, *, dis
         source_metadata = dict(source_df.attrs.get("source_metadata", {}))
         full_frames.append(source_df)
 
-        dis_source_df, cut_descriptions = _apply_dis_cut(
-            source_df,
-            q2_min=q2_min,
-            dis_w_min=dis_w_min,
-        )
+        if source_key in dis_uncut_source_keys:
+            dis_source_df = source_df.copy().reset_index(drop=True)
+            cut_descriptions = ["no DIS cut applied"]
+        else:
+            dis_source_df, cut_descriptions = _apply_dis_cut(
+                source_df,
+                q2_min=q2_min,
+                dis_w_min=dis_w_min,
+            )
         dis_frames.append(dis_source_df)
 
         if cut_descriptions:
@@ -420,6 +433,7 @@ def build_3he_g1f1_group_bundle(group_name, manifest, source_groups=None, *, dis
         "audit_rows": audit_rows,
         "q2_min": q2_min,
         "dis_w_min": dis_w_min,
+        "dis_uncut_source_keys": sorted(dis_uncut_source_keys),
     }
     g1f1_df.attrs["source_group_metadata"] = metadata
     dis_df.attrs["source_group_metadata"] = metadata
@@ -430,13 +444,23 @@ def build_3he_g1f1_group_bundle(group_name, manifest, source_groups=None, *, dis
     }
 
 
-def load_3he_g1f1_group(group_name, manifest, source_groups, *, dis_w_min=None, q2_min=None, apply_dis_cut=False):
+def load_3he_g1f1_group(
+    group_name,
+    manifest,
+    source_groups,
+    *,
+    dis_w_min=None,
+    q2_min=None,
+    apply_dis_cut=False,
+    dis_uncut_source_keys=None,
+):
     bundle = build_3he_g1f1_group_bundle(
         group_name,
         manifest,
         source_groups=source_groups,
         dis_w_min=dis_w_min,
         q2_min=q2_min,
+        dis_uncut_source_keys=dis_uncut_source_keys,
     )
     if apply_dis_cut:
         return bundle["dis_df"]
@@ -450,6 +474,7 @@ def source_group_breakdown_lines(metadata):
         f"[source_group] active group={group_name}",
         f"[source_group] source keys={', '.join(metadata['source_keys'])}",
         f"[source_group] W recomputed for: {', '.join(metadata['recomputed_w_sources']) if metadata['recomputed_w_sources'] else 'none'}",
+        f"[source_group] uncut DIS sources: {', '.join(metadata.get('dis_uncut_source_keys', [])) if metadata.get('dis_uncut_source_keys') else 'none'}",
         f"[source_group] DIS cuts: {', '.join(metadata['cuts_applied']) if metadata['cuts_applied'] else 'none'}",
         "[source_group] per-source counts:",
     ]

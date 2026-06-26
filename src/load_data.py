@@ -431,6 +431,11 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
                     if metadata.get("dis_w_min") is not None
                     else "no DIS W cut"
                 ),
+                (
+                    f"uncut DIS sources: {', '.join(metadata['dis_uncut_source_keys'])}"
+                    if metadata.get("dis_uncut_source_keys")
+                    else "no source-specific DIS-cut overrides"
+                ),
             ],
         )
     )
@@ -445,7 +450,8 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
 
 
 def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full",
-              dis_data_mode="legacy_combined_csv", dis_source_group=None, dis_w_min=None):
+              dis_data_mode="legacy_combined_csv", dis_source_group=None, dis_w_min=None,
+              dis_uncut_source_keys=None):
 
     dataset_mode = dataset_mode.lower()
     if dataset_mode not in {"legacy", "2025", "6gev"}:
@@ -471,6 +477,7 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
             source_groups=SOURCE_GROUPS,
             q2_min=1.0,
             dis_w_min=dis_w_min,
+            dis_uncut_source_keys=dis_uncut_source_keys,
         )
         raw_g1f1_df = bundle["g1f1_df"]
         dis_df = bundle["dis_df"]

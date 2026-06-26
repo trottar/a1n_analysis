@@ -72,6 +72,11 @@ DIS_SOURCE_GROUP = DEFAULT_SOURCE_GROUP
 # DIS_W_MIN = None
 DIS_W_MIN = 2.0
 
+# Source-aware per-source DIS-cut override variants:
+# DIS_UNCUT_SOURCE_KEYS = []
+# DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
+DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
+
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
 # DIS_FIT_MODEL = "quad_alpha"
@@ -80,13 +85,13 @@ DIS_W_MIN = 2.0
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "all"
+DIS_FIT_MODEL = "fullx"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"
 # ANALYSIS_SCOPE = "dis_only"
 # ANALYSIS_SCOPE = "dis"
-ANALYSIS_SCOPE = "full"
+ANALYSIS_SCOPE = "dis"
 
 # Full-scope fallback variants:
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True
@@ -560,6 +565,7 @@ def load_analysis_data(analysis_scope):
         "dis_data_mode": DIS_DATA_MODE,
         "dis_source_group": resolved_source_group,
         "dis_w_min": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
+        "dis_uncut_source_keys": DIS_UNCUT_SOURCE_KEYS if DIS_DATA_MODE == "source_group" else None,
     }
     if DATASET_MODE == "2025":
         load_data_kwargs.update(

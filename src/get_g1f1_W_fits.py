@@ -82,7 +82,8 @@ def get_g1f1_W_fits(
         gamma_nucl_par, gamma_nucl_err,
         mass_nucl_par, mass_nucl_err,
         k_P_vals, gamma_P_vals, mass_P_vals,
-        beta_val, w_lims, pdf, g1f1_df
+        beta_val, w_lims, pdf, g1f1_df,
+        quad_nucl_curve_k_func=quad_nucl_curve_k
 ):
     """
     Refactored version of the original code. 
@@ -258,7 +259,7 @@ def get_g1f1_W_fits(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
         fit_names = ["New"]
@@ -362,7 +363,7 @@ def get_g1f1_W_fits(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
         fit_names = ["New"]
@@ -444,7 +445,7 @@ def get_g1f1_W_fits(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
         chosen_fits = [(0, 0, 0)]
@@ -575,7 +576,7 @@ def get_g1f1_W_fits(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
 
@@ -747,7 +748,7 @@ def get_g1f1_W_fits(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
 
@@ -885,7 +886,8 @@ def get_g1f1_W_fits_q2_bin(
         gamma_nucl_par, gamma_nucl_err,
         mass_nucl_par, mass_nucl_err,
         k_P_vals, gamma_P_vals, mass_P_vals,
-        beta_val, w_lims, pdf, g1f1_df
+        beta_val, w_lims, pdf, g1f1_df,
+        quad_nucl_curve_k_func=quad_nucl_curve_k
 ):
     """
     Refactored version of the original code. 
@@ -1162,7 +1164,7 @@ def get_g1f1_W_fits_q2_bin(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
 
@@ -1340,7 +1342,7 @@ def get_g1f1_W_fits_q2_bin(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
 

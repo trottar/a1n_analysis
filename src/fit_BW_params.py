@@ -20,7 +20,14 @@ import json
 
 ##################################################################################################################################################
 
-from functions import fit_with_dynamic_params, quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass
+from functions import (
+    fit_with_dynamic_params,
+    get_quad_nucl_curve_k,
+    normalize_bw_k_curve_mode,
+    quad_nucl_curve_k,
+    quad_nucl_curve_gamma,
+    quad_nucl_curve_mass,
+)
 from utility import project_path, src_path
 
 ##################################################################################################################################################
@@ -34,7 +41,18 @@ def _build_artifact_path(filename, dataset_tag):
     return os.path.join(tagged_dir, filename)
 
 
-def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
+def fit_BW_params(
+    q2,
+    delta_par_df,
+    pdf,
+    dataset_tag="legacy",
+    bw_k_curve_mode="non_tune",
+    quad_nucl_curve_k_func=None,
+):
+
+    bw_k_curve_mode = normalize_bw_k_curve_mode(bw_k_curve_mode)
+    if quad_nucl_curve_k_func is None:
+        quad_nucl_curve_k_func = get_quad_nucl_curve_k(bw_k_curve_mode)
 
     delta_par_df = delta_par_df.copy()
     if "Experiment" not in delta_par_df.columns:
@@ -117,7 +135,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
       a, b, c: quadratic curve parameters
       y0: term to have curve end at a constant value
       """  
-      return quad_nucl_curve_k(x, a, b, c, d, e, f, y0, P0, P1, P2, Y1)
+      return quad_nucl_curve_k_func(x, a, b, c, d, e, f, y0, P0, P1, P2, Y1)
     def quad_nucl_curve_mass_wrapper(x, a, b, c, d, e, y0):
       """
       quadratic * nucl potential form
@@ -135,7 +153,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
         # Perform fits for k, gamma, and mass
         print("-"*35)
-        print("K Quad-Nucl Potential Fit Params")
+        print(f"K Quad-Nucl Potential Fit Params [{bw_k_curve_mode}]")
         print("-"*35)
         k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
             "k",
@@ -305,7 +323,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
 
     # k
     k_nucl_args = [q2] + [p for p in k_nucl_par] + [P for P in k_P_vals]
-    k_nucl = quad_nucl_curve_k(*k_nucl_args)
+    k_nucl = quad_nucl_curve_k_func(*k_nucl_args)
     k_nucl_err = [p for p in k_param_uncertainties] + [p for p in k_p_val_uncertainties]
     # gamma
     gamma_nucl_args = [q2] + [p for p in gamma_nucl_par] + [P for P in gamma_P_vals]
@@ -337,7 +355,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
             y_err = delta_par_df["k.err"]
             y_nucl = k_nucl
             bounds = (k_lb + [P-(1e-6) for P in k_P_vals], k_ub + [P+(1e-6) for P in k_P_vals])
-            model = quad_nucl_curve_k
+            model = quad_nucl_curve_k_func
         elif var_name == "mass":
             true_params = [p for p in mass_nucl_par] + [P for P in mass_P_vals]
             y_data = delta_par_df["M"]
@@ -691,6 +709,7 @@ def fit_BW_params(q2, delta_par_df, pdf, dataset_tag="legacy"):
     
     return {
         "k params" : {
+            "curve_mode" : bw_k_curve_mode,
             "nucl_par" : k_nucl_par,
             "par_err" : k_param_uncertainties,           
             "P_vals" : k_P_vals,

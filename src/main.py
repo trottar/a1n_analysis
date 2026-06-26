@@ -77,6 +77,12 @@ DIS_W_MIN = 2.0
 # DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
 DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
 
+# BW k(Q2) variants:
+# BW_K_CURVE_MODEL = "non_tune"
+# BW_K_CURVE_MODEL = "non-tune"
+# BW_K_CURVE_MODEL = "tune"
+BW_K_CURVE_MODEL = "non_tune"
+
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
 # DIS_FIT_MODEL = "quad_alpha"
@@ -85,13 +91,13 @@ DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "cubic_alpha"
+DIS_FIT_MODEL = "fullx"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"
 # ANALYSIS_SCOPE = "dis_only"
 # ANALYSIS_SCOPE = "dis"
-ANALYSIS_SCOPE = "dis"
+ANALYSIS_SCOPE = "full"
 
 # Full-scope fallback variants:
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True
@@ -120,6 +126,7 @@ DATASET_MODE = DATASET_MODE.lower()
 DIS_DATA_MODE = str(DIS_DATA_MODE).strip().lower()
 DIS_SOURCE_GROUP = str(DIS_SOURCE_GROUP).strip()
 DIS_FIT_MODEL = normalize_dis_fit_model(DIS_FIT_MODEL)
+BW_K_CURVE_MODEL = normalize_bw_k_curve_mode(BW_K_CURVE_MODEL)
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
@@ -164,7 +171,9 @@ else:
     DATASET_TAG = derive_dataset_tag(DATASET_MODE)
 if DIS_DATA_MODE != "source_group" and DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
+DATASET_TAG = f"{DATASET_TAG}_k_{sanitize_dataset_tag(BW_K_CURVE_MODEL)}"
 ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
+BW_K_CURVE_FUNC = get_quad_nucl_curve_k(BW_K_CURVE_MODEL)
 
 
 def build_output_path(base_path, dataset_tag, analysis_scope):
@@ -543,7 +552,7 @@ from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
 
 from g1f1_grid import create_g1f1_grid
-from functions import fit_error, weighted_avg
+from functions import fit_error, get_quad_nucl_curve_k, normalize_bw_k_curve_mode, weighted_avg
 
 ##################################################################################################################################################
 
@@ -612,6 +621,7 @@ def run_analysis(analysis_scope):
     outputpdf = build_output_path(project_path("plots", "g1f1_fits.pdf"), ANALYSIS_TAG, analysis_scope)
     print(f"[{mode_label}] Writing PDF to {outputpdf}")
     print(f"[{mode_label}] Requested DIS fit model: {DIS_FIT_MODEL}")
+    print(f"[{mode_label}] Requested BW k-curve model: {BW_K_CURVE_MODEL}")
 
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
@@ -743,7 +753,14 @@ def run_analysis(analysis_scope):
             )
 
         print(f"[{mode_label}] Stage: BW parameter global fits")
-        bw_fit_params = fit_BW_params(q2, bw_delta_par_df, pdf, dataset_tag=ANALYSIS_TAG)
+        bw_fit_params = fit_BW_params(
+            q2,
+            bw_delta_par_df,
+            pdf,
+            dataset_tag=ANALYSIS_TAG,
+            bw_k_curve_mode=BW_K_CURVE_MODEL,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+        )
 
         # Redefine the upper W coverage for the full combined fit stages.
         full_w_max = g1f1_df['W'].max()
@@ -767,6 +784,7 @@ def run_analysis(analysis_scope):
                                                 w_lims,
                                                 pdf,
                                                 dataset_tag=ANALYSIS_TAG,
+                                                quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Combined W-fit pages")
@@ -779,7 +797,8 @@ def run_analysis(analysis_scope):
                         dis_fit_params["beta_val"],
                         w_lims,
                         pdf,
-                        g1f1_df
+                        g1f1_df,
+                        quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Combined W-fit pages by Q2 bin")
@@ -792,7 +811,8 @@ def run_analysis(analysis_scope):
                         dis_fit_params["beta_val"],
                         w_lims,
                         pdf,
-                        g1f1_df
+                        g1f1_df,
+                        quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Fit grid export")
@@ -806,6 +826,7 @@ def run_analysis(analysis_scope):
                          w_lims,
                          pdf,
                          dataset_tag=ANALYSIS_TAG,
+                         quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
             )
 
     return outputpdf

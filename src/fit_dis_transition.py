@@ -50,7 +50,8 @@ def fit_dis_transition(
         k_P_vals, gamma_P_vals, mass_P_vals,
         w_lims,
         pdf,
-        dataset_tag="legacy"
+        dataset_tag="legacy",
+        quad_nucl_curve_k_func=quad_nucl_curve_k,
 ):
     """
     Searches for best-fit parameters (w_dis_transition, damping_dis_width)
@@ -104,7 +105,7 @@ def fit_dis_transition(
             k_fit_params     = [k_nucl_par]
             gamma_fit_params = [gamma_nucl_par]
             mass_fit_params  = [mass_nucl_par]
-            fit_funcs_k      = [quad_nucl_curve_k]
+            fit_funcs_k      = [quad_nucl_curve_k_func]
             fit_funcs_gamma  = [quad_nucl_curve_gamma]
             fit_funcs_mass   = [quad_nucl_curve_mass]
             fit_names        = ["New"]

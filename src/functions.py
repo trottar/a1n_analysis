@@ -75,8 +75,21 @@ def quad_curve(x, a, b, c):
   return a + b*x + c*x**2
 
 #HERE
-def k_curve(x, a, b, c, d, f, e, x0=0.1, k=100):
-  """function"""
+VALID_BW_K_CURVE_MODES = {"non_tune", "tune"}
+
+
+def normalize_bw_k_curve_mode(mode):
+  normalized = str(mode).strip().lower().replace("-", "_").replace(" ", "_")
+  if normalized in {"", "default", "current"}:
+    normalized = "non_tune"
+  if normalized not in VALID_BW_K_CURVE_MODES:
+    supported = ", ".join(sorted(VALID_BW_K_CURVE_MODES))
+    raise ValueError(f"Unsupported BW k-curve mode '{mode}'. Expected one of: {supported}.")
+  return normalized
+
+
+def k_curve_non_tune(x, a, b, c, d, f, e, x0=0.1, k=100):
+  """Current non-tuned k(Q^2) model used in the BW chain."""
   d = 0
   x = np.asarray(x, dtype=np.float64)  # Ensure array compatibility
 
@@ -106,27 +119,9 @@ def theta_func(x, x_points=[1, 3, 5], theta_points=[-np.pi/2, 0, np.pi/2]):
     """
     return np.interp(x, x_points, theta_points)
 
-'''
-def k_curve(x, a, b, c, d, f, e):
+def k_curve_tune(x, a, b, c, d, f, e):
     """
-    Computes the k value in three Q² regimes:
-    
-    - Low Q² (x ≤ 0.1): strictly linear: k = f + e*x.
-    - Mid Q² (0.1 < x ≤ 1.0): blend between the linear function and an exponential form.
-    - High Q² (x > 1.0): exponential fall off with an additional sine modulation that is fully active by x ≥ 5.
-    
-    Parameters:
-      x : float or np.array
-          Q² value(s) in GeV².
-      a, c, d : float
-          Parameters for the exponential part: the base is given by (a + c/x) * exp(-x/d).
-      b : float
-          Amplitude of the sine modulation in the high-Q² regime.
-      f, e : float
-          Parameters for the low-Q² linear part.
-    
-    Returns:
-      np.array: Computed k value(s).
+    Tuned piecewise k(Q²) model with a high-Q² sine modulation.
     """
     x = np.asarray(x, dtype=np.float64)
     k_val = np.empty_like(x)
@@ -137,30 +132,24 @@ def k_curve(x, a, b, c, d, f, e):
     
     # --- Mid Q² Region: 0.1 < x ≤ 2.75 (Blend between linear and exponential) ---
     mask_mid = (x > 0.1) & (x <= 2.75)
-    # Linear component at mid-Q²:
     lin_mid = f + e * x[mask_mid]
-    # Exponential component at mid-Q²:
     exp_mid = (a + c / x[mask_mid]) * np.exp(-x[mask_mid] / d)
-    # Blend weight: 0 at x=0.1 and 1 at x=2.75
     weight_mid = (x[mask_mid] - 0.1) / (2.75 - 0.1)
     k_val[mask_mid] = (1 - weight_mid) * lin_mid + weight_mid * exp_mid
     
     # --- High Q² Region: x > 2.75 (Exponential fall off with sine modulation) ---
     mask_high = x > 2.75
-    # Base exponential component:
     exp_high = (a + c / x[mask_high]) * np.exp(-x[mask_high] / d)
-    # Define an interpolated angle for the sine modulation.
-    # Here, we choose control points so that at x=2.75 the sine term is off (theta = 0)
-    # and by x=5.0 it is fully on (theta = π/2). Beyond that we continue the interpolation.
     theta = np.interp(x[mask_high], [2.75, 5.0, 9.0], [0, np.pi/2, np.pi])
     sine_var = b * np.sin(theta)
-    # Weight to gradually enable the sine modulation: 0 at x=2.75, 1 at x≥5.0.
     weight_sine = np.clip((x[mask_high] - 2.75) / (5.0 - 2.75), 0, 1)
-    
     k_val[mask_high] = exp_high + weight_sine * sine_var
     
     return k_val
-'''
+
+
+# Backward-compatible default alias.
+k_curve = k_curve_non_tune
 
 #HERE
 def gamma_curve(x, a, b, c, d, f, x0=0.1, k=100):
@@ -237,7 +226,7 @@ def quad_nucl_curve_gamma(x, a, b, c, d, e, y0, p0, p1, p2, y1):
   """
   return gamma_curve(x, a, b, c, d, e) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 # HERE
-def quad_nucl_curve_k(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
+def quad_nucl_curve_k_non_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   quadratic * nucl potential form
   x: independent data
@@ -248,7 +237,25 @@ def quad_nucl_curve_k(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   p2: width of nucl potential
   y1: final constant value of nuclear potential
   """
-  return k_curve(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+  return k_curve_non_tune(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+
+
+def quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
+  """
+  Tuned quadratic * nucl potential k(Q^2) form.
+  """
+  return k_curve_tune(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+
+
+def get_quad_nucl_curve_k(mode="non_tune"):
+  normalized = normalize_bw_k_curve_mode(mode)
+  if normalized == "tune":
+    return quad_nucl_curve_k_tune
+  return quad_nucl_curve_k_non_tune
+
+
+# Backward-compatible default alias.
+quad_nucl_curve_k = quad_nucl_curve_k_non_tune
 # HERE
 def quad_nucl_curve_mass(x, a, b, c, d, e, y0, p0, p1, p2, y1):
   """

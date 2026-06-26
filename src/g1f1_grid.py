@@ -47,7 +47,8 @@ def create_g1f1_grid(
         k_P_vals, gamma_P_vals, mass_P_vals,
         beta_val, w_lims,
         pdf,
-        dataset_tag="legacy"
+        dataset_tag="legacy",
+        quad_nucl_curve_k_func=quad_nucl_curve_k,
 ):
 
     # Load configuration
@@ -102,7 +103,7 @@ def create_g1f1_grid(
         k_fit_params = [k_nucl_par]
         gamma_fit_params = [gamma_nucl_par]
         mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k]
+        fit_funcs_k = [quad_nucl_curve_k_func]
         fit_funcs_gamma = [quad_nucl_curve_gamma]
         fit_funcs_mass = [quad_nucl_curve_mass]
 

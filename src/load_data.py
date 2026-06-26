@@ -16,6 +16,13 @@ import re
 import numpy as np
 import pandas as pd
 
+from dis_fit_data_sources import (
+    DEFAULT_SOURCE_GROUP,
+    SOURCE_GROUPS,
+    build_3he_g1f1_group_bundle,
+    load_source_manifest,
+    source_group_breakdown_lines,
+)
 from functions import x_to_W
 from utility import project_display_path, project_path
 
@@ -42,6 +49,7 @@ LEGACY_G2F1_PATH = project_path("data", "g2f1_comb.csv")
 LEGACY_A1_PATH = project_path("data", "a1_comb.csv")
 LEGACY_A2_PATH = project_path("data", "a2_comb.csv")
 MINGYU_DIS_PATH = project_path("data", "mingyu_g1f1_g2f1_dis.csv")
+VALID_DIS_DATA_MODES = {"legacy_combined_csv", "source_group"}
 
 
 def _convert_q2(q2):
@@ -387,7 +395,56 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
     )
 
 
-def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full"):
+def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_source_group,
+                               g1f1_df, g2f1_df, a1_df, a2_df, dis_df):
+    metadata = dict(g1f1_df.attrs.get("source_group_metadata", {}))
+    lines = [
+        "=" * 100,
+        (
+            f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope} "
+            f"dis_data_mode={dis_data_mode} dis_source_group={dis_source_group}"
+        ),
+    ]
+    lines.extend(source_group_breakdown_lines(metadata)[1:-1])
+    lines.extend(
+        _collect_frame_lines(
+            "g1f1_df",
+            g1f1_df,
+            [metadata["source_file_map"][source_key] for source_key in metadata.get("source_keys", [])],
+            [
+                f"assembled from source group {dis_source_group}",
+                "no source-level W cuts applied",
+            ],
+        )
+    )
+    lines.extend(
+        _collect_frame_lines(
+            "dis_df",
+            dis_df,
+            [metadata["source_file_map"][source_key] for source_key in metadata.get("source_keys", [])],
+            [
+                f"assembled from source group {dis_source_group}",
+                f"Q2 > {metadata.get('q2_min', 'none')}",
+                (
+                    f"W > {metadata['dis_w_min']}"
+                    if metadata.get("dis_w_min") is not None
+                    else "no DIS W cut"
+                ),
+            ],
+        )
+    )
+    lines.extend(_collect_frame_lines("g2f1_df", g2f1_df, [LEGACY_G2F1_PATH], ["legacy combined support"]))
+    lines.extend(_collect_frame_lines("a1_df", a1_df, [LEGACY_A1_PATH], ["legacy combined support"]))
+    lines.extend(_collect_frame_lines("a2_df", a2_df, [LEGACY_A2_PATH], ["legacy combined support"]))
+    lines.append("=" * 100)
+
+    print()
+    print("\n".join(lines))
+    print()
+
+
+def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full",
+              dis_data_mode="legacy_combined_csv", dis_source_group=None, dis_w_min=None):
 
     dataset_mode = dataset_mode.lower()
     if dataset_mode not in {"legacy", "2025", "6gev"}:
@@ -398,6 +455,43 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         analysis_scope = "dis_only"
     if analysis_scope not in {"full", "dis_only"}:
         raise ValueError(f"Unsupported analysis_scope '{analysis_scope}'. Expected 'full' or 'dis_only'.")
+
+    dis_data_mode = str(dis_data_mode).strip().lower()
+    if dis_data_mode not in VALID_DIS_DATA_MODES:
+        supported = ", ".join(sorted(VALID_DIS_DATA_MODES))
+        raise ValueError(f"Unsupported dis_data_mode '{dis_data_mode}'. Expected one of: {supported}.")
+
+    if dis_data_mode == "source_group":
+        manifest = load_source_manifest()
+        source_group = str(dis_source_group or DEFAULT_SOURCE_GROUP).strip()
+        bundle = build_3he_g1f1_group_bundle(
+            source_group,
+            manifest,
+            source_groups=SOURCE_GROUPS,
+            q2_min=1.0,
+            dis_w_min=dis_w_min,
+        )
+        raw_g1f1_df = bundle["g1f1_df"]
+        dis_df = bundle["dis_df"]
+        source_metadata = bundle["metadata"]
+
+        g1f1_df = _prepare_g1f1_df(raw_g1f1_df)
+        g1f1_df.attrs["source_group_metadata"] = source_metadata
+        dis_df.attrs["source_group_metadata"] = source_metadata
+
+        _legacy_g1f1_df, g2f1_df, a1_df, a2_df, _legacy_dis_df = _load_legacy_fit_support(analysis_scope)
+        _print_source_group_splash(
+            dataset_mode,
+            analysis_scope,
+            dis_data_mode,
+            source_group,
+            g1f1_df,
+            g2f1_df,
+            a1_df,
+            a2_df,
+            dis_df,
+        )
+        return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
     if dataset_mode == "2025":
         if not g1f1_2025_path or not dis_2025_path:

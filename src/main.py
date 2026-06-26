@@ -21,6 +21,11 @@ from scipy.interpolate import griddata, interp1d
 ##################################################################################################################################################
 # Importing utility functions
 
+from dis_fit_data_sources import (
+    DEFAULT_SOURCE_GROUP,
+    describe_source_group,
+    write_source_group_reports,
+)
 from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
 from utility import project_path, show_pdf_with_evince
 
@@ -39,6 +44,31 @@ w_res_max = 1.45
 # DATASET_MODE = "2025"
 # DATASET_MODE = "6gev"
 DATASET_MODE = "2025"
+
+# DIS data assembly variants:
+# DIS_DATA_MODE = "legacy_combined_csv"
+# DIS_DATA_MODE = "source_group"
+DIS_DATA_MODE = "source_group"
+
+# Source-aware group variants:
+# DIS_SOURCE_GROUP = "plots_baseline"
+# DIS_SOURCE_GROUP = "plots_baseline_plus_hermes"
+# DIS_SOURCE_GROUP = "current_global_2025"
+# DIS_SOURCE_GROUP = "current_global_2025_no_kramer"
+# DIS_SOURCE_GROUP = "legacy_mingyu"
+# DIS_SOURCE_GROUP = "current_2025_all_diagnostic"
+# DIS_SOURCE_GROUP = "full_plots_baseline"
+# DIS_SOURCE_GROUP = "full_plots_baseline_plus_hermes"
+# DIS_SOURCE_GROUP = "full_current_global_2025"
+# DIS_SOURCE_GROUP = "full_current_global_2025_no_kramer"
+# DIS_SOURCE_GROUP = "full_legacy_mingyu"
+# DIS_SOURCE_GROUP = "full_current_2025_all_diagnostic"
+DIS_SOURCE_GROUP = DEFAULT_SOURCE_GROUP
+
+# Source-aware DIS W-cut variants:
+# DIS_W_MIN = 2.0
+# DIS_W_MIN = None
+DIS_W_MIN = 2.0
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
@@ -80,6 +110,8 @@ DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
 DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
 
 DATASET_MODE = DATASET_MODE.lower()
+DIS_DATA_MODE = str(DIS_DATA_MODE).strip().lower()
+DIS_SOURCE_GROUP = str(DIS_SOURCE_GROUP).strip()
 DIS_FIT_MODEL = normalize_dis_fit_model(DIS_FIT_MODEL)
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
@@ -115,11 +147,13 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
     return sanitize_dataset_tag(g1f1_stem)
 
 
-if DATASET_MODE == "2025":
+if DIS_DATA_MODE == "source_group":
+    DATASET_TAG = sanitize_dataset_tag(DIS_SOURCE_GROUP)
+elif DATASET_MODE == "2025":
     DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 else:
     DATASET_TAG = derive_dataset_tag(DATASET_MODE)
-if DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
+if DIS_DATA_MODE != "source_group" and DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
 ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
 
@@ -139,7 +173,23 @@ def build_output_path(base_path, dataset_tag, analysis_scope):
     return os.path.join(tagged_dir, filename)
 
 
-def describe_fit_inputs(dataset_mode, analysis_scope):
+def active_mode_label(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
+    if dis_data_mode == "source_group":
+        return f"{sanitize_dataset_tag(dis_source_group)}/{analysis_scope}"
+    return f"{dataset_mode}/{analysis_scope}"
+
+
+def analysis_output_dir(analysis_tag):
+    return project_path("fit_data", analysis_tag) if analysis_tag != "legacy" else project_path("fit_data")
+
+
+def describe_fit_inputs(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
+    if dis_data_mode == "source_group":
+        return (
+            f"source group '{dis_source_group}' with sources: "
+            f"{describe_source_group(dis_source_group)}"
+        )
+
     if dataset_mode == "2025":
         if analysis_scope == "dis_only":
             return (
@@ -496,6 +546,9 @@ def load_analysis_data(analysis_scope):
     load_data_kwargs = {
         "dataset_mode": DATASET_MODE,
         "analysis_scope": analysis_scope,
+        "dis_data_mode": DIS_DATA_MODE,
+        "dis_source_group": DIS_SOURCE_GROUP,
+        "dis_w_min": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
     }
     if DATASET_MODE == "2025":
         load_data_kwargs.update(
@@ -508,27 +561,41 @@ def load_analysis_data(analysis_scope):
 
 def run_analysis(analysis_scope):
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_analysis_data(analysis_scope)
-    uses_hybrid_2025_support = DATASET_MODE == "2025" and USE_LEGACY_FIT_SUPPORT_FOR_2025
+    mode_label = active_mode_label(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
+    uses_hybrid_2025_support = (
+        DIS_DATA_MODE != "source_group"
+        and DATASET_MODE == "2025"
+        and USE_LEGACY_FIT_SUPPORT_FOR_2025
+    )
     force_sparse_2025_full = (
+        DIS_DATA_MODE != "source_group"
+        and
         DATASET_MODE == "2025"
         and analysis_scope == "full"
         and ALLOW_SPARSE_2025_FULL
         and not uses_hybrid_2025_support
     )
-    input_description = describe_fit_inputs(DATASET_MODE, analysis_scope)
+    input_description = describe_fit_inputs(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
 
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
 
+    if DIS_DATA_MODE == "source_group":
+        source_metadata = dict(g1f1_df.attrs.get("source_group_metadata", {}))
+        report_dir = analysis_output_dir(ANALYSIS_TAG)
+        breakdown_path, audit_path, _breakdown_lines = write_source_group_reports(source_metadata, report_dir)
+        print(f"[{mode_label}] Source breakdown saved to {breakdown_path}")
+        print(f"[{mode_label}] Source audit saved to {audit_path}")
+
     outputpdf = build_output_path(project_path("plots", "g1f1_fits.pdf"), ANALYSIS_TAG, analysis_scope)
-    print(f"[{DATASET_MODE}/{analysis_scope}] Writing PDF to {outputpdf}")
-    print(f"[{DATASET_MODE}/{analysis_scope}] Requested DIS fit model: {DIS_FIT_MODEL}")
+    print(f"[{mode_label}] Writing PDF to {outputpdf}")
+    print(f"[{mode_label}] Requested DIS fit model: {DIS_FIT_MODEL}")
 
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
 
         # DIS fit
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: DIS fit")
+        print(f"[{mode_label}] Stage: DIS fit")
         q2_interp = interp1d(dis_df['X'].values, dis_df['Q2'].values, kind='linear')
         x_dense = np.linspace(dis_df['X'].min(), dis_df['X'].max(), 10000)
         q2_dense = np.full(x_dense.size, 5.0) # array of q2 = 5.0 GeV^2
@@ -542,6 +609,7 @@ def run_analysis(analysis_scope):
             pdf,
             dataset_tag=ANALYSIS_TAG,
             dis_fit_model=DIS_FIT_MODEL,
+            source_group=DIS_SOURCE_GROUP if DIS_DATA_MODE == "source_group" else None,
         )
 
         # Generate fitted curve using the fitted parameters for constant q2
@@ -565,7 +633,7 @@ def run_analysis(analysis_scope):
         n_bins = len(res_df['Q2_labels'])
 
         # Plot g1/f1 vs W
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance data overview")
+        print(f"[{mode_label}] Stage: Resonance data overview")
         plot_3he_data_W(res_df, pdf)
 
         # initial guesses for k and M
@@ -597,9 +665,10 @@ def run_analysis(analysis_scope):
             DATASET_MODE, analysis_scope, res_df, w_lims
         )
 
-        if DATASET_MODE in {"2025", "6gev"}:
+        validation_mode = sanitize_dataset_tag(DIS_SOURCE_GROUP) if DIS_DATA_MODE == "source_group" else DATASET_MODE
+        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"2025", "6gev"}:
             validate_resonance_fit_support(
-                DATASET_MODE,
+                validation_mode,
                 analysis_scope,
                 bw_res_df,
                 bw_w_lims,
@@ -611,12 +680,12 @@ def run_analysis(analysis_scope):
                 ),
             )
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Resonance Breit-Wigner fits")
+        print(f"[{mode_label}] Stage: Resonance Breit-Wigner fits")
         delta_par_df = get_res_fit(k_init, gamma_init, mass_init, bw_w_lims, bw_res_df, pdf)
         delta_par_df = sanitize_bw_delta_par_df(delta_par_df)
 
         # Plot k, gamma, M
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter summary")
+        print(f"[{mode_label}] Stage: BW parameter summary")
         plot_BW_params(delta_par_df, pdf)
         bw_delta_par_df = delta_par_df
         if force_sparse_2025_full:
@@ -627,9 +696,9 @@ def run_analysis(analysis_scope):
         #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
         #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
-        if DATASET_MODE in {"2025", "6gev"}:
+        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"2025", "6gev"}:
             validate_bw_global_fit_support(
-                DATASET_MODE,
+                validation_mode,
                 analysis_scope,
                 bw_res_df,
                 delta_par_df,
@@ -641,7 +710,7 @@ def run_analysis(analysis_scope):
                 ),
             )
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: BW parameter global fits")
+        print(f"[{mode_label}] Stage: BW parameter global fits")
         bw_fit_params = fit_BW_params(q2, bw_delta_par_df, pdf, dataset_tag=ANALYSIS_TAG)
 
         # Redefine the upper W coverage for the full combined fit stages.
@@ -654,7 +723,7 @@ def run_analysis(analysis_scope):
 
         w = np.linspace(w_res_min, w_res_max, 1000, dtype=np.double)
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: DIS-transition fits")
+        print(f"[{mode_label}] Stage: DIS-transition fits")
         dis_transition_fit = fit_dis_transition(w_min, full_w_max, res_df, dis_fit_params,
                                                 bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
                                                 bw_fit_params["gamma params"]["nucl_par"], bw_fit_params["gamma params"]["nucl_curve_err"],
@@ -665,7 +734,7 @@ def run_analysis(analysis_scope):
                                                 dataset_tag=ANALYSIS_TAG,
         )
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages")
+        print(f"[{mode_label}] Stage: Combined W-fit pages")
         get_g1f1_W_fits(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -678,7 +747,7 @@ def run_analysis(analysis_scope):
                         g1f1_df
         )
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Combined W-fit pages by Q2 bin")
+        print(f"[{mode_label}] Stage: Combined W-fit pages by Q2 bin")
         get_g1f1_W_fits_q2_bin(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
                         bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -691,7 +760,7 @@ def run_analysis(analysis_scope):
                         g1f1_df
         )
 
-        print(f"[{DATASET_MODE}/{analysis_scope}] Stage: Fit grid export")
+        print(f"[{mode_label}] Stage: Fit grid export")
         create_g1f1_grid(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                          res_df, dis_fit_params, dis_transition_fit,
                          bw_fit_params["k params"]["nucl_par"], bw_fit_params["k params"]["nucl_curve_err"],
@@ -707,7 +776,12 @@ def run_analysis(analysis_scope):
     return outputpdf
 
 
-disable_sparse_2025_dis_fallback = DATASET_MODE == "2025" and ANALYSIS_SCOPE == "full" and ALLOW_SPARSE_2025_FULL
+disable_sparse_2025_dis_fallback = (
+    DIS_DATA_MODE != "source_group"
+    and DATASET_MODE == "2025"
+    and ANALYSIS_SCOPE == "full"
+    and ALLOW_SPARSE_2025_FULL
+)
 
 if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE and not disable_sparse_2025_dis_fallback:
     try:

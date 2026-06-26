@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,10 +27,11 @@ def _build_artifact_path(filename, dataset_tag):
     return os.path.join(tagged_dir, filename)
 
 
-def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_key):
+def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_key, source_group=None):
     summary_path = _build_artifact_path("dis_fit_summary.json", dataset_tag)
     payload = {
         "dataset_tag": dataset_tag,
+        "source_group": source_group,
         "requested_model_key": requested_model_key,
         "selected_model_key": dis_fit_results["model_key"],
         "model_display_name": dis_fit_results["model_display_name"],
@@ -64,7 +66,7 @@ def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_
     print(f"[get_dis_fit] Saved DIS fit summary to {summary_path}")
 
 
-def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, failed_results):
+def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, failed_results, source_group=None):
     comparison_json_path = _build_artifact_path("dis_fit_model_comparison.json", dataset_tag)
     comparison_csv_path = _build_artifact_path("dis_fit_model_comparison.csv", dataset_tag)
 
@@ -87,6 +89,7 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
 
     payload = {
         "dataset_tag": dataset_tag,
+        "source_group": source_group,
         "requested_model_key": requested_model_key,
         "successful_results": successful_payload,
         "failed_results": failed_results,
@@ -130,6 +133,12 @@ def _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, fail
     pd.DataFrame(csv_rows).to_csv(comparison_csv_path, index=False)
     print(f"[get_dis_fit] Saved DIS fit comparison to {comparison_json_path}")
     print(f"[get_dis_fit] Saved DIS fit comparison table to {comparison_csv_path}")
+
+
+def _save_dis_fit_timing_summary(dataset_tag, timing_rows):
+    timing_path = _build_artifact_path("dis_fit_timing_summary.csv", dataset_tag)
+    pd.DataFrame(timing_rows).to_csv(timing_path, index=False)
+    print(f"[get_dis_fit] Saved DIS fit timing summary to {timing_path}")
 
 
 def _covariance_to_correlation(cov_matrix):
@@ -435,26 +444,64 @@ def _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf):
     plt.close(fig)
 
 
-def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_tag="legacy", dis_fit_model="fullx"):
+def fit_dis_model_suite(indep_data, dis_df, x_dense, q2_dense, dis_fit_model="fullx", source_group=None):
     requested_model_key = normalize_dis_fit_model(dis_fit_model)
     candidate_model_keys = (
         get_dis_fit_model_keys() if requested_model_key == "all" else [requested_model_key]
     )
+    active_source_group = (
+        source_group
+        or dis_df.attrs.get("source_group_metadata", {}).get("source_group")
+        or ""
+    )
+    n_points = int(len(dis_df))
 
     fit_results = []
     failed_results = []
+    timing_rows = []
     for model_key in candidate_model_keys:
+        start_time = time.perf_counter()
         try:
-            fit_results.append(
-                _fit_single_dis_model(model_key, indep_data, dis_df, x_dense, q2_dense)
+            fit_result = _fit_single_dis_model(model_key, indep_data, dis_df, x_dense, q2_dense)
+            runtime_sec = time.perf_counter() - start_time
+            ndf = max(n_points - len(fit_result["parameter_names"]), 0)
+            fit_result["ndf"] = ndf
+            fit_result["runtime_sec"] = runtime_sec
+            fit_results.append(fit_result)
+            timing_rows.append(
+                {
+                    "source_group": active_source_group,
+                    "model_key": model_key,
+                    "n_points": n_points,
+                    "fit_status": "success",
+                    "chi2": float(fit_result["chi2_quad"] * ndf) if ndf > 0 else np.nan,
+                    "ndf": ndf,
+                    "chi2_red": float(fit_result["chi2_quad"]),
+                    "runtime_sec": runtime_sec,
+                    "selected_by_all": False,
+                }
             )
         except Exception as exc:
+            runtime_sec = time.perf_counter() - start_time
             display_name = get_dis_fit_model_config(model_key)["display_name"]
             failed_results.append(
                 {
                     "model_key": model_key,
                     "model_display_name": display_name,
                     "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            timing_rows.append(
+                {
+                    "source_group": active_source_group,
+                    "model_key": model_key,
+                    "n_points": n_points,
+                    "fit_status": "failed",
+                    "chi2": np.nan,
+                    "ndf": np.nan,
+                    "chi2_red": np.nan,
+                    "runtime_sec": runtime_sec,
+                    "selected_by_all": False,
                 }
             )
             print(
@@ -478,14 +525,62 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_t
     else:
         selected_result = fit_results[0]
 
-    if requested_model_key == "all" and len(fit_results) > 1:
-        _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf)
-        _save_dis_fit_comparison(dataset_tag, requested_model_key, fit_results, failed_results)
-    else:
-        _plot_active_dis_fit(selected_result, dis_df, x_dense, q2_dense, pdf)
+    for row in timing_rows:
+        if row["fit_status"] != "success":
+            continue
+        row["selected_by_all"] = (
+            requested_model_key == "all"
+            and row["model_key"] == selected_result["model_key"]
+        )
 
-    _save_dis_fit_summary(dataset_tag, dis_df, selected_result, requested_model_key)
     selected_result["comparison_results"] = fit_results
     selected_result["failed_comparison_results"] = failed_results
     selected_result["requested_model_key"] = requested_model_key
+    selected_result["timing_rows"] = timing_rows
+    selected_result["source_group"] = active_source_group
+    return {
+        "selected_result": selected_result,
+        "fit_results": fit_results,
+        "failed_results": failed_results,
+        "timing_rows": timing_rows,
+        "requested_model_key": requested_model_key,
+        "source_group": active_source_group,
+    }
+
+
+def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_tag="legacy", dis_fit_model="fullx", source_group=None):
+    suite = fit_dis_model_suite(
+        indep_data,
+        dis_df,
+        x_dense,
+        q2_dense,
+        dis_fit_model=dis_fit_model,
+        source_group=source_group,
+    )
+    selected_result = suite["selected_result"]
+    fit_results = suite["fit_results"]
+    failed_results = suite["failed_results"]
+    requested_model_key = suite["requested_model_key"]
+    active_source_group = suite["source_group"]
+
+    if requested_model_key == "all" and len(fit_results) > 1:
+        _plot_dis_fit_comparison(fit_results, dis_df, x_dense, q2_dense, pdf)
+        _save_dis_fit_comparison(
+            dataset_tag,
+            requested_model_key,
+            fit_results,
+            failed_results,
+            source_group=active_source_group,
+        )
+    else:
+        _plot_active_dis_fit(selected_result, dis_df, x_dense, q2_dense, pdf)
+
+    _save_dis_fit_summary(
+        dataset_tag,
+        dis_df,
+        selected_result,
+        requested_model_key,
+        source_group=active_source_group,
+    )
+    _save_dis_fit_timing_summary(dataset_tag, suite["timing_rows"])
     return selected_result

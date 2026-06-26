@@ -80,7 +80,7 @@ DIS_W_MIN = 2.0
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "quad2"
+DIS_FIT_MODEL = "quad"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

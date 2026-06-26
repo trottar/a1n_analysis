@@ -9,8 +9,8 @@ import pandas as pd
 from utility import project_display_path, project_path, src_path
 
 MANIFEST_FILENAME = "source_manifest_3he_dis.json"
-DEFAULT_SOURCE_GROUP = "full_current_global_2025"
-FULL_ANALYSIS_SUPPORT_SOURCE_KEYS = ("e94010", "e97110")
+DEFAULT_SOURCE_GROUP = "auto"
+FULL_ANALYSIS_SUPPORT_SOURCE_KEYS = ("e94010", "e97110", "psolv_e01012_g1g2")
 CANONICAL_COLUMNS = [
     "source_key",
     "source_group",
@@ -59,7 +59,7 @@ SOURCE_GROUPS = {
         "e06014_flay",
         "e97103_kramer",
         "hermes_2000",
-        "a1n_2025_dis",
+        "a1n_2025_all",
     ],
     "current_global_2025_no_kramer": [
         "e142",
@@ -67,7 +67,7 @@ SOURCE_GROUPS = {
         "e99117_zheng",
         "e06014_flay",
         "hermes_2000",
-        "a1n_2025_dis",
+        "a1n_2025_all",
     ],
     "legacy_mingyu": [
         "e142",
@@ -135,6 +135,31 @@ def recompute_w_from_x_q2(x, q2, mass=0.9382720813):
 
 def get_source_groups():
     return {key: list(value) for key, value in SOURCE_GROUPS.items()}
+
+
+def default_source_group_for_dataset_mode(dataset_mode, analysis_scope):
+    dataset_mode = str(dataset_mode).strip().lower()
+    analysis_scope = str(analysis_scope).strip().lower()
+
+    if dataset_mode == "legacy":
+        base_group = "legacy_mingyu"
+    elif dataset_mode == "2025":
+        base_group = "current_global_2025"
+    else:
+        raise ValueError(
+            f"Source-group mode does not have an automatic default for DATASET_MODE '{dataset_mode}'."
+        )
+
+    if analysis_scope == "full":
+        return f"full_{base_group}"
+    return base_group
+
+
+def resolve_source_group_name(dataset_mode, analysis_scope, source_group):
+    requested = str(source_group or DEFAULT_SOURCE_GROUP).strip()
+    if requested.lower() in {"", "auto", "default"}:
+        return default_source_group_for_dataset_mode(dataset_mode, analysis_scope)
+    return requested
 
 
 def get_source_group_source_keys(group_name, source_groups=None):

@@ -24,6 +24,7 @@ from scipy.interpolate import griddata, interp1d
 from dis_fit_data_sources import (
     DEFAULT_SOURCE_GROUP,
     describe_source_group,
+    resolve_source_group_name,
     write_source_group_reports,
 )
 from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
@@ -51,6 +52,7 @@ DATASET_MODE = "2025"
 DIS_DATA_MODE = "source_group"
 
 # Source-aware group variants:
+# DIS_SOURCE_GROUP = "auto"
 # DIS_SOURCE_GROUP = "plots_baseline"
 # DIS_SOURCE_GROUP = "plots_baseline_plus_hermes"
 # DIS_SOURCE_GROUP = "current_global_2025"
@@ -147,8 +149,10 @@ def derive_dataset_tag(dataset_mode, g1f1_path=None, dis_path=None):
     return sanitize_dataset_tag(g1f1_stem)
 
 
+ACTIVE_SOURCE_GROUP = None
 if DIS_DATA_MODE == "source_group":
-    DATASET_TAG = sanitize_dataset_tag(DIS_SOURCE_GROUP)
+    ACTIVE_SOURCE_GROUP = resolve_source_group_name(DATASET_MODE, ANALYSIS_SCOPE, DIS_SOURCE_GROUP)
+    DATASET_TAG = sanitize_dataset_tag(ACTIVE_SOURCE_GROUP)
 elif DATASET_MODE == "2025":
     DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
 else:
@@ -175,7 +179,8 @@ def build_output_path(base_path, dataset_tag, analysis_scope):
 
 def active_mode_label(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
     if dis_data_mode == "source_group":
-        return f"{sanitize_dataset_tag(dis_source_group)}/{analysis_scope}"
+        resolved_group = resolve_source_group_name(dataset_mode, analysis_scope, dis_source_group)
+        return f"{sanitize_dataset_tag(resolved_group)}/{analysis_scope}"
     return f"{dataset_mode}/{analysis_scope}"
 
 
@@ -185,9 +190,10 @@ def analysis_output_dir(analysis_tag):
 
 def describe_fit_inputs(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
     if dis_data_mode == "source_group":
+        resolved_group = resolve_source_group_name(dataset_mode, analysis_scope, dis_source_group)
         return (
-            f"source group '{dis_source_group}' with sources: "
-            f"{describe_source_group(dis_source_group)}"
+            f"source group '{resolved_group}' with sources: "
+            f"{describe_source_group(resolved_group)}"
         )
 
     if dataset_mode == "2025":
@@ -543,11 +549,16 @@ if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
 
 def load_analysis_data(analysis_scope):
+    resolved_source_group = (
+        resolve_source_group_name(DATASET_MODE, analysis_scope, DIS_SOURCE_GROUP)
+        if DIS_DATA_MODE == "source_group"
+        else DIS_SOURCE_GROUP
+    )
     load_data_kwargs = {
         "dataset_mode": DATASET_MODE,
         "analysis_scope": analysis_scope,
         "dis_data_mode": DIS_DATA_MODE,
-        "dis_source_group": DIS_SOURCE_GROUP,
+        "dis_source_group": resolved_source_group,
         "dis_w_min": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
     }
     if DATASET_MODE == "2025":
@@ -561,6 +572,11 @@ def load_analysis_data(analysis_scope):
 
 def run_analysis(analysis_scope):
     g1f1_df, g2f1_df, a1_df, a2_df, dis_df = load_analysis_data(analysis_scope)
+    resolved_source_group = (
+        resolve_source_group_name(DATASET_MODE, analysis_scope, DIS_SOURCE_GROUP)
+        if DIS_DATA_MODE == "source_group"
+        else DIS_SOURCE_GROUP
+    )
     mode_label = active_mode_label(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
     uses_hybrid_2025_support = (
         DIS_DATA_MODE != "source_group"
@@ -609,7 +625,7 @@ def run_analysis(analysis_scope):
             pdf,
             dataset_tag=ANALYSIS_TAG,
             dis_fit_model=DIS_FIT_MODEL,
-            source_group=DIS_SOURCE_GROUP if DIS_DATA_MODE == "source_group" else None,
+            source_group=resolved_source_group if DIS_DATA_MODE == "source_group" else None,
         )
 
         # Generate fitted curve using the fitted parameters for constant q2
@@ -665,7 +681,7 @@ def run_analysis(analysis_scope):
             DATASET_MODE, analysis_scope, res_df, w_lims
         )
 
-        validation_mode = sanitize_dataset_tag(DIS_SOURCE_GROUP) if DIS_DATA_MODE == "source_group" else DATASET_MODE
+        validation_mode = sanitize_dataset_tag(resolved_source_group) if DIS_DATA_MODE == "source_group" else DATASET_MODE
         if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"2025", "6gev"}:
             validate_resonance_fit_support(
                 validation_mode,

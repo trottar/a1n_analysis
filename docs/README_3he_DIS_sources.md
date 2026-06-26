@@ -25,6 +25,7 @@ This document describes the source-aware 3He `g1/F1` input system used by the op
 | `mingyu_legacy_dis` | `Mingyu DIS legacy` | `data/mingyu_g1f1_g2f1_dis.csv` | Legacy internal extraction | no | Legacy-only source |
 | `e94010` | `E94-010` | `data/e94010.csv` | Historical processed resonance-support table | full groups only | Added to `full_*` source groups for BW/resonance coverage |
 | `e97110` | `E97-110` | `data/e97110.csv` | Historical processed resonance-support table | full groups only | Added to `full_*` source groups for BW/resonance coverage |
+| `psolv_e01012_g1g2` | `Solvg. E01-012 (2006)` | `data/psolv_e01012_g1g2.csv` | Historical processed resonance-support table | full groups only | Added to `full_*` source groups for BW/resonance coverage |
 
 ## Observable Mapping
 - `e142`, `e154_yury`, `e97103_kramer`: `Q2 <- Q2`, `X <- X`, `W <- W.cal`, `G1F1 <- G1F1.cal`, `G1F1.err <- G1F1.cal.err`
@@ -33,7 +34,7 @@ This document describes the source-aware 3He `g1/F1` input system used by the op
 - `hermes_2000`: `Q2 <- Q2`, `X <- X`, `G1F1 <- A1He3.mes`, `G1F1.err <- A1He3.mes.err`, `W` recomputed from `X` and `Q2`
 - `a1n_2025_dis`, `a1n_2025_all`: `Q2 <- Q2`, `X <- xbj`, `G1F1 <- g1/F1_He3`, `G1F1.err <- sqrt(stat^2 + syst^2)`, `W` recomputed from `X` and `Q2`
 - `mingyu_legacy_dis`: `Q2 <- Q2`, `X <- x`, `W <- W.cal`, `G1F1 <- g1F1_3He`, `G1F1.err <- g1f1.err`
-- `e94010`, `e97110`: `Q2 <- Q2`, `X <- X`, `W <- W`, `G1F1 <- G1F1.cal`, `G1F1.err <- G1F1.cal.err`
+- `e94010`, `e97110`, `psolv_e01012_g1g2`: `Q2 <- Q2`, `X <- X`, `W <- W`, `G1F1 <- G1F1.cal`, `G1F1.err <- G1F1.cal.err`
 
 ## Source Groups
 - `plots_baseline`: `e142`, `e154_yury`, `e99117_zheng`, `e06014_flay`, `e97103_kramer`
@@ -42,7 +43,7 @@ This document describes the source-aware 3He `g1/F1` input system used by the op
 - `current_global_2025_no_kramer`: current 2025 group without Kramer
 - `legacy_mingyu`: baseline plus `hermes_2000` and `mingyu_legacy_dis`
 - `current_2025_all_diagnostic`: baseline plus `hermes_2000` and `a1n_2025_all`
-- Any `full_<group>` companion adds `e94010` and `e97110`
+- Any `full_<group>` companion adds `e94010`, `e97110`, and `psolv_e01012_g1g2`
 
 ## Operational Notes
 - In source-aware mode, `dis_df` applies the fit-level DIS cut after source assembly: `Q2 > 1.0` and optionally `W > DIS_W_MIN`.

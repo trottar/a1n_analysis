@@ -121,31 +121,35 @@ def theta_func(x, x_points=[1, 3, 5], theta_points=[-np.pi/2, 0, np.pi/2]):
 
 def k_curve_tune(x, a, b, c, d, f, e):
     """
-    Tuned piecewise k(Q²) model with a high-Q² sine modulation.
+    Tuned hybrid k(Q²) model.
+
+    Low and mid Q² use the same smooth linear-to-nonlinear structure as the
+    non-tuned curve, but preserve the tuned-curve parameter roles by using `d`
+    as the exponential falloff scale. High Q² keeps the tuned sine-modulated
+    tail.
     """
     x = np.asarray(x, dtype=np.float64)
-    k_val = np.empty_like(x)
-    
-    # --- Low Q² Region: x ≤ 0.1 (Linear) ---
-    mask_low = x <= 0.1
-    k_val[mask_low] = f + e * x[mask_low]
-    
-    # --- Mid Q² Region: 0.1 < x ≤ 2.75 (Blend between linear and exponential) ---
-    mask_mid = (x > 0.1) & (x <= 2.75)
-    lin_mid = f + e * x[mask_mid]
-    exp_mid = (a + c / x[mask_mid]) * np.exp(-x[mask_mid] / d)
-    weight_mid = (x[mask_mid] - 0.1) / (2.75 - 0.1)
-    k_val[mask_mid] = (1 - weight_mid) * lin_mid + weight_mid * exp_mid
-    
-    # --- High Q² Region: x > 2.75 (Exponential fall off with sine modulation) ---
+
+    # Non-tune-like low/mid-Q² structure, but using the tuned falloff scale `d`.
+    linear_part = f + e * x
+    low_mid_nonlinear = -a * np.exp(-x / d) + (c / x)
+    low_mid_switch = 1 / (1 + np.exp(-100 * (x - 0.1)))
+    low_mid_curve = (1 - low_mid_switch) * linear_part + low_mid_switch * low_mid_nonlinear
+
+    # Preserve the tuned high-Q² sine-modulated behavior.
+    high_q2_curve = low_mid_curve.copy()
     mask_high = x > 2.75
-    exp_high = (a + c / x[mask_high]) * np.exp(-x[mask_high] / d)
-    theta = np.interp(x[mask_high], [2.75, 5.0, 9.0], [0, np.pi/2, np.pi])
-    sine_var = b * np.sin(theta)
-    weight_sine = np.clip((x[mask_high] - 2.75) / (5.0 - 2.75), 0, 1)
-    k_val[mask_high] = exp_high + weight_sine * sine_var
-    
-    return k_val
+    if np.any(mask_high):
+        exp_high = (a + c / x[mask_high]) * np.exp(-x[mask_high] / d)
+        theta = np.interp(x[mask_high], [2.75, 5.0, 9.0], [0, np.pi/2, np.pi])
+        sine_var = b * np.sin(theta)
+        weight_sine = np.clip((x[mask_high] - 2.75) / (5.0 - 2.75), 0, 1)
+        high_q2_curve[mask_high] = exp_high + weight_sine * sine_var
+
+    # Smoothly hand off to the tuned high-Q² branch near the original transition.
+    high_q2_blend = 1 / (1 + np.exp(-12 * (x - 2.75)))
+
+    return (1 - high_q2_blend) * low_mid_curve + high_q2_blend * high_q2_curve
 
 
 # Backward-compatible default alias.

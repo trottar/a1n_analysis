@@ -28,6 +28,7 @@ from dis_fit_data_sources import (
     write_source_group_reports,
 )
 from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
+from functions import get_quad_nucl_curve_k, normalize_bw_k_curve_mode
 from utility import project_path, show_pdf_with_evince
 
 ##################################################################################################################################################
@@ -552,7 +553,7 @@ from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
 
 from g1f1_grid import create_g1f1_grid
-from functions import fit_error, get_quad_nucl_curve_k, normalize_bw_k_curve_mode, weighted_avg
+from functions import fit_error, weighted_avg
 
 ##################################################################################################################################################
 

@@ -82,7 +82,7 @@ DIS_UNCUT_SOURCE_KEYS = []
 # BW_K_CURVE_MODEL = "non_tune"
 # BW_K_CURVE_MODEL = "non-tune"
 # BW_K_CURVE_MODEL = "tune"
-BW_K_CURVE_MODEL = "non_tune"
+BW_K_CURVE_MODEL = "tune"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"

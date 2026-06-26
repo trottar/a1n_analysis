@@ -80,13 +80,13 @@ DIS_W_MIN = 2.0
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "all"
+DIS_FIT_MODEL = "fullx"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"
 # ANALYSIS_SCOPE = "dis_only"
 # ANALYSIS_SCOPE = "dis"
-ANALYSIS_SCOPE = "full"
+ANALYSIS_SCOPE = "dis"
 
 # Full-scope fallback variants:
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True

@@ -265,12 +265,43 @@ def fit_dis_transition(
     full_results_csv = _build_artifact_path("full_results.csv", dataset_tag)
     full_errors_csv = _build_artifact_path("full_results_errors.csv", dataset_tag)
     param_names = ['w_dis_transition', 'damping_dis_width']
+    current_q2_labels = list(res_df['Q2_labels'].unique())
 
-    if not os.path.exists(full_results_csv):
-        print(f"\nFile '{full_results_csv}' does not exist. Finding best parameters!")
+    def transition_cache_is_usable():
+        if not os.path.exists(full_results_csv) or not os.path.exists(full_errors_csv):
+            return False, "missing cached transition CSV artifacts"
+
+        try:
+            cached_results_df = pd.read_csv(full_results_csv, index_col=0)
+            cached_errors_df = pd.read_csv(full_errors_csv, index_col=0)
+        except Exception as exc:
+            return False, f"failed to read cached transition CSV artifacts ({exc})"
+
+        missing_param_rows = [
+            name for name in param_names
+            if name not in cached_results_df.index or name not in cached_errors_df.index
+        ]
+        if missing_param_rows:
+            return False, "missing cached parameter rows: " + ", ".join(missing_param_rows)
+
+        cached_columns = list(cached_results_df.columns)
+        if cached_columns != current_q2_labels:
+            return (
+                False,
+                "cached Q2 label columns do not match current resonance labels",
+            )
+
+        return True, "cache matches current resonance labels"
+
+    cache_is_usable, cache_reason = transition_cache_is_usable()
+
+    if not cache_is_usable:
+        print(
+            f"\nRegenerating DIS-transition cache '{full_results_csv}': {cache_reason}."
+        )
         full_results = {}
 
-        for l in res_df['Q2_labels'].unique():
+        for l in current_q2_labels:
             best_params, param_uncertainties = optimize_parameters_for_q2_bin(
                 res_df, l,
                 k_nucl_par, gamma_nucl_par, mass_nucl_par,
@@ -309,7 +340,7 @@ def fit_dis_transition(
     print("CSV Columns:", full_results_df.columns)
     print("CSV Index:", full_results_df.index)
 
-    for l in res_df['Q2_labels'].unique():
+    for l in current_q2_labels:
         if l in full_results_df.columns:
             q2_bin_params[l] = {}
             q2_bin_errors[l] = {}
@@ -344,7 +375,7 @@ def fit_dis_transition(
         param_vals = []
         param_errs = []
 
-        for i, l in enumerate(res_df['Q2_labels'].unique()):
+        for i, l in enumerate(current_q2_labels):
             q2_this_bin = res_df['Q2'][res_df['Q2_labels'] == l].unique()[0]
             q2_vals.append(q2_this_bin)
             param_vals.append(q2_bin_params[l][name])
@@ -458,7 +489,7 @@ def fit_dis_transition(
         param_vals = []
         param_errs = []
 
-        for l in res_df['Q2_labels'].unique():
+        for l in current_q2_labels:
             q2_this_bin = res_df['Q2'][res_df['Q2_labels'] == l].unique()[0]
             q2_vals.append(q2_this_bin)
             param_vals.append(q2_bin_params[l][name])
@@ -557,7 +588,7 @@ def fit_dis_transition(
     # (8) Global Fit Propagation: Update bin-by-bin parameters with the global fit
     ###########################################################################
     for name, results in best_fit_results.items():
-        for l in res_df['Q2_labels'].unique():
+        for l in current_q2_labels:
             q2_value = res_df['Q2'][res_df['Q2_labels'] == l].unique()[0]
             value, error = results['eval_func'](q2_value)
             q2_bin_params[l][name] = value

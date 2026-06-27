@@ -92,7 +92,7 @@ BW_K_CURVE_MODEL = "tune"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "cubic_alpha"
+DIS_FIT_MODEL = "quad2"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

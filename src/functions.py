@@ -150,6 +150,38 @@ def k_curve_tune(x, a, b, c, d, f, e):
     return k_val
 
 
+def k_curve_fixed_zero(x, a, b, c, d, f, e):
+    """
+    Fixed-zero k(Q²) model.
+
+    This keeps the tuned low- and mid-Q² behavior, but replaces the
+    high-Q² sine-modulated branch with a monotonic exponential decay to zero.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    k_val = np.empty_like(x)
+
+    q_low = 0.1
+    q_high = 2.75
+    safe_d = np.copysign(max(abs(d), 1e-6), d if d != 0 else 1.0)
+    decay_scale = max(abs(b), 1e-6)
+
+    mask_low = x <= q_low
+    k_val[mask_low] = f + e * x[mask_low]
+
+    mask_mid = (x > q_low) & (x <= q_high)
+    lin_mid = f + e * x[mask_mid]
+    exp_mid = (a + c / x[mask_mid]) * np.exp(-x[mask_mid] / safe_d)
+    weight_mid = (x[mask_mid] - q_low) / (q_high - q_low)
+    k_val[mask_mid] = (1 - weight_mid) * lin_mid + weight_mid * exp_mid
+
+    mask_high = x > q_high
+    if np.any(mask_high):
+        pivot_value = (a + c / q_high) * np.exp(-q_high / safe_d)
+        k_val[mask_high] = pivot_value * np.exp(-(x[mask_high] - q_high) / decay_scale)
+
+    return k_val
+
+
 # Backward-compatible default alias.
 k_curve = k_curve_non_tune
 
@@ -249,10 +281,19 @@ def quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   return k_curve_tune(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
 
 
+def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
+  """
+  Fixed-zero quadratic * nucl potential k(Q^2) form.
+  """
+  return k_curve_fixed_zero(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+
+
 def get_quad_nucl_curve_k(mode="non_tune"):
   normalized = normalize_bw_k_curve_mode(mode)
-  if normalized in {"tune", "fixed_zero"}:
+  if normalized == "tune":
     return quad_nucl_curve_k_tune
+  if normalized == "fixed_zero":
+    return quad_nucl_curve_k_fixed_zero
   return quad_nucl_curve_k_non_tune
 
 

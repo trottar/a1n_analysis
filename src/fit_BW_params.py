@@ -146,6 +146,12 @@ def _build_artifact_path(filename, dataset_tag):
     return os.path.join(tagged_dir, filename)
 
 
+def _curve_cache_suffix(bw_k_curve_mode):
+    if bw_k_curve_mode == "fixed_zero":
+        return "_fixed_zero_v2"
+    return ""
+
+
 def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
     k_fit_df = delta_par_df.copy()
     excluded_k_row = None
@@ -209,7 +215,8 @@ def fit_BW_params(
         raise RuntimeError("No finite resonance Breit-Wigner rows remain for BW parameter fitting.")
 
     k_fit_df, excluded_k_row = _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode)
-    fit_results_csv = _build_artifact_path("fit_results.csv", dataset_tag)
+    curve_cache_suffix = _curve_cache_suffix(bw_k_curve_mode)
+    fit_results_csv = _build_artifact_path(f"fit_results{curve_cache_suffix}.csv", dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
     #k_ub = [1e10, 1e10, 1e10, 1e-10]
@@ -521,9 +528,9 @@ def fit_BW_params(
         )
 
         # Define file names for saving/loading bootstrap results
-        params_filename = _build_artifact_path(f"bootstrap_{var_name}_params.npy", dataset_tag)
-        fits_data_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_data.npy", dataset_tag)
-        fits_q2_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_q2.npy", dataset_tag)
+        params_filename = _build_artifact_path(f"bootstrap_{var_name}_params{curve_cache_suffix}.npy", dataset_tag)
+        fits_data_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_data{curve_cache_suffix}.npy", dataset_tag)
+        fits_q2_filename = _build_artifact_path(f"bootstrap_{var_name}_fits_q2{curve_cache_suffix}.npy", dataset_tag)
         
         if os.path.exists(params_filename) and os.path.exists(fits_q2_filename):
             print(f"Loading existing bootstrap results for {var_name}...")

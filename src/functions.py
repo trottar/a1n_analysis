@@ -75,13 +75,15 @@ def quad_curve(x, a, b, c):
   return a + b*x + c*x**2
 
 #HERE
-VALID_BW_K_CURVE_MODES = {"non_tune", "tune"}
+VALID_BW_K_CURVE_MODES = {"fixed_zero", "non_tune", "tune"}
 
 
 def normalize_bw_k_curve_mode(mode):
   normalized = str(mode).strip().lower().replace("-", "_").replace(" ", "_")
   if normalized in {"", "default", "current"}:
     normalized = "non_tune"
+  if normalized in {"fixedzero", "zero_fixed"}:
+    normalized = "fixed_zero"
   if normalized not in VALID_BW_K_CURVE_MODES:
     supported = ", ".join(sorted(VALID_BW_K_CURVE_MODES))
     raise ValueError(f"Unsupported BW k-curve mode '{mode}'. Expected one of: {supported}.")
@@ -249,7 +251,7 @@ def quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
 
 def get_quad_nucl_curve_k(mode="non_tune"):
   normalized = normalize_bw_k_curve_mode(mode)
-  if normalized == "tune":
+  if normalized in {"tune", "fixed_zero"}:
     return quad_nucl_curve_k_tune
   return quad_nucl_curve_k_non_tune
 

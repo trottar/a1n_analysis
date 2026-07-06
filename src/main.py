@@ -89,7 +89,8 @@ DIS_CURRENT_SOURCE = "dis_csv"
 # BW_K_CURVE_MODEL = "non_tune"
 # BW_K_CURVE_MODEL = "non-tune"
 # BW_K_CURVE_MODEL = "tune"
-BW_K_CURVE_MODEL = "tune"
+# BW_K_CURVE_MODEL = "fixed_zero"
+BW_K_CURVE_MODEL = "fixed_zero"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"
@@ -99,7 +100,7 @@ BW_K_CURVE_MODEL = "tune"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "cubic"
+DIS_FIT_MODEL = "fullx"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"

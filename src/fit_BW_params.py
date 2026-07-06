@@ -146,6 +146,26 @@ def _build_artifact_path(filename, dataset_tag):
     return os.path.join(tagged_dir, filename)
 
 
+def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
+    k_fit_df = delta_par_df.copy()
+    excluded_k_row = None
+
+    if bw_k_curve_mode == "fixed_zero":
+        excluded_index = k_fit_df["Q2"].idxmax()
+        excluded_k_row = k_fit_df.loc[[excluded_index]].copy()
+        k_fit_df = k_fit_df.drop(index=excluded_index).reset_index(drop=True)
+        excluded_record = excluded_k_row.iloc[0]
+        print(
+            "[fit_BW_params] fixed_zero mode: excluding highest-Q2 k point "
+            f"at Q2={excluded_record['Q2']:.3f}, k={excluded_record['k']:.5f} and fixing the k-tail offset to zero."
+        )
+
+    if k_fit_df.empty:
+        raise RuntimeError("No resonance rows remain for the BW k-fit after applying the selected k-curve mode.")
+
+    return k_fit_df, excluded_k_row
+
+
 def fit_BW_params(
     q2,
     delta_par_df,
@@ -188,6 +208,7 @@ def fit_BW_params(
     if delta_par_df.empty:
         raise RuntimeError("No finite resonance Breit-Wigner rows remain for BW parameter fitting.")
 
+    k_fit_df, excluded_k_row = _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode)
     fit_results_csv = _build_artifact_path("fit_results.csv", dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
@@ -196,6 +217,9 @@ def fit_BW_params(
     #k_ub = [1e10, 1e10, 1e10, 1e10]
     k_lb = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10, -1e10]
     k_ub = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10, 1e10]
+    if bw_k_curve_mode == "fixed_zero":
+        k_lb[-1] = -1e-12
+        k_ub[-1] = 1e-12
     k_bounds = Bounds(lb=k_lb, ub=k_ub)
     P0 = 0.7
     P1 = 1.7
@@ -262,9 +286,9 @@ def fit_BW_params(
         print("-"*35)
         k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
             "k",
-            x_data=delta_par_df["Q2"],
-            y_data=delta_par_df["k"],
-            y_err=delta_par_df["k.err"],
+            x_data=k_fit_df["Q2"],
+            y_data=k_fit_df["k"],
+            y_err=k_fit_df["k.err"],
             param_bounds=k_bounds,
             p_vals_initial=k_p_vals_initial,
             fit_function=quad_nucl_curve_k_wrapper,
@@ -387,6 +411,10 @@ def fit_BW_params(
         print("Variables successfully loaded from the CSV.")
 
 
+    if bw_k_curve_mode == "fixed_zero" and len(k_best_params) >= 7:
+        k_best_params = list(k_best_params)
+        k_best_params[-1] = 0.0
+
     # Unpack the results
     print("k Parameters")
     print("-"*50)
@@ -456,9 +484,10 @@ def fit_BW_params(
     def find_param_errors(i, var_name):
         x_data = delta_par_df["Q2"]
         if var_name == "k":
+            x_data = k_fit_df["Q2"]
             true_params = [p for p in k_nucl_par] + [P for P in k_P_vals]
-            y_data = delta_par_df["k"]
-            y_err = delta_par_df["k.err"]
+            y_data = k_fit_df["k"]
+            y_err = k_fit_df["k.err"]
             y_nucl = k_nucl
             bounds = (k_lb + [P-(1e-6) for P in k_P_vals], k_ub + [P+(1e-6) for P in k_P_vals])
             model = quad_nucl_curve_k_func

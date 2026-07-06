@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2025-04-22 10:53:24 trottar"
+# Time-stamp: current
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -21,6 +21,7 @@ from dis_fit_data_sources import (
     SOURCE_GROUPS,
     build_3he_g1f1_group_bundle,
     load_source_manifest,
+    normalize_dataset_mode,
     resolve_source_group_name,
     source_group_breakdown_lines,
 )
@@ -51,7 +52,7 @@ LEGACY_A1_PATH = project_path("data", "a1_comb.csv")
 LEGACY_A2_PATH = project_path("data", "a2_comb.csv")
 MINGYU_DIS_PATH = project_path("data", "mingyu_g1f1_g2f1_dis.csv")
 VALID_DIS_DATA_MODES = {"legacy_combined_csv", "source_group"}
-VALID_2025_DIS_SOURCE_MODES = {"all_cut", "dis_csv"}
+VALID_CURRENT_DIS_SOURCE_MODES = {"all_cut", "dis_csv"}
 
 
 def _convert_q2(q2):
@@ -198,7 +199,7 @@ def _exclude_labels(df, labels):
     return df[~df["Label"].isin(labels)].copy().reset_index(drop=True)
 
 
-def _load_2025_g1f1_frame(path, label):
+def _load_current_g1f1_frame(path, label):
     raw_df = pd.read_csv(
         path,
         sep=r"\s+",
@@ -303,24 +304,20 @@ def _collect_frame_lines(name, df, sources, cuts):
     ]
 
 
-def _build_splash_output_path(dataset_mode, analysis_scope, g1f1_2025_path=None, dis_2025_path=None):
-    if dataset_mode == "2025":
-        if analysis_scope == "dis_only":
-            tag = os.path.splitext(os.path.basename(dis_2025_path or "2025_dis"))[0]
-        else:
-            tag = os.path.splitext(os.path.basename(g1f1_2025_path or "2025_all"))[0]
-        filename = f"load_data_splash_{tag}_{analysis_scope}.txt"
+def _build_splash_output_path(dataset_mode, analysis_scope, g1f1_current_path=None, dis_current_path=None):
+    if dataset_mode == "current":
+        filename = f"load_data_splash_current_{analysis_scope}.txt"
     else:
         filename = f"load_data_splash_{dataset_mode}_{analysis_scope}.txt"
     return project_path("fit_data", filename)
 
 
-def _write_splash_report(lines, dataset_mode, analysis_scope, g1f1_2025_path=None, dis_2025_path=None):
+def _write_splash_report(lines, dataset_mode, analysis_scope, g1f1_current_path=None, dis_current_path=None):
     output_path = _build_splash_output_path(
         dataset_mode,
         analysis_scope,
-        g1f1_2025_path=g1f1_2025_path,
-        dis_2025_path=dis_2025_path,
+        g1f1_current_path=g1f1_current_path,
+        dis_current_path=dis_current_path,
     )
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as splash_file:
@@ -329,27 +326,27 @@ def _write_splash_report(lines, dataset_mode, analysis_scope, g1f1_2025_path=Non
 
 
 def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df, a2_df, dis_df,
-                         g1f1_2025_path=None, dis_2025_path=None):
+                         g1f1_current_path=None, dis_current_path=None):
     lines = ["=" * 100, f"[load_data] dataset_mode={dataset_mode} analysis_scope={analysis_scope}"]
 
-    if dataset_mode == "2025":
+    if dataset_mode == "current":
         if analysis_scope == "dis_only":
             g1f1_sources = [LEGACY_G1F1_PATH]
-            dis_sources = [LEGACY_G1F1_PATH, dis_2025_path]
+            dis_sources = [LEGACY_G1F1_PATH, dis_current_path]
             dis_cuts = [
                 "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
-                "2025 DIS file loaded directly",
-                "2025 all excluded in 2025/dis_only",
-                "Mingyu DIS excluded in 2025 mode",
+                "A1n DIS file loaded directly",
+                "A1n all excluded in current/dis_only",
+                "Mingyu DIS excluded in current mode",
             ]
         else:
-            g1f1_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
-            dis_sources = [LEGACY_G1F1_PATH, g1f1_2025_path]
+            g1f1_sources = [LEGACY_G1F1_PATH, g1f1_current_path]
+            dis_sources = [LEGACY_G1F1_PATH, g1f1_current_path]
             dis_cuts = [
                 "legacy DIS-cut baseline uses Q2 > 1.0 and W > 2.0",
-                "2025 all DIS-cut uses Q2 > 1.0 and W > 2.0",
-                "2025 DIS excluded in 2025/full",
-                "Mingyu DIS excluded in 2025 mode",
+                "A1n all DIS-cut uses Q2 > 1.0 and W > 2.0",
+                "A1n DIS excluded in current/full",
+                "Mingyu DIS excluded in current mode",
             ]
         excluded_labels = sorted(LEGACY_EXCLUDED_LABELS)
     elif dataset_mode == "6gev":
@@ -359,7 +356,7 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
             "6gev mode excludes legacy base labels E94-010 and E97-110",
             "DIS-cut uses Q2 > 1.0 and W > 2.0",
             "Mingyu DIS excluded",
-            "2025 datasets excluded",
+            "current A1n datasets excluded",
         ]
         excluded_labels = sorted(LEGACY_BASE_LABELS)
     else:
@@ -392,8 +389,8 @@ def _print_dataset_splash(dataset_mode, analysis_scope, g1f1_df, g2f1_df, a1_df,
         lines,
         dataset_mode,
         analysis_scope,
-        g1f1_2025_path=g1f1_2025_path,
-        dis_2025_path=dis_2025_path,
+        g1f1_current_path=g1f1_current_path,
+        dis_current_path=dis_current_path,
     )
 
 
@@ -407,9 +404,9 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
             f"dis_data_mode={dis_data_mode} dis_source_group={dis_source_group}"
         ),
     ]
-    if dataset_mode == "2025":
+    if dataset_mode == "current":
         lines.append(
-            f"[load_data] dis_2025_source_mode={metadata.get('dis_2025_source_mode', 'all_cut')}"
+            f"[load_data] dis_current_source_mode={metadata.get('dis_current_source_mode', 'all_cut')}"
         )
     lines.extend(source_group_breakdown_lines(metadata)[1:-1])
     lines.extend(
@@ -454,13 +451,20 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
     print()
 
 
-def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full",
+def load_data(dataset_mode="legacy", g1f1_current_path=None, dis_current_path=None, analysis_scope="full",
               dis_data_mode="legacy_combined_csv", dis_source_group=None, dis_w_min=None,
-              dis_uncut_source_keys=None, dis_2025_source="all_cut"):
+              dis_uncut_source_keys=None, dis_current_source="all_cut",
+              g1f1_2025_path=None, dis_2025_path=None, dis_2025_source=None):
 
-    dataset_mode = dataset_mode.lower()
-    if dataset_mode not in {"legacy", "2025", "6gev"}:
-        raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy', '2025', or '6gev'.")
+    dataset_mode = normalize_dataset_mode(dataset_mode)
+    if g1f1_current_path is None:
+        g1f1_current_path = g1f1_2025_path
+    if dis_current_path is None:
+        dis_current_path = dis_2025_path
+    if dis_2025_source is not None and dis_current_source == "all_cut":
+        dis_current_source = dis_2025_source
+    if dataset_mode not in {"legacy", "current", "6gev"}:
+        raise ValueError(f"Unsupported dataset_mode '{dataset_mode}'. Expected 'legacy', 'current', or '6gev'.")
 
     analysis_scope = analysis_scope.lower()
     if analysis_scope == "dis":
@@ -472,11 +476,11 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
     if dis_data_mode not in VALID_DIS_DATA_MODES:
         supported = ", ".join(sorted(VALID_DIS_DATA_MODES))
         raise ValueError(f"Unsupported dis_data_mode '{dis_data_mode}'. Expected one of: {supported}.")
-    dis_2025_source = str(dis_2025_source).strip().lower()
-    if dis_2025_source not in VALID_2025_DIS_SOURCE_MODES:
-        supported = ", ".join(sorted(VALID_2025_DIS_SOURCE_MODES))
+    dis_current_source = str(dis_current_source).strip().lower()
+    if dis_current_source not in VALID_CURRENT_DIS_SOURCE_MODES:
+        supported = ", ".join(sorted(VALID_CURRENT_DIS_SOURCE_MODES))
         raise ValueError(
-            f"Unsupported dis_2025_source '{dis_2025_source}'. Expected one of: {supported}."
+            f"Unsupported dis_current_source '{dis_current_source}'. Expected one of: {supported}."
         )
 
     if dis_data_mode == "source_group":
@@ -489,7 +493,7 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
             q2_min=1.0,
             dis_w_min=dis_w_min,
             dis_uncut_source_keys=dis_uncut_source_keys,
-            dis_2025_source_mode=dis_2025_source,
+            dis_current_source_mode=dis_current_source,
         )
         raw_g1f1_df = bundle["g1f1_df"]
         dis_df = bundle["dis_df"]
@@ -513,23 +517,23 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
         )
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df
 
-    if dataset_mode == "2025":
-        if not g1f1_2025_path or not dis_2025_path:
-            raise ValueError("2025 mode requires both g1f1_2025_path and dis_2025_path.")
+    if dataset_mode == "current":
+        if not g1f1_current_path or not dis_current_path:
+            raise ValueError("current mode requires both g1f1_current_path and dis_current_path.")
 
         legacy_g1f1_df, g2f1_df, a1_df, a2_df, _legacy_dis_df = _load_legacy_fit_support(analysis_scope)
         legacy_dis_cut_df = _build_dis_cut_df(legacy_g1f1_df)
 
         if analysis_scope == "dis_only":
             g1f1_df = _prepare_g1f1_df(legacy_g1f1_df, excluded_labels=LEGACY_EXCLUDED_LABELS)
-            dis_2025_df = _load_2025_g1f1_frame(dis_2025_path, "2025 DIS")
-            dis_df = pd.concat([legacy_dis_cut_df, dis_2025_df], ignore_index=True)
+            dis_current_df = _load_current_g1f1_frame(dis_current_path, "A1n DIS")
+            dis_df = pd.concat([legacy_dis_cut_df, dis_current_df], ignore_index=True)
         else:
-            g1f1_2025_df = _load_2025_g1f1_frame(g1f1_2025_path, "2025 all")
-            g1f1_df = pd.concat([legacy_g1f1_df, g1f1_2025_df], ignore_index=True)
+            g1f1_current_df = _load_current_g1f1_frame(g1f1_current_path, "A1n all")
+            g1f1_df = pd.concat([legacy_g1f1_df, g1f1_current_df], ignore_index=True)
             g1f1_df = _prepare_g1f1_df(g1f1_df, excluded_labels=LEGACY_EXCLUDED_LABELS)
-            dis_2025_all_df = _build_dis_cut_df(g1f1_2025_df, label="2025 all DIS-cut")
-            dis_df = pd.concat([legacy_dis_cut_df, dis_2025_all_df], ignore_index=True)
+            dis_current_all_df = _build_dis_cut_df(g1f1_current_df, label="A1n all DIS-cut")
+            dis_df = pd.concat([legacy_dis_cut_df, dis_current_all_df], ignore_index=True)
 
         _print_dataset_splash(
             dataset_mode,
@@ -539,8 +543,8 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
             a1_df,
             a2_df,
             dis_df,
-            g1f1_2025_path=g1f1_2025_path,
-            dis_2025_path=dis_2025_path,
+            g1f1_current_path=g1f1_current_path,
+            dis_current_path=dis_current_path,
         )
 
         return g1f1_df, g2f1_df, a1_df, a2_df, dis_df

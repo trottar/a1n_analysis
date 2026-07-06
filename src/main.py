@@ -3,7 +3,7 @@
 #
 # Description:
 # ================================================================
-# Time-stamp: "2026-06-17 17:45:25 trottar"
+# Time-stamp: current
 # ================================================================
 #
 # Author:  Richard L. Trotta III <trottar.iii@gmail.com>
@@ -11,6 +11,7 @@
 # Copyright (c) trottar
 #
 import os
+import glob
 import traceback
 
 import numpy as np
@@ -24,6 +25,7 @@ from scipy.interpolate import griddata, interp1d
 from dis_fit_data_sources import (
     DEFAULT_SOURCE_GROUP,
     describe_source_group,
+    normalize_dataset_mode,
     resolve_source_group_name,
     write_source_group_reports,
 )
@@ -43,9 +45,9 @@ w_res_max = 1.45
 
 # Dataset mode variants:
 # DATASET_MODE = "legacy"
-# DATASET_MODE = "2025"
+# DATASET_MODE = "current"
 # DATASET_MODE = "6gev"
-DATASET_MODE = "2025"
+DATASET_MODE = "current"
 
 # DIS data assembly variants:
 # DIS_DATA_MODE = "legacy_combined_csv"
@@ -56,16 +58,16 @@ DIS_DATA_MODE = "source_group"
 # DIS_SOURCE_GROUP = "auto"
 # DIS_SOURCE_GROUP = "plots_baseline"
 # DIS_SOURCE_GROUP = "plots_baseline_plus_hermes"
-# DIS_SOURCE_GROUP = "current_global_2025"
-# DIS_SOURCE_GROUP = "current_global_2025_no_kramer"
+# DIS_SOURCE_GROUP = "current_global"
+# DIS_SOURCE_GROUP = "current_global_no_kramer"
 # DIS_SOURCE_GROUP = "legacy_mingyu"
-# DIS_SOURCE_GROUP = "current_2025_all_diagnostic"
+# DIS_SOURCE_GROUP = "current_all_diagnostic"
 # DIS_SOURCE_GROUP = "full_plots_baseline"
 # DIS_SOURCE_GROUP = "full_plots_baseline_plus_hermes"
-# DIS_SOURCE_GROUP = "full_current_global_2025"
-# DIS_SOURCE_GROUP = "full_current_global_2025_no_kramer"
+# DIS_SOURCE_GROUP = "full_current_global"
+# DIS_SOURCE_GROUP = "full_current_global_no_kramer"
 # DIS_SOURCE_GROUP = "full_legacy_mingyu"
-# DIS_SOURCE_GROUP = "full_current_2025_all_diagnostic"
+# DIS_SOURCE_GROUP = "full_current_all_diagnostic"
 DIS_SOURCE_GROUP = DEFAULT_SOURCE_GROUP
 
 # Source-aware DIS W-cut variants:
@@ -75,13 +77,13 @@ DIS_W_MIN = 2.0
 
 # Source-aware per-source DIS-cut override variants:
 # DIS_UNCUT_SOURCE_KEYS = []
-# DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
+# DIS_UNCUT_SOURCE_KEYS = ["a1n_all"]
 DIS_UNCUT_SOURCE_KEYS = []
 
-# 2025 DIS-source variants for source-group mode:
-# DIS_2025_SOURCE = "all_cut"
-# DIS_2025_SOURCE = "dis_csv"
-DIS_2025_SOURCE = "dis_csv"
+# Current DIS-source variants for source-group mode:
+# DIS_CURRENT_SOURCE = "all_cut"
+# DIS_CURRENT_SOURCE = "dis_csv"
+DIS_CURRENT_SOURCE = "dis_csv"
 
 # BW k(Q2) variants:
 # BW_K_CURVE_MODEL = "non_tune"
@@ -115,33 +117,41 @@ FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # DEBUG_FULL_FAILURE_TRACEBACK = False
 DEBUG_FULL_FAILURE_TRACEBACK = True
 
-# Sparse-2025 full-mode variants:
-# ALLOW_SPARSE_2025_FULL = True
-# ALLOW_SPARSE_2025_FULL = False
-ALLOW_SPARSE_2025_FULL = False
+# Sparse-current full-mode variants:
+# ALLOW_SPARSE_CURRENT_FULL = True
+# ALLOW_SPARSE_CURRENT_FULL = False
+ALLOW_SPARSE_CURRENT_FULL = False
 
-# Hybrid-2025 support variants:
-# USE_LEGACY_FIT_SUPPORT_FOR_2025 = True
-# USE_LEGACY_FIT_SUPPORT_FOR_2025 = False
-USE_LEGACY_FIT_SUPPORT_FOR_2025 = True
+# Hybrid-current support variants:
+# USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = True
+# USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = False
+USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = True
 
-# DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
-# DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
-DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2026_all.csv")
-DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2026_dis.csv")
+def resolve_latest_current_dataset_path(suffix):
+    pattern = project_path("data", f"g1F1he3_*_{suffix}.csv")
+    matches = sorted(glob.glob(pattern))
+    if not matches:
+        raise FileNotFoundError(
+            f"Could not locate a current A1n '{suffix}' dataset matching {os.path.join('data', f'g1F1he3_*_{suffix}.csv')}."
+        )
+    return matches[-1]
 
-DATASET_MODE = DATASET_MODE.lower()
+
+DATASET_CURRENT_ALL_PATH = resolve_latest_current_dataset_path("all")
+DATASET_CURRENT_DIS_PATH = resolve_latest_current_dataset_path("dis")
+
+DATASET_MODE = normalize_dataset_mode(DATASET_MODE)
 DIS_DATA_MODE = str(DIS_DATA_MODE).strip().lower()
 DIS_SOURCE_GROUP = str(DIS_SOURCE_GROUP).strip()
 DIS_FIT_MODEL = normalize_dis_fit_model(DIS_FIT_MODEL)
 BW_K_CURVE_MODEL = normalize_bw_k_curve_mode(BW_K_CURVE_MODEL)
-DIS_2025_SOURCE = str(DIS_2025_SOURCE).strip().lower()
+DIS_CURRENT_SOURCE = str(DIS_CURRENT_SOURCE).strip().lower()
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
-if DIS_2025_SOURCE not in {"all_cut", "dis_csv"}:
+if DIS_CURRENT_SOURCE not in {"all_cut", "dis_csv"}:
     raise ValueError(
-        f"Unsupported DIS_2025_SOURCE '{DIS_2025_SOURCE}'. Expected 'all_cut' or 'dis_csv'."
+        f"Unsupported DIS_CURRENT_SOURCE '{DIS_CURRENT_SOURCE}'. Expected 'all_cut' or 'dis_csv'."
     )
 
 LEGACY_G1F1_INPUT = os.path.join("data", "g1f1_comb.csv")
@@ -178,14 +188,14 @@ ACTIVE_SOURCE_GROUP = None
 if DIS_DATA_MODE == "source_group":
     ACTIVE_SOURCE_GROUP = resolve_source_group_name(DATASET_MODE, ANALYSIS_SCOPE, DIS_SOURCE_GROUP)
     DATASET_TAG = sanitize_dataset_tag(ACTIVE_SOURCE_GROUP)
-elif DATASET_MODE == "2025":
-    DATASET_TAG = derive_dataset_tag(DATASET_MODE, DATASET_2025_ALL_PATH, DATASET_2025_DIS_PATH)
+elif DATASET_MODE == "current":
+    DATASET_TAG = "current"
 else:
     DATASET_TAG = derive_dataset_tag(DATASET_MODE)
-if DIS_DATA_MODE != "source_group" and DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
+if DIS_DATA_MODE != "source_group" and DATASET_MODE == "current" and ALLOW_SPARSE_CURRENT_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
-if DIS_DATA_MODE == "source_group" and DATASET_MODE == "2025" and DIS_2025_SOURCE != "all_cut":
-    DATASET_TAG = f"{DATASET_TAG}_dissrc_{sanitize_dataset_tag(DIS_2025_SOURCE)}"
+if DIS_DATA_MODE == "source_group" and DATASET_MODE == "current" and DIS_CURRENT_SOURCE != "all_cut":
+    DATASET_TAG = f"{DATASET_TAG}_dissrc_{sanitize_dataset_tag(DIS_CURRENT_SOURCE)}"
 DATASET_TAG = f"{DATASET_TAG}_k_{sanitize_dataset_tag(BW_K_CURVE_MODEL)}"
 ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
 BW_K_CURVE_FUNC = get_quad_nucl_curve_k(BW_K_CURVE_MODEL)
@@ -220,29 +230,27 @@ def analysis_output_dir(analysis_tag):
 def describe_fit_inputs(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
     if dis_data_mode == "source_group":
         resolved_group = resolve_source_group_name(dataset_mode, analysis_scope, dis_source_group)
-        dis_2025_note = ""
-        if dataset_mode == "2025":
-            dis_2025_note = f" | 2025 DIS source={DIS_2025_SOURCE}"
+        dis_current_note = ""
+        if dataset_mode == "current":
+            dis_current_note = f" | current DIS source={DIS_CURRENT_SOURCE}"
         return (
             f"source group '{resolved_group}' with sources: "
-            f"{describe_source_group(resolved_group)}{dis_2025_note}"
+            f"{describe_source_group(resolved_group)}{dis_current_note}"
         )
 
-    if dataset_mode == "2025":
+    if dataset_mode == "current":
         if analysis_scope == "dis_only":
             return (
-                f"legacy DIS baseline from '{LEGACY_G1F1_INPUT}' plus "
-                f"2025 DIS input '{os.path.join('data', os.path.basename(DATASET_2025_DIS_PATH))}'"
+                "legacy DIS baseline plus A1n DIS input"
             )
         return (
-            f"legacy DIS baseline from '{LEGACY_G1F1_INPUT}' plus "
-            f"2025 all input '{os.path.join('data', os.path.basename(DATASET_2025_ALL_PATH))}'"
+            "legacy DIS baseline plus A1n all input"
         )
 
     if dataset_mode == "6gev":
         return (
             f"'{LEGACY_G1F1_INPUT}' with E94-010 and E97-110 removed; "
-            "Mingyu DIS excluded; 2025 datasets excluded"
+            "Mingyu DIS excluded; current A1n datasets excluded"
         )
 
     if analysis_scope == "dis_only":
@@ -388,7 +396,7 @@ def prepare_resonance_fit_inputs(dataset_mode, analysis_scope, res_df, w_lims):
     return fit_res_df, adjusted_w_lims
 
 
-def build_sparse_2025_bw_fit_input(delta_par_df):
+def build_sparse_current_bw_fit_input(delta_par_df):
     def finite_value(value, fallback):
         return value if np.isfinite(value) else fallback
 
@@ -432,13 +440,13 @@ def build_sparse_2025_bw_fit_input(delta_par_df):
                 "gamma.err": gamma_err,
                 "M": mass_value,
                 "M.err": mass_err,
-                "Experiment": row.get("Experiment", "2025 data"),
-                "Label": row.get("Label", "2025 sparse full"),
+                "Experiment": row.get("Experiment", "current data"),
+                "Label": row.get("Label", "current sparse full"),
             }
         )
 
     if not sparse_rows:
-        raise RuntimeError("2025 sparse-full override could not construct BW fit inputs from delta_par_df.")
+        raise RuntimeError("current sparse-full override could not construct BW fit inputs from delta_par_df.")
 
     reference_row = sparse_rows[-1]
     for q2_anchor in range(4, 11):
@@ -451,14 +459,14 @@ def build_sparse_2025_bw_fit_input(delta_par_df):
                 "gamma.err": reference_row["gamma.err"],
                 "M": 1.232,
                 "M.err": reference_row["M.err"],
-                "Experiment": "2025 sparse anchor",
-                "Label": "2025 sparse anchor",
+                "Experiment": "current sparse anchor",
+                "Label": "current sparse anchor",
             }
         )
 
     bw_input_df = pd.DataFrame(sparse_rows)
     print(
-        f"[2025/full] Sparse-full override: augmenting BW fits with "
+        f"[current/full] Sparse-full override: augmenting BW fits with "
         f"{len(bw_input_df) - len(delta_par_df)} synthetic anchor rows."
     )
     return bw_input_df
@@ -574,8 +582,8 @@ from functions import fit_error, weighted_avg
 
 ##################################################################################################################################################
 
-if DATASET_MODE not in {"legacy", "2025", "6gev"}:
-    raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy', '2025', or '6gev'.")
+if DATASET_MODE not in {"legacy", "current", "6gev"}:
+    raise ValueError(f"Unsupported DATASET_MODE '{DATASET_MODE}'. Expected 'legacy', 'current', or '6gev'.")
 
 if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
@@ -593,13 +601,13 @@ def load_analysis_data(analysis_scope):
         "dis_source_group": resolved_source_group,
         "dis_w_min": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
         "dis_uncut_source_keys": DIS_UNCUT_SOURCE_KEYS if DIS_DATA_MODE == "source_group" else None,
-        "dis_2025_source": DIS_2025_SOURCE if DIS_DATA_MODE == "source_group" else "all_cut",
+        "dis_current_source": DIS_CURRENT_SOURCE if DIS_DATA_MODE == "source_group" else "all_cut",
     }
-    if DATASET_MODE == "2025":
+    if DATASET_MODE == "current":
         load_data_kwargs.update(
             {
-                "g1f1_2025_path": DATASET_2025_ALL_PATH,
-                "dis_2025_path": DATASET_2025_DIS_PATH,
+                "g1f1_current_path": DATASET_CURRENT_ALL_PATH,
+                "dis_current_path": DATASET_CURRENT_DIS_PATH,
             }
         )
     return load_data(**load_data_kwargs)
@@ -612,18 +620,18 @@ def run_analysis(analysis_scope):
         else DIS_SOURCE_GROUP
     )
     mode_label = active_mode_label(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
-    uses_hybrid_2025_support = (
+    uses_hybrid_current_support = (
         DIS_DATA_MODE != "source_group"
-        and DATASET_MODE == "2025"
-        and USE_LEGACY_FIT_SUPPORT_FOR_2025
+        and DATASET_MODE == "current"
+        and USE_LEGACY_FIT_SUPPORT_FOR_CURRENT
     )
-    force_sparse_2025_full = (
+    force_sparse_current_full = (
         DIS_DATA_MODE != "source_group"
         and
-        DATASET_MODE == "2025"
+        DATASET_MODE == "current"
         and analysis_scope == "full"
-        and ALLOW_SPARSE_2025_FULL
-        and not uses_hybrid_2025_support
+        and ALLOW_SPARSE_CURRENT_FULL
+        and not uses_hybrid_current_support
     )
     input_description = describe_fit_inputs(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
 
@@ -723,7 +731,7 @@ def run_analysis(analysis_scope):
         )
 
         validation_mode = sanitize_dataset_tag(resolved_source_group) if DIS_DATA_MODE == "source_group" else DATASET_MODE
-        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"2025", "6gev"}:
+        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"current", "6gev"}:
             validate_resonance_fit_support(
                 validation_mode,
                 analysis_scope,
@@ -734,8 +742,8 @@ def run_analysis(analysis_scope):
                     False
                     if DIS_DATA_MODE == "source_group"
                     else (
-                        not (force_sparse_2025_full or uses_hybrid_2025_support)
-                        if DATASET_MODE == "2025"
+                        not (force_sparse_current_full or uses_hybrid_current_support)
+                        if DATASET_MODE == "current"
                         else True
                     )
                 ),
@@ -749,15 +757,15 @@ def run_analysis(analysis_scope):
         print(f"[{mode_label}] Stage: BW parameter summary")
         plot_BW_params(delta_par_df, pdf)
         bw_delta_par_df = delta_par_df
-        if force_sparse_2025_full:
-            bw_delta_par_df = build_sparse_2025_bw_fit_input(delta_par_df)
+        if force_sparse_current_full:
+            bw_delta_par_df = build_sparse_current_bw_fit_input(delta_par_df)
 
         # Generate fitted curves using the fitted parameters
         q2 = np.linspace(0.0, bw_delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double)
         #q2 = np.linspace(0.1, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Ignore small q2 region for fits
         #q2 = np.linspace(1.0, delta_par_df["Q2"].max()+w_max, 1000, dtype=np.double) # Q2>1.0
 
-        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"2025", "6gev"}:
+        if DIS_DATA_MODE == "source_group" or DATASET_MODE in {"current", "6gev"}:
             validate_bw_global_fit_support(
                 validation_mode,
                 analysis_scope,
@@ -765,8 +773,8 @@ def run_analysis(analysis_scope):
                 delta_par_df,
                 input_description,
                 strict=(
-                    not (force_sparse_2025_full or uses_hybrid_2025_support)
-                    if DATASET_MODE == "2025"
+                    not (force_sparse_current_full or uses_hybrid_current_support)
+                    if DATASET_MODE == "current"
                     else True
                 ),
             )
@@ -851,14 +859,14 @@ def run_analysis(analysis_scope):
     return outputpdf
 
 
-disable_sparse_2025_dis_fallback = (
+disable_sparse_current_dis_fallback = (
     DIS_DATA_MODE != "source_group"
-    and DATASET_MODE == "2025"
+    and DATASET_MODE == "current"
     and ANALYSIS_SCOPE == "full"
-    and ALLOW_SPARSE_2025_FULL
+    and ALLOW_SPARSE_CURRENT_FULL
 )
 
-if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE and not disable_sparse_2025_dis_fallback:
+if ANALYSIS_SCOPE == "full" and FALLBACK_TO_DIS_ON_FULL_FAILURE and not disable_sparse_current_dis_fallback:
     try:
         outputpdf = run_analysis("full")
     except Exception as exc:

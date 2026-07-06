@@ -2,6 +2,7 @@
 
 import json
 import os
+import glob
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,19 @@ from utility import project_display_path, project_path, src_path
 MANIFEST_FILENAME = "source_manifest_3he_dis.json"
 DEFAULT_SOURCE_GROUP = "auto"
 FULL_ANALYSIS_SUPPORT_SOURCE_KEYS = ("e94010", "e97110", "psolv_e01012_g1g2")
+DATASET_MODE_ALIASES = {"2025": "current"}
+SOURCE_KEY_ALIASES = {
+    "a1n_2025_all": "a1n_all",
+    "a1n_2025_dis": "a1n_dis",
+}
+SOURCE_GROUP_ALIASES = {
+    "current_global_2025": "current_global",
+    "current_global_2025_no_kramer": "current_global_no_kramer",
+    "current_2025_all_diagnostic": "current_all_diagnostic",
+    "full_current_global_2025": "full_current_global",
+    "full_current_global_2025_no_kramer": "full_current_global_no_kramer",
+    "full_current_2025_all_diagnostic": "full_current_all_diagnostic",
+}
 CANONICAL_COLUMNS = [
     "source_key",
     "source_group",
@@ -52,22 +66,22 @@ SOURCE_GROUPS = {
         "e97103_kramer",
         "hermes_2000",
     ],
-    "current_global_2025": [
+    "current_global": [
         "e142",
         "e154_yury",
         "e99117_zheng",
         "e06014_flay",
         "e97103_kramer",
         "hermes_2000",
-        "a1n_2025_all",
+        "a1n_all",
     ],
-    "current_global_2025_no_kramer": [
+    "current_global_no_kramer": [
         "e142",
         "e154_yury",
         "e99117_zheng",
         "e06014_flay",
         "hermes_2000",
-        "a1n_2025_all",
+        "a1n_all",
     ],
     "legacy_mingyu": [
         "e142",
@@ -78,23 +92,39 @@ SOURCE_GROUPS = {
         "hermes_2000",
         "mingyu_legacy_dis",
     ],
-    "current_2025_all_diagnostic": [
+    "current_all_diagnostic": [
         "e142",
         "e154_yury",
         "e99117_zheng",
         "e06014_flay",
         "e97103_kramer",
         "hermes_2000",
-        "a1n_2025_all",
+        "a1n_all",
     ],
 }
 for group_name, source_keys in list(SOURCE_GROUPS.items()):
     full_group_name = f"full_{group_name}"
     SOURCE_GROUPS[full_group_name] = list(source_keys) + list(FULL_ANALYSIS_SUPPORT_SOURCE_KEYS)
+for legacy_group_name, canonical_group_name in SOURCE_GROUP_ALIASES.items():
+    if canonical_group_name in SOURCE_GROUPS:
+        SOURCE_GROUPS[legacy_group_name] = list(SOURCE_GROUPS[canonical_group_name])
 
 
 def manifest_path():
     return src_path(MANIFEST_FILENAME)
+
+
+def normalize_dataset_mode(dataset_mode):
+    return DATASET_MODE_ALIASES.get(str(dataset_mode).strip().lower(), str(dataset_mode).strip().lower())
+
+
+def canonical_source_key(source_key):
+    return SOURCE_KEY_ALIASES.get(str(source_key).strip(), str(source_key).strip())
+
+
+def display_source_key(source_key):
+    key = canonical_source_key(source_key)
+    return key
 
 
 def load_source_manifest(path=None):
@@ -138,13 +168,13 @@ def get_source_groups():
 
 
 def default_source_group_for_dataset_mode(dataset_mode, analysis_scope):
-    dataset_mode = str(dataset_mode).strip().lower()
+    dataset_mode = normalize_dataset_mode(dataset_mode)
     analysis_scope = str(analysis_scope).strip().lower()
 
     if dataset_mode == "legacy":
         base_group = "legacy_mingyu"
-    elif dataset_mode == "2025":
-        base_group = "current_global_2025"
+    elif dataset_mode == "current":
+        base_group = "current_global"
     else:
         raise ValueError(
             f"Source-group mode does not have an automatic default for DATASET_MODE '{dataset_mode}'."
@@ -159,11 +189,12 @@ def resolve_source_group_name(dataset_mode, analysis_scope, source_group):
     requested = str(source_group or DEFAULT_SOURCE_GROUP).strip()
     if requested.lower() in {"", "auto", "default"}:
         return default_source_group_for_dataset_mode(dataset_mode, analysis_scope)
-    return requested
+    return SOURCE_GROUP_ALIASES.get(requested, requested)
 
 
 def get_source_group_source_keys(group_name, source_groups=None):
     resolved_source_groups = source_groups or SOURCE_GROUPS
+    group_name = SOURCE_GROUP_ALIASES.get(group_name, group_name)
     if group_name not in resolved_source_groups:
         supported = ", ".join(sorted(resolved_source_groups))
         raise ValueError(
@@ -173,7 +204,7 @@ def get_source_group_source_keys(group_name, source_groups=None):
 
 
 def describe_source_group(group_name, source_groups=None):
-    return ", ".join(get_source_group_source_keys(group_name, source_groups=source_groups))
+    return ", ".join(display_source_key(source_key) for source_key in get_source_group_source_keys(group_name, source_groups=source_groups))
 
 
 def _strip_columns(df):
@@ -184,14 +215,22 @@ def _strip_columns(df):
 
 def _resolve_source_path(relative_path):
     normalized = os.path.normpath(relative_path)
-    return project_path(*normalized.split(os.sep))
+    resolved_path = project_path(*normalized.split(os.sep))
+    if any(token in normalized for token in ["*", "?", "["]):
+        matches = sorted(glob.glob(resolved_path))
+        if not matches:
+            raise FileNotFoundError(
+                f"Could not locate any source files matching {project_display_path(resolved_path)}."
+            )
+        return matches[-1]
+    return resolved_path
 
 
-def _parser_is_2025(source_config):
-    return source_config.get("parser") == "a1n_2025_whitespace"
+def _parser_is_current(source_config):
+    return source_config.get("parser") in {"a1n_2025_whitespace", "a1n_current_whitespace"}
 
 
-def _load_2025_source_frame(path):
+def _load_current_source_frame(path):
     raw_df = pd.read_csv(
         path,
         sep=r"\s+",
@@ -271,7 +310,7 @@ def _build_standard_canonical_frame(raw_df, source_key, source_group, source_con
     return canonical_df, metadata
 
 
-def _build_2025_canonical_frame(raw_df, source_key, source_group, source_config):
+def _build_current_canonical_frame(raw_df, source_key, source_group, source_config):
     q2 = pd.to_numeric(raw_df["Q2"], errors="coerce")
     x = pd.to_numeric(raw_df["xbj"], errors="coerce")
     g1f1 = pd.to_numeric(raw_df["g1F1_He3"], errors="coerce")
@@ -301,13 +340,14 @@ def _build_2025_canonical_frame(raw_df, source_key, source_group, source_config)
     metadata = {
         "source_path": _resolve_source_path(source_config["file"]),
         "w_recomputed": True,
-        "parser": source_config.get("parser", "a1n_2025_whitespace"),
+        "parser": source_config.get("parser", "a1n_current_whitespace"),
         "raw_rows": int(len(raw_df)),
     }
     return canonical_df, metadata
 
 
 def load_3he_g1f1_source(source_key, manifest, source_group="ungrouped"):
+    source_key = canonical_source_key(source_key)
     manifest_sources = manifest["sources"]
     if source_key not in manifest_sources:
         supported = ", ".join(sorted(manifest_sources))
@@ -315,9 +355,9 @@ def load_3he_g1f1_source(source_key, manifest, source_group="ungrouped"):
 
     source_config = manifest_sources[source_key]
     source_path = _resolve_source_path(source_config["file"])
-    if _parser_is_2025(source_config):
-        raw_df = _load_2025_source_frame(source_path)
-        canonical_df, metadata = _build_2025_canonical_frame(raw_df, source_key, source_group, source_config)
+    if _parser_is_current(source_config):
+        raw_df = _load_current_source_frame(source_path)
+        canonical_df, metadata = _build_current_canonical_frame(raw_df, source_key, source_group, source_config)
     else:
         raw_df = _strip_columns(pd.read_csv(source_path))
         canonical_df, metadata = _build_standard_canonical_frame(raw_df, source_key, source_group, source_config)
@@ -358,15 +398,18 @@ def build_3he_g1f1_group_bundle(
     dis_w_min=None,
     q2_min=None,
     dis_uncut_source_keys=None,
-    dis_2025_source_mode="all_cut",
+    dis_current_source_mode="all_cut",
+    dis_2025_source_mode=None,
 ):
     resolved_source_groups = source_groups or SOURCE_GROUPS
     source_keys = get_source_group_source_keys(group_name, source_groups=resolved_source_groups)
-    dis_uncut_source_keys = {str(source_key) for source_key in (dis_uncut_source_keys or [])}
-    dis_2025_source_mode = str(dis_2025_source_mode or "all_cut").strip().lower()
-    if dis_2025_source_mode not in {"all_cut", "dis_csv"}:
+    dis_uncut_source_keys = {canonical_source_key(source_key) for source_key in (dis_uncut_source_keys or [])}
+    if dis_2025_source_mode is not None and dis_current_source_mode == "all_cut":
+        dis_current_source_mode = dis_2025_source_mode
+    dis_current_source_mode = str(dis_current_source_mode or "all_cut").strip().lower()
+    if dis_current_source_mode not in {"all_cut", "dis_csv"}:
         raise ValueError(
-            f"Unsupported dis_2025_source_mode '{dis_2025_source_mode}'. "
+            f"Unsupported dis_current_source_mode '{dis_current_source_mode}'. "
             "Expected 'all_cut' or 'dis_csv'."
         )
 
@@ -391,11 +434,11 @@ def build_3he_g1f1_group_bundle(
         dis_source_df_full = source_df
         dis_source_metadata = source_metadata
         if (
-            dis_2025_source_mode == "dis_csv"
-            and source_key == "a1n_2025_all"
-            and "a1n_2025_dis" in manifest["sources"]
+            dis_current_source_mode == "dis_csv"
+            and source_key == "a1n_all"
+            and "a1n_dis" in manifest["sources"]
         ):
-            dis_source_key = "a1n_2025_dis"
+            dis_source_key = "a1n_dis"
             dis_source_df_full = load_3he_g1f1_source(dis_source_key, manifest, source_group=group_name)
             dis_source_metadata = dict(dis_source_df_full.attrs.get("source_metadata", {}))
 
@@ -477,7 +520,7 @@ def build_3he_g1f1_group_bundle(
         "q2_min": q2_min,
         "dis_w_min": dis_w_min,
         "dis_uncut_source_keys": sorted(dis_uncut_source_keys),
-        "dis_2025_source_mode": dis_2025_source_mode,
+        "dis_current_source_mode": dis_current_source_mode,
     }
     g1f1_df.attrs["source_group_metadata"] = metadata
     dis_df.attrs["source_group_metadata"] = metadata
@@ -516,17 +559,17 @@ def source_group_breakdown_lines(metadata):
     lines = [
         "=" * 100,
         f"[source_group] active group={group_name}",
-        f"[source_group] source keys={', '.join(metadata['source_keys'])}",
-        f"[source_group] 2025 DIS source mode={metadata.get('dis_2025_source_mode', 'all_cut')}",
+        f"[source_group] source keys={', '.join(display_source_key(source_key) for source_key in metadata['source_keys'])}",
+        f"[source_group] current DIS source mode={metadata.get('dis_current_source_mode', 'all_cut')}",
         f"[source_group] W recomputed for: {', '.join(metadata['recomputed_w_sources']) if metadata['recomputed_w_sources'] else 'none'}",
-        f"[source_group] uncut DIS sources: {', '.join(metadata.get('dis_uncut_source_keys', [])) if metadata.get('dis_uncut_source_keys') else 'none'}",
+        f"[source_group] uncut DIS sources: {', '.join(display_source_key(source_key) for source_key in metadata.get('dis_uncut_source_keys', [])) if metadata.get('dis_uncut_source_keys') else 'none'}",
         f"[source_group] DIS cuts: {', '.join(metadata['cuts_applied']) if metadata['cuts_applied'] else 'none'}",
         "[source_group] per-source counts:",
     ]
     for row in metadata["audit_rows"]:
         lines.append(
             "  "
-            + f"{row['source_key']} ({row['Label']}): "
+            + f"{display_source_key(row['source_key'])} ({row['Label']}): "
             + f"loaded={row['N_loaded']}, dis={row['N_dis']}, removed_by_dis_cut={row['removed_by_dis_cut']}, "
             + f"file={row['source_path']}"
         )

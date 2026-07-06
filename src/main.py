@@ -78,6 +78,11 @@ DIS_W_MIN = 2.0
 # DIS_UNCUT_SOURCE_KEYS = ["a1n_2025_all"]
 DIS_UNCUT_SOURCE_KEYS = []
 
+# 2025 DIS-source variants for source-group mode:
+# DIS_2025_SOURCE = "all_cut"
+# DIS_2025_SOURCE = "dis_csv"
+DIS_2025_SOURCE = "dis_csv"
+
 # BW k(Q2) variants:
 # BW_K_CURVE_MODEL = "non_tune"
 # BW_K_CURVE_MODEL = "non-tune"
@@ -128,9 +133,14 @@ DIS_DATA_MODE = str(DIS_DATA_MODE).strip().lower()
 DIS_SOURCE_GROUP = str(DIS_SOURCE_GROUP).strip()
 DIS_FIT_MODEL = normalize_dis_fit_model(DIS_FIT_MODEL)
 BW_K_CURVE_MODEL = normalize_bw_k_curve_mode(BW_K_CURVE_MODEL)
+DIS_2025_SOURCE = str(DIS_2025_SOURCE).strip().lower()
 ANALYSIS_SCOPE = ANALYSIS_SCOPE.lower()
 if ANALYSIS_SCOPE == "dis":
     ANALYSIS_SCOPE = "dis_only"
+if DIS_2025_SOURCE not in {"all_cut", "dis_csv"}:
+    raise ValueError(
+        f"Unsupported DIS_2025_SOURCE '{DIS_2025_SOURCE}'. Expected 'all_cut' or 'dis_csv'."
+    )
 
 LEGACY_G1F1_INPUT = os.path.join("data", "g1f1_comb.csv")
 MINGYU_DIS_INPUT = os.path.join("data", "mingyu_g1f1_g2f1_dis.csv")
@@ -172,6 +182,8 @@ else:
     DATASET_TAG = derive_dataset_tag(DATASET_MODE)
 if DIS_DATA_MODE != "source_group" and DATASET_MODE == "2025" and ALLOW_SPARSE_2025_FULL:
     DATASET_TAG = f"{DATASET_TAG}_sparse_full"
+if DIS_DATA_MODE == "source_group" and DATASET_MODE == "2025" and DIS_2025_SOURCE != "all_cut":
+    DATASET_TAG = f"{DATASET_TAG}_dissrc_{sanitize_dataset_tag(DIS_2025_SOURCE)}"
 DATASET_TAG = f"{DATASET_TAG}_k_{sanitize_dataset_tag(BW_K_CURVE_MODEL)}"
 ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
 BW_K_CURVE_FUNC = get_quad_nucl_curve_k(BW_K_CURVE_MODEL)
@@ -206,9 +218,12 @@ def analysis_output_dir(analysis_tag):
 def describe_fit_inputs(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):
     if dis_data_mode == "source_group":
         resolved_group = resolve_source_group_name(dataset_mode, analysis_scope, dis_source_group)
+        dis_2025_note = ""
+        if dataset_mode == "2025":
+            dis_2025_note = f" | 2025 DIS source={DIS_2025_SOURCE}"
         return (
             f"source group '{resolved_group}' with sources: "
-            f"{describe_source_group(resolved_group)}"
+            f"{describe_source_group(resolved_group)}{dis_2025_note}"
         )
 
     if dataset_mode == "2025":
@@ -576,6 +591,7 @@ def load_analysis_data(analysis_scope):
         "dis_source_group": resolved_source_group,
         "dis_w_min": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
         "dis_uncut_source_keys": DIS_UNCUT_SOURCE_KEYS if DIS_DATA_MODE == "source_group" else None,
+        "dis_2025_source": DIS_2025_SOURCE if DIS_DATA_MODE == "source_group" else "all_cut",
     }
     if DATASET_MODE == "2025":
         load_data_kwargs.update(

@@ -32,6 +32,111 @@ from utility import project_path, src_path
 
 ##################################################################################################################################################
 
+_EXPERIMENT_STYLE_OVERRIDES = {
+    "Flay E06-014 (2014)": ("#1f77b4", "o"),
+    "Kramer E97-103 (2003)": ("#ff7f0e", "s"),
+    "E94-010": ("#2ca02c", "^"),
+    "E97-110": ("#d62728", "D"),
+    "Solvg. E01-012 (2006)": ("#9467bd", "v"),
+    "SLAC E142 (1996)": ("#8c564b", "P"),
+    "SLAC E154 (1997)": ("#e377c2", "X"),
+    "Zheng E99-117 (2002)": ("#7f7f7f", "<"),
+    "HERMES (2000)": ("#bcbd22", ">"),
+    "2025 all": ("#17becf", "h"),
+    "2025 DIS": ("#17becf", "s"),
+}
+
+_FALLBACK_EXPERIMENT_COLORS = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
+
+_FALLBACK_EXPERIMENT_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "<", ">", "h"]
+
+
+def _canonical_experiment_style_key(label):
+    label_str = str(label).strip()
+    label_lower = label_str.lower()
+
+    if "2025" in label_lower and "dis" in label_lower:
+        return "2025 DIS"
+    if "2025" in label_lower and "all" in label_lower:
+        return "2025 all"
+    if "flay" in label_lower:
+        return "Flay E06-014 (2014)"
+    if "kramer" in label_lower:
+        return "Kramer E97-103 (2003)"
+    if "e94-010" in label_lower:
+        return "E94-010"
+    if "e97-110" in label_lower:
+        return "E97-110"
+    if "solvg." in label_lower or "e01-012" in label_lower:
+        return "Solvg. E01-012 (2006)"
+    if "e142" in label_lower:
+        return "SLAC E142 (1996)"
+    if "e154" in label_lower:
+        return "SLAC E154 (1997)"
+    if "zheng" in label_lower or "e99-117" in label_lower:
+        return "Zheng E99-117 (2002)"
+    if "hermes" in label_lower:
+        return "HERMES (2000)"
+
+    return label_str
+
+
+def _build_experiment_styles(labels):
+    experiment_styles = {}
+    fallback_index = 0
+
+    for label in labels:
+        style_key = _canonical_experiment_style_key(label)
+        if style_key in _EXPERIMENT_STYLE_OVERRIDES:
+            color, marker = _EXPERIMENT_STYLE_OVERRIDES[style_key]
+        else:
+            color = _FALLBACK_EXPERIMENT_COLORS[fallback_index % len(_FALLBACK_EXPERIMENT_COLORS)]
+            marker = _FALLBACK_EXPERIMENT_MARKERS[fallback_index % len(_FALLBACK_EXPERIMENT_MARKERS)]
+            fallback_index += 1
+        experiment_styles[label] = {"color": color, "marker": marker}
+
+    return experiment_styles
+
+
+def _plot_experiment_points(ax, delta_par_df, value_column, error_column, experiment_styles, config):
+    for label in delta_par_df["Experiment"].dropna().unique():
+        experiment_rows = delta_par_df[delta_par_df["Experiment"] == label]
+        style = experiment_styles[label]
+        ax.errorbar(
+            experiment_rows["Q2"],
+            experiment_rows[value_column],
+            yerr=experiment_rows[error_column],
+            fmt=style["marker"],
+            linestyle="none",
+            color=style["color"],
+            ecolor=style["color"],
+            markersize=config["marker"]["size"],
+            capsize=config["error_bar"]["cap_size"],
+            capthick=config["error_bar"]["cap_thick"],
+            elinewidth=config["error_bar"]["line_width"],
+            markeredgecolor=config["marker"]["edge_color"],
+            markeredgewidth=max(0.5, config["marker"]["edge_width"] / 2.0),
+            label=label,
+        )
+
+
+def _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config):
+    _plot_experiment_points(axs[0], delta_par_df, "k", "k.err", experiment_styles, config)
+    _plot_experiment_points(axs[1], delta_par_df, "gamma", "gamma.err", experiment_styles, config)
+    _plot_experiment_points(axs[2], delta_par_df, "M", "M.err", experiment_styles, config)
+
+
 def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
         return project_path("fit_data", filename)
@@ -337,6 +442,7 @@ def fit_BW_params(
     # Load configuration
     with open(src_path("config.json"), "r") as f:
         config = json.load(f)
+    experiment_styles = _build_experiment_styles(delta_par_df["Experiment"].dropna().unique())
     
     # plot M, k, gamma vs Q2 from variable M fit
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -496,10 +602,12 @@ def fit_BW_params(
         smoothed_q2_err = moving_average(q2_err, window_size)
                         
         # Plot
-        axs[i].errorbar(x_data, y_data, yerr=y_err, 
-                        fmt=config["marker"]["type"], label='Data', 
-                        color=config["colors"]["scatter"], markersize=config["marker"]["size"], 
-                        capsize=config["error_bar"]["cap_size"], capthick=config["error_bar"]["cap_thick"])
+        if var_name == "k":
+            _plot_experiment_points(axs[i], delta_par_df, "k", "k.err", experiment_styles, config)
+        elif var_name == "gamma":
+            _plot_experiment_points(axs[i], delta_par_df, "gamma", "gamma.err", experiment_styles, config)
+        else:
+            _plot_experiment_points(axs[i], delta_par_df, "M", "M.err", experiment_styles, config)
 
         axs[i].plot(x_data, fit, label='Curve_fit', color=config["colors"]["fit"])
         axs[i].plot(q2, q2_fit, label='Extrapolation', color=config["colors"]["extrapolation"], linestyle='--')
@@ -538,27 +646,7 @@ def fit_BW_params(
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
 
     # plot all the parameters vs Q2
-    for i, label in enumerate(delta_par_df["Experiment"].unique()):
-        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
+    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
         
     axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
     axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
@@ -593,27 +681,7 @@ def fit_BW_params(
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
 
     # plot all the parameters vs Q2
-    for i, label in enumerate(delta_par_df["Experiment"].unique()):
-        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
+    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
         
     axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
     axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
@@ -652,27 +720,7 @@ def fit_BW_params(
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
 
     # plot all the parameters vs Q2
-    for i, label in enumerate(delta_par_df["Experiment"].unique()):
-        axs[0].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["k"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["k.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[1].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["gamma"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["gamma.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
-
-        axs[2].errorbar(delta_par_df[delta_par_df["Experiment"]==label]["Q2"],
-                        delta_par_df[delta_par_df["Experiment"]==label]["M"],
-                        yerr=delta_par_df[delta_par_df["Experiment"]==label]["M.err"], 
-                        fmt=config["marker"]["type"], color=config["colors"]["scatter"], 
-                        markersize=config["marker"]["size"], capsize=config["error_bar"]["cap_size"], 
-                        label=label, capthick=config["error_bar"]["cap_thick"])
+    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
         
     axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
     axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])

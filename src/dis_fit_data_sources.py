@@ -358,10 +358,17 @@ def build_3he_g1f1_group_bundle(
     dis_w_min=None,
     q2_min=None,
     dis_uncut_source_keys=None,
+    dis_2025_source_mode="all_cut",
 ):
     resolved_source_groups = source_groups or SOURCE_GROUPS
     source_keys = get_source_group_source_keys(group_name, source_groups=resolved_source_groups)
     dis_uncut_source_keys = {str(source_key) for source_key in (dis_uncut_source_keys or [])}
+    dis_2025_source_mode = str(dis_2025_source_mode or "all_cut").strip().lower()
+    if dis_2025_source_mode not in {"all_cut", "dis_csv"}:
+        raise ValueError(
+            f"Unsupported dis_2025_source_mode '{dis_2025_source_mode}'. "
+            "Expected 'all_cut' or 'dis_csv'."
+        )
 
     full_frames = []
     dis_frames = []
@@ -369,24 +376,55 @@ def build_3he_g1f1_group_bundle(
     cuts_applied = []
     recomputed_w_sources = []
     source_file_map = {}
+    dis_source_file_map = {}
     source_labels = {}
+    dis_source_labels = {}
+    dis_source_key_map = {}
+    used_dis_source_keys = set()
 
     for source_key in source_keys:
         source_df = load_3he_g1f1_source(source_key, manifest, source_group=group_name)
         source_metadata = dict(source_df.attrs.get("source_metadata", {}))
         full_frames.append(source_df)
 
-        if source_key in dis_uncut_source_keys:
-            dis_source_df = source_df.copy().reset_index(drop=True)
+        dis_source_key = source_key
+        dis_source_df_full = source_df
+        dis_source_metadata = source_metadata
+        if (
+            dis_2025_source_mode == "dis_csv"
+            and source_key == "a1n_2025_all"
+            and "a1n_2025_dis" in manifest["sources"]
+        ):
+            dis_source_key = "a1n_2025_dis"
+            dis_source_df_full = load_3he_g1f1_source(dis_source_key, manifest, source_group=group_name)
+            dis_source_metadata = dict(dis_source_df_full.attrs.get("source_metadata", {}))
+
+        dis_source_key_map[source_key] = dis_source_key
+        dis_source_file_map[dis_source_key] = project_display_path(dis_source_metadata.get("source_path", ""))
+        dis_source_labels[dis_source_key] = (
+            dis_source_df_full["Label"].iloc[0]
+            if not dis_source_df_full.empty
+            else manifest["sources"][dis_source_key]["label"]
+        )
+
+        if dis_source_key in used_dis_source_keys:
+            cut_descriptions = [f"duplicate DIS source '{dis_source_key}' skipped"]
+            dis_source_df = pd.DataFrame(columns=CANONICAL_COLUMNS)
+        elif source_key in dis_uncut_source_keys:
+            used_dis_source_keys.add(dis_source_key)
+            dis_source_df = dis_source_df_full.copy().reset_index(drop=True)
             cut_descriptions = ["no DIS cut applied"]
         else:
+            used_dis_source_keys.add(dis_source_key)
             dis_source_df, cut_descriptions = _apply_dis_cut(
-                source_df,
+                dis_source_df_full,
                 q2_min=q2_min,
                 dis_w_min=dis_w_min,
             )
         dis_frames.append(dis_source_df)
 
+        if dis_source_key != source_key:
+            cut_descriptions = [f"DIS source replaced: {source_key} -> {dis_source_key}"] + list(cut_descriptions)
         if cut_descriptions:
             cuts_applied.append(f"{source_key}: {', '.join(cut_descriptions)}")
         if source_metadata.get("w_recomputed"):
@@ -398,11 +436,13 @@ def build_3he_g1f1_group_bundle(
         audit_rows.append(
             {
                 "source_key": source_key,
+                "dis_source_key": dis_source_key,
                 "Label": source_labels[source_key],
+                "dis_Label": dis_source_labels[dis_source_key],
                 "N_raw": int(source_metadata.get("raw_rows", len(source_df))),
                 "N_loaded": int(source_metadata.get("loaded_rows", len(source_df))),
                 "N_dis": int(len(dis_source_df)),
-                "removed_by_dis_cut": int(len(source_df) - len(dis_source_df)),
+                "removed_by_dis_cut": int(len(dis_source_df_full) - len(dis_source_df)),
                 "x_min": float(source_df["X"].min()) if not source_df.empty else np.nan,
                 "x_max": float(source_df["X"].max()) if not source_df.empty else np.nan,
                 "Q2_min": float(source_df["Q2"].min()) if not source_df.empty else np.nan,
@@ -428,12 +468,16 @@ def build_3he_g1f1_group_bundle(
         "source_keys": source_keys,
         "source_labels": source_labels,
         "source_file_map": source_file_map,
+        "dis_source_key_map": dis_source_key_map,
+        "dis_source_file_map": dis_source_file_map,
+        "dis_source_labels": dis_source_labels,
         "cuts_applied": cuts_applied,
         "recomputed_w_sources": recomputed_w_sources,
         "audit_rows": audit_rows,
         "q2_min": q2_min,
         "dis_w_min": dis_w_min,
         "dis_uncut_source_keys": sorted(dis_uncut_source_keys),
+        "dis_2025_source_mode": dis_2025_source_mode,
     }
     g1f1_df.attrs["source_group_metadata"] = metadata
     dis_df.attrs["source_group_metadata"] = metadata
@@ -473,6 +517,7 @@ def source_group_breakdown_lines(metadata):
         "=" * 100,
         f"[source_group] active group={group_name}",
         f"[source_group] source keys={', '.join(metadata['source_keys'])}",
+        f"[source_group] 2025 DIS source mode={metadata.get('dis_2025_source_mode', 'all_cut')}",
         f"[source_group] W recomputed for: {', '.join(metadata['recomputed_w_sources']) if metadata['recomputed_w_sources'] else 'none'}",
         f"[source_group] uncut DIS sources: {', '.join(metadata.get('dis_uncut_source_keys', [])) if metadata.get('dis_uncut_source_keys') else 'none'}",
         f"[source_group] DIS cuts: {', '.join(metadata['cuts_applied']) if metadata['cuts_applied'] else 'none'}",

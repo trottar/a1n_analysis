@@ -51,6 +51,7 @@ LEGACY_A1_PATH = project_path("data", "a1_comb.csv")
 LEGACY_A2_PATH = project_path("data", "a2_comb.csv")
 MINGYU_DIS_PATH = project_path("data", "mingyu_g1f1_g2f1_dis.csv")
 VALID_DIS_DATA_MODES = {"legacy_combined_csv", "source_group"}
+VALID_2025_DIS_SOURCE_MODES = {"all_cut", "dis_csv"}
 
 
 def _convert_q2(q2):
@@ -406,6 +407,10 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
             f"dis_data_mode={dis_data_mode} dis_source_group={dis_source_group}"
         ),
     ]
+    if dataset_mode == "2025":
+        lines.append(
+            f"[load_data] dis_2025_source_mode={metadata.get('dis_2025_source_mode', 'all_cut')}"
+        )
     lines.extend(source_group_breakdown_lines(metadata)[1:-1])
     lines.extend(
         _collect_frame_lines(
@@ -451,7 +456,7 @@ def _print_source_group_splash(dataset_mode, analysis_scope, dis_data_mode, dis_
 
 def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, analysis_scope="full",
               dis_data_mode="legacy_combined_csv", dis_source_group=None, dis_w_min=None,
-              dis_uncut_source_keys=None):
+              dis_uncut_source_keys=None, dis_2025_source="all_cut"):
 
     dataset_mode = dataset_mode.lower()
     if dataset_mode not in {"legacy", "2025", "6gev"}:
@@ -467,6 +472,12 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
     if dis_data_mode not in VALID_DIS_DATA_MODES:
         supported = ", ".join(sorted(VALID_DIS_DATA_MODES))
         raise ValueError(f"Unsupported dis_data_mode '{dis_data_mode}'. Expected one of: {supported}.")
+    dis_2025_source = str(dis_2025_source).strip().lower()
+    if dis_2025_source not in VALID_2025_DIS_SOURCE_MODES:
+        supported = ", ".join(sorted(VALID_2025_DIS_SOURCE_MODES))
+        raise ValueError(
+            f"Unsupported dis_2025_source '{dis_2025_source}'. Expected one of: {supported}."
+        )
 
     if dis_data_mode == "source_group":
         manifest = load_source_manifest()
@@ -478,6 +489,7 @@ def load_data(dataset_mode="legacy", g1f1_2025_path=None, dis_2025_path=None, an
             q2_min=1.0,
             dis_w_min=dis_w_min,
             dis_uncut_source_keys=dis_uncut_source_keys,
+            dis_2025_source_mode=dis_2025_source,
         )
         raw_g1f1_df = bundle["g1f1_df"]
         dis_df = bundle["dis_df"]

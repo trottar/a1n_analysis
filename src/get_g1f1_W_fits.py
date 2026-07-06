@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
 from scipy.interpolate import interp1d
 import os
 import json
@@ -48,9 +49,193 @@ ALL_DIS_MODEL_LINE_STYLES = [
     (0, (1, 1)),
 ]
 
+_DATASET_STYLE_OVERRIDES = {
+    "Flay E06-014 (2014)": ("#1f77b4", "o"),
+    "Kramer E97-103 (2003)": ("#ff7f0e", "s"),
+    "E94-010": ("#2ca02c", "^"),
+    "E97-110": ("#d62728", "D"),
+    "Solvg. E01-012 (2006)": ("#9467bd", "v"),
+    "SLAC E142 (1996)": ("#8c564b", "P"),
+    "SLAC E154 (1997)": ("#e377c2", "X"),
+    "Zheng E99-117 (2002)": ("#7f7f7f", "<"),
+    "HERMES (2000)": ("#bcbd22", ">"),
+    "2025 all": ("#17becf", "h"),
+    "2025 DIS": ("#17becf", "s"),
+    "Mingyu DIS": ("#17becf", "d"),
+}
+
+_FALLBACK_DATASET_COLORS = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
+
+_FALLBACK_DATASET_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "<", ">", "h"]
+
 
 def _dis_model_color(dis_result, fallback):
     return dis_result.get("comparison_color", fallback)
+
+
+def _canonical_dataset_style_key(label):
+    label_str = str(label).strip()
+    label_lower = label_str.lower()
+
+    if "2025" in label_lower and "dis" in label_lower:
+        return "2025 DIS"
+    if "2025" in label_lower and "all" in label_lower:
+        return "2025 all"
+    if "mingyu" in label_lower:
+        return "Mingyu DIS"
+    if "flay" in label_lower:
+        return "Flay E06-014 (2014)"
+    if "kramer" in label_lower:
+        return "Kramer E97-103 (2003)"
+    if "e94-010" in label_lower:
+        return "E94-010"
+    if "e97-110" in label_lower:
+        return "E97-110"
+    if "solvg." in label_lower or "e01-012" in label_lower:
+        return "Solvg. E01-012 (2006)"
+    if "e142" in label_lower:
+        return "SLAC E142 (1996)"
+    if "e154" in label_lower:
+        return "SLAC E154 (1997)"
+    if "zheng" in label_lower or "e99-117" in label_lower:
+        return "Zheng E99-117 (2002)"
+    if "hermes" in label_lower:
+        return "HERMES (2000)"
+
+    return label_str
+
+
+def _build_dataset_styles(labels):
+    dataset_styles = {}
+    fallback_index = 0
+
+    for label in labels:
+        style_key = _canonical_dataset_style_key(label)
+        if style_key in _DATASET_STYLE_OVERRIDES:
+            color, marker = _DATASET_STYLE_OVERRIDES[style_key]
+        else:
+            color = _FALLBACK_DATASET_COLORS[fallback_index % len(_FALLBACK_DATASET_COLORS)]
+            marker = _FALLBACK_DATASET_MARKERS[fallback_index % len(_FALLBACK_DATASET_MARKERS)]
+            fallback_index += 1
+        dataset_styles[label] = {"color": color, "marker": marker}
+
+    return dataset_styles
+
+
+def _plot_grouped_dataset_errorbars(ax, frame, x_column, y_column, err_column, dataset_styles, config):
+    if "Label" not in frame.columns:
+        frame = frame.copy()
+        frame["Label"] = "Data"
+
+    for label in frame["Label"].dropna().unique():
+        style = dataset_styles[label]
+        label_frame = frame[frame["Label"] == label]
+        ax.errorbar(
+            label_frame[x_column],
+            label_frame[y_column],
+            yerr=np.abs(label_frame[err_column]),
+            fmt=style["marker"],
+            linestyle="none",
+            color=style["color"],
+            ecolor=style["color"],
+            markersize=5,
+            capsize=config["error_bar"]["cap_size"],
+            capthick=config["error_bar"]["cap_thick"],
+            linewidth=config["error_bar"]["line_width"],
+            elinewidth=config["error_bar"]["line_width"],
+            markeredgecolor=config["marker"]["edge_color"],
+            markeredgewidth=max(0.5, config["marker"]["edge_width"] / 2.0),
+        )
+
+
+def _plot_grouped_dataset_residuals(ax, frame, x_column, residuals, err_column, dataset_styles, config):
+    if "Label" not in frame.columns:
+        frame = frame.copy()
+        frame["Label"] = "Data"
+
+    residual_series = pd.Series(np.asarray(residuals), index=frame.index)
+
+    for label in frame["Label"].dropna().unique():
+        style = dataset_styles[label]
+        label_frame = frame[frame["Label"] == label]
+        label_residuals = residual_series.loc[label_frame.index]
+        ax.scatter(
+            label_frame[x_column],
+            label_residuals,
+            color=style["color"],
+            marker=style["marker"],
+            s=config["marker"]["size"] * 1.5,
+        )
+        ax.errorbar(
+            label_frame[x_column],
+            label_residuals,
+            yerr=np.abs(label_frame[err_column]),
+            fmt="none",
+            ecolor=style["color"],
+            capsize=2,
+            capthick=1,
+            linewidth=1,
+        )
+
+
+def _build_dataset_legend_handles(label_order, dataset_styles, config):
+    handles = []
+    for label in label_order:
+        style = dataset_styles[label]
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                linestyle="none",
+                marker=style["marker"],
+                color=style["color"],
+                markerfacecolor=style["color"],
+                markeredgecolor=config["marker"]["edge_color"],
+                markeredgewidth=max(0.5, config["marker"]["edge_width"] / 2.0),
+                markersize=max(5, config["marker"]["size"] * 0.8),
+                label=label,
+            )
+        )
+    return handles
+
+
+def _build_fit_legend_handles(dis_fit_params, iter_dis_fit_results, dis_model_linestyle, dis_model_linewidth, dis_model_name, config, propagate_dis_fit_family):
+    handles = []
+    if propagate_dis_fit_family:
+        for idx, dis_result in enumerate(iter_dis_fit_results()):
+            handles.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=_dis_model_color(dis_result, config["colors"]["fit"]),
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                    label=dis_model_name(dis_result),
+                )
+            )
+    else:
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=_dis_model_color(dis_fit_params, config["colors"]["fit"]),
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+                label=f"{dis_model_name(dis_fit_params)} fit",
+            )
+        )
+    return handles
 
 
 def _apply_resonance_legend(ax, config, use_external_box):
@@ -1311,6 +1496,185 @@ def get_g1f1_W_fits_q2_bin(
     fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
     # Save figure
+    pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+    q2_labels = g1f1_df['Q2_labels'].unique()
+    dataset_label_order = [label for label in g1f1_df['Label'].dropna().unique()] if 'Label' in g1f1_df.columns else ["Data"]
+    dataset_styles = _build_dataset_styles(dataset_label_order)
+    n_col = 5
+    num_plots = len(q2_labels)
+    num_panels = num_plots + 1
+    n_rows = (num_panels + n_col - 1) // n_col
+
+    height_ratios = []
+    for _ in range(n_rows):
+        height_ratios.extend([3, 1, 1.5])
+
+    fig = plt.figure(figsize=(n_col * 6.5, n_rows * 6))
+    gs = gridspec.GridSpec(n_rows * 3, n_col, height_ratios=height_ratios, hspace=0.0)
+    axs = np.empty((n_rows * 3, n_col), dtype=object)
+
+    for i, l in enumerate(q2_labels):
+        row = (i // n_col) * 3
+        col = i % n_col
+        bin_frame = g1f1_df[g1f1_df['Q2_labels'] == l].copy()
+        q2 = bin_frame['Q2'].unique()[0]
+
+        w_dis_transition, w_dis_transition_err = w_dis_transition_wrapper(q2)
+        damping_dis_width, damping_dis_width_err = damping_dis_width_wrapper(q2)
+
+        k_fit_params = [k_nucl_par]
+        gamma_fit_params = [gamma_nucl_par]
+        mass_fit_params = [mass_nucl_par]
+        fit_funcs_k = [quad_nucl_curve_k_func]
+        fit_funcs_gamma = [quad_nucl_curve_gamma]
+        fit_funcs_mass = [quad_nucl_curve_mass]
+
+        w_res = np.linspace(w_min, w_max, 1000, dtype=np.double)
+
+        (ii, jj, ijj, k, k_err, gamma, gamma_err, mass, mass_err) = next(k_gamma_mass_loop(
+            q2, w_res, k_fit_params, gamma_fit_params, mass_fit_params,
+            fit_funcs_k, fit_funcs_gamma, fit_funcs_mass,
+            k_P_vals, gamma_P_vals, mass_P_vals,
+            k_nucl_err, gamma_nucl_err, mass_nucl_err
+        ))
+
+        y_bw = breit_wigner_res(w_res, mass, k, gamma)
+        damping_dis = damping_function(w_res, w_dis_transition, damping_dis_width)
+        selected_curve_set = build_dis_model_curve_set(dis_fit_params, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+        y_complete = selected_curve_set["y_complete"]
+
+        chi2, y_complete_interpolated = compute_complete_curve_chi2(
+            w_res,
+            y_complete,
+            bin_frame['W'],
+            bin_frame['G1F1'],
+            bin_frame['G1F1.err'],
+        )
+
+        residuals, normalized_residuals = calculate_fit_residuals(
+            y_complete_interpolated,
+            bin_frame['G1F1'],
+            bin_frame['G1F1.err']
+        )
+
+        axs[row, col] = fig.add_subplot(gs[row, col])
+        if propagate_dis_fit_family:
+            for idx, dis_result in enumerate(iter_dis_fit_results()):
+                curve_set = build_dis_model_curve_set(dis_result, q2, w_res, y_bw=y_bw, damping_dis=damping_dis)
+                axs[row, col].plot(
+                    w_res,
+                    curve_set["y_complete"],
+                    color=curve_set["comparison_color"],
+                    linestyle=dis_model_linestyle(idx, "solid"),
+                    linewidth=dis_model_linewidth(idx),
+                )
+        else:
+            axs[row, col].plot(
+                w_res,
+                y_complete,
+                color=_dis_model_color(dis_fit_params, config["colors"]["fit"]),
+                linestyle="solid",
+                linewidth=config["error_bar"]["line_width"],
+            )
+            axs[row, col].text(
+                0.98,
+                0.97,
+                f"$\\chi_v^2$={chi2:.2f}",
+                transform=axs[row, col].transAxes,
+                ha="right",
+                va="top",
+                fontsize=max(8, config["font_sizes"]["legend"] - 6),
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.8, "pad": 1.5},
+            )
+
+        _plot_grouped_dataset_errorbars(
+            axs[row, col],
+            bin_frame,
+            "W",
+            "G1F1",
+            "G1F1.err",
+            dataset_styles,
+            config,
+        )
+
+        axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
+        axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
+
+        w_min_data = bin_frame['W'].min() - 0.1 * bin_frame['W'].min()
+        w_max_data = bin_frame['W'].max() + 0.1 * bin_frame['W'].max()
+        axs[row, col].set_xlim(w_min_data, w_max_data)
+
+        yticks = axs[row, col].get_yticks()
+        yticklabels = ["" if y == min(yticks) else f"{y:.2f}" for y in yticks]
+        axs[row, col].set_yticklabels(yticklabels)
+
+        if config["grid"]["enabled"]:
+            axs[row, col].grid(
+                True,
+                linestyle=config["grid"]["line_style"],
+                linewidth=config["grid"]["line_width"],
+                alpha=config["grid"]["alpha"],
+                color=config["colors"]["grid"]
+            )
+
+        axs[row + 1, col] = fig.add_subplot(gs[row + 1, col])
+        _plot_grouped_dataset_residuals(
+            axs[row + 1, col],
+            bin_frame,
+            "W",
+            residuals,
+            "G1F1.err",
+            dataset_styles,
+            config,
+        )
+
+        axs[row + 1, col].set_xlabel("W (GeV)", fontsize=config["font_sizes"]["x_axis"])
+        axs[row + 1, col].set_ylabel("Residuals", fontsize=config["font_sizes"]["labels"])
+        axs[row + 1, col].set_xlim(w_min_data, w_max_data)
+        axs[row + 1, col].set_ylim(-0.05, 0.05)
+
+        if config["grid"]["enabled"]:
+            axs[row + 1, col].grid(
+                True,
+                linestyle=config["grid"]["line_style"],
+                linewidth=config["grid"]["line_width"],
+                alpha=config["grid"]["alpha"],
+                color=config["colors"]["grid"]
+            )
+
+    legend_index = num_plots
+    legend_row = (legend_index // n_col) * 3
+    legend_col = legend_index % n_col
+    legend_ax = fig.add_subplot(gs[legend_row:legend_row + 2, legend_col])
+    legend_ax.axis("off")
+
+    fit_handles = _build_fit_legend_handles(
+        dis_fit_params,
+        iter_dis_fit_results,
+        dis_model_linestyle,
+        dis_model_linewidth,
+        dis_model_name,
+        config,
+        propagate_dis_fit_family,
+    )
+    dataset_handles = _build_dataset_legend_handles(dataset_label_order, dataset_styles, config)
+    legend_handles = fit_handles + dataset_handles
+
+    legend_ax.legend(
+        handles=legend_handles,
+        loc="center",
+        ncol=2 if len(legend_handles) > 6 else 1,
+        fontsize=max(8, config["font_sizes"]["legend"] - 2),
+        frameon=config["legend"]["frame_on"],
+        title="Fits and Datasets",
+        title_fontsize=max(10, config["font_sizes"]["legend"] - 1),
+    )
+
+    fig.subplots_adjust(hspace=0.0)
+    fig.text(0.5, 0.001, "W (GeV)", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
+
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
 

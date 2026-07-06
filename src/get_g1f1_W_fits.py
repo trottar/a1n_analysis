@@ -1665,6 +1665,7 @@ def get_g1f1_W_fits_q2_bin(
     legend_ax.legend(
         handles=legend_handles,
         loc="center",
+        bbox_to_anchor=(0.60, 0.50),
         ncol=2 if len(legend_handles) > 6 else 1,
         fontsize=max(8, config["font_sizes"]["legend"] - 2),
         frameon=config["legend"]["frame_on"],

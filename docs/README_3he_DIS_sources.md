@@ -20,8 +20,8 @@ This document describes the source-aware 3He `g1/F1` input system used by the op
 | `e99117_zheng` | `Zheng E99-117 (2002)` | `data/zheng_thesis_pub_e99117.csv` | `PRC / nucl-ex/0405006` | yes in source-aware groups | Uses published `G1F1.mes` columns |
 | `e06014_flay` | `Flay E06-014 (2014)` | `data/dflay_e06014.csv` | `David Flay long PRD Tables VI and VII` | yes in source-aware groups | DIS + RES, no source-level W cut |
 | `e97103_kramer` | `Kramer E97-103 (2003)` | `data/kramer_e97103.csv` | Existing processed local plot source | group-controlled | Included only when the selected source group says so |
-| `a1n_2025_dis` | `A1n 2025 DIS` | `data/g1F1he3_2025_dis.csv` | Current internal 2025 extraction | yes in current 2025 groups | Nominal current internal DIS source |
-| `a1n_2025_all` | `A1n 2025 all` | `data/g1F1he3_2025_all.csv` | Current broader 2025 extraction | no | Diagnostic-only source group member |
+| `a1n_2025_dis` | `A1n 2025 DIS` | `data/g1F1he3_2026_dis.csv` | Current internal 2025 extraction | yes in current 2025 groups | Nominal current internal DIS source |
+| `a1n_2025_all` | `A1n 2025 all` | `data/g1F1he3_2026_all.csv` | Current broader 2025 extraction | no | Diagnostic-only source group member |
 | `mingyu_legacy_dis` | `Mingyu DIS legacy` | `data/mingyu_g1f1_g2f1_dis.csv` | Legacy internal extraction | no | Legacy-only source |
 | `e94010` | `E94-010` | `data/e94010.csv` | Historical processed resonance-support table | full groups only | Added to `full_*` source groups for BW/resonance coverage |
 | `e97110` | `E97-110` | `data/e97110.csv` | Historical processed resonance-support table | full groups only | Added to `full_*` source groups for BW/resonance coverage |

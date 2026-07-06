@@ -111,7 +111,7 @@
     },
     "a1n_2025_dis": {
       "label": "A1n 2025 DIS",
-      "file": "data/g1F1he3_2025_dis.csv",
+      "file": "data/g1F1he3_2026_dis.csv",
       "status": "diagnostic",
       "kind": "internal",
       "legacy": false,
@@ -130,7 +130,7 @@
     },
     "a1n_2025_all": {
       "label": "A1n 2025 all",
-      "file": "data/g1F1he3_2025_all.csv",
+      "file": "data/g1F1he3_2026_all.csv",
       "status": "diagnostic",
       "kind": "internal",
       "legacy": false,

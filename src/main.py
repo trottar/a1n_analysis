@@ -125,8 +125,10 @@ ALLOW_SPARSE_2025_FULL = False
 # USE_LEGACY_FIT_SUPPORT_FOR_2025 = False
 USE_LEGACY_FIT_SUPPORT_FOR_2025 = True
 
-DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
-DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
+# DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2025_all.csv")
+# DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2025_dis.csv")
+DATASET_2025_ALL_PATH = project_path("data", "g1F1he3_2026_all.csv")
+DATASET_2025_DIS_PATH = project_path("data", "g1F1he3_2026_dis.csv")
 
 DATASET_MODE = DATASET_MODE.lower()
 DIS_DATA_MODE = str(DIS_DATA_MODE).strip().lower()

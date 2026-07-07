@@ -155,29 +155,32 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
     Fixed-zero k(Q²) model.
 
     This keeps the tuned low- and mid-Q² behavior, but replaces the
-    high-Q² sine-modulated branch with a monotonic exponential decay to zero.
+    high-Q² branch with a smooth transition to an exact zero tail.
     """
     x = np.asarray(x, dtype=np.float64)
-    k_val = np.empty_like(x)
-
     q_low = 0.1
     q_high = 2.75
-    safe_d = np.copysign(max(abs(d), 1e-6), d if d != 0 else 1.0)
-    decay_scale = max(abs(b), 1e-6)
+    q_zero = 3.5
+    k_val = np.array(k_curve_tune(x, a, b, c, d, f, e), copy=True)
 
-    mask_low = x <= q_low
-    k_val[mask_low] = f + e * x[mask_low]
+    mask_transition = (x > q_high) & (x < q_zero)
+    mask_zero = x >= q_zero
+    if np.any(mask_transition) or np.any(mask_zero):
+        eps = 1e-4
+        y_pivot = k_curve_tune(np.array([q_high], dtype=np.float64), a, b, c, d, f, e)[0]
+        y_plus = k_curve_tune(np.array([q_high + eps], dtype=np.float64), a, b, c, d, f, e)[0]
+        y_minus = k_curve_tune(np.array([q_high - eps], dtype=np.float64), a, b, c, d, f, e)[0]
+        slope_pivot = (y_plus - y_minus) / (2.0 * eps)
+        interval = q_zero - q_high
 
-    mask_mid = (x > q_low) & (x <= q_high)
-    lin_mid = f + e * x[mask_mid]
-    exp_mid = (a + c / x[mask_mid]) * np.exp(-x[mask_mid] / safe_d)
-    weight_mid = (x[mask_mid] - q_low) / (q_high - q_low)
-    k_val[mask_mid] = (1 - weight_mid) * lin_mid + weight_mid * exp_mid
+        if np.any(mask_transition):
+            t = (x[mask_transition] - q_high) / interval
+            h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
+            h10 = t**3 - 2.0 * t**2 + t
+            k_val[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
 
-    mask_high = x > q_high
-    if np.any(mask_high):
-        pivot_value = (a + c / q_high) * np.exp(-q_high / safe_d)
-        k_val[mask_high] = pivot_value * np.exp(-(x[mask_high] - q_high) / decay_scale)
+        if np.any(mask_zero):
+            k_val[mask_zero] = 0.0
 
     return k_val
 
@@ -287,18 +290,37 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   x = np.asarray(x, dtype=np.float64)
   q_pivot = 2.75
-  safe_d = max(abs(d), 1e-6)
-
+  q_zero = 3.5
   tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
   fixed_curve = np.array(tuned_curve, copy=True)
 
-  mask_high = x > q_pivot
-  if np.any(mask_high):
-    pivot_value = quad_nucl_curve_k_tune(
+  mask_transition = (x > q_pivot) & (x < q_zero)
+  mask_zero = x >= q_zero
+  if np.any(mask_transition) or np.any(mask_zero):
+    eps = 1e-4
+    y_pivot = quad_nucl_curve_k_tune(
       np.array([q_pivot], dtype=np.float64),
       a, b, c, d, e, f, y0, p0, p1, p2, y1
     )[0]
-    fixed_curve[mask_high] = pivot_value * np.exp(-(x[mask_high] - q_pivot) / safe_d)
+    y_plus = quad_nucl_curve_k_tune(
+      np.array([q_pivot + eps], dtype=np.float64),
+      a, b, c, d, e, f, y0, p0, p1, p2, y1
+    )[0]
+    y_minus = quad_nucl_curve_k_tune(
+      np.array([q_pivot - eps], dtype=np.float64),
+      a, b, c, d, e, f, y0, p0, p1, p2, y1
+    )[0]
+    slope_pivot = (y_plus - y_minus) / (2.0 * eps)
+    interval = q_zero - q_pivot
+
+    if np.any(mask_transition):
+      t = (x[mask_transition] - q_pivot) / interval
+      h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
+      h10 = t**3 - 2.0 * t**2 + t
+      fixed_curve[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
+
+    if np.any(mask_zero):
+      fixed_curve[mask_zero] = 0.0
 
   return fixed_curve
 

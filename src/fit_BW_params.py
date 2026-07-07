@@ -148,8 +148,54 @@ def _build_artifact_path(filename, dataset_tag):
 
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
-        return "_fixed_zero_v3"
+        return "_fixed_zero_v4"
     return ""
+
+
+def _swap_k_curve_tag(dataset_tag, from_mode, to_mode):
+    current = f"_k_{from_mode}_"
+    replacement = f"_k_{to_mode}_"
+    if current in dataset_tag:
+        return dataset_tag.replace(current, replacement, 1)
+
+    current_suffix = f"_k_{from_mode}"
+    replacement_suffix = f"_k_{to_mode}"
+    if dataset_tag.endswith(current_suffix):
+        return dataset_tag[: -len(current_suffix)] + replacement_suffix
+
+    return dataset_tag
+
+
+def _parse_fit_results_payload(fit_results_csv):
+    fit_results_df = pd.read_csv(fit_results_csv)
+
+    def parse_list(value):
+        if pd.isna(value):
+            return []
+        value = re.sub(r'\s+', ',', value.strip())
+        value = value.replace('[,', '[').replace(',]', ']')
+        try:
+            return ast.literal_eval(value)
+        except Exception:
+            print(f"Error parsing value: {value}")
+            return []
+
+    columns_to_parse = ["Best Fit Parameters", "P Value Uncertainties", "Parameter Uncertainties"]
+    for col in columns_to_parse:
+        fit_results_df[col] = fit_results_df[col].apply(parse_list)
+
+    results = {}
+    for _, row in fit_results_df.iterrows():
+        parameter = row["Parameter"]
+        results[parameter] = {
+            "Best Fit Parameters": row["Best Fit Parameters"],
+            "Best P Values": ast.literal_eval(row["Best P Values"]),
+            "Chi-Squared": row["Chi-Squared"],
+            "Parameter Uncertainties": row["Parameter Uncertainties"],
+            "P Value Uncertainties": row["P Value Uncertainties"],
+        }
+
+    return results
 
 
 def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
@@ -161,8 +207,8 @@ def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
         excluded_k_row = k_fit_df.loc[[excluded_index]].copy()
         excluded_record = excluded_k_row.iloc[0]
         print(
-            "[fit_BW_params] fixed_zero mode: deriving the k curve from the tuned reference fit "
-            f"and replacing only the high-Q2 continuation. Highest-Q2 point kept out of the fixed_zero diagnostic chi2: "
+            "[fit_BW_params] fixed_zero mode: reusing the tuned k-fit solution and replacing only the high-Q2 continuation. "
+            f"Highest-Q2 point kept out of the fixed_zero diagnostic chi2: "
             f"Q2={excluded_record['Q2']:.3f}, k={excluded_record['k']:.5f}."
         )
 
@@ -224,6 +270,8 @@ def fit_BW_params(
         k_chi2_df = delta_par_df
     curve_cache_suffix = _curve_cache_suffix(bw_k_curve_mode)
     fit_results_csv = _build_artifact_path(f"fit_results{curve_cache_suffix}.csv", dataset_tag)
+    tune_reference_dataset_tag = _swap_k_curve_tag(dataset_tag, "fixed_zero", "tune")
+    tune_reference_fit_results_csv = _build_artifact_path("fit_results.csv", tune_reference_dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
     #k_ub = [1e10, 1e10, 1e10, 1e-10]
@@ -295,16 +343,26 @@ def fit_BW_params(
         print("-"*35)
         print(f"K Quad-Nucl Potential Fit Params [{bw_k_curve_mode}]")
         print("-"*35)
-        k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
-            "k",
-            x_data=k_fit_df["Q2"],
-            y_data=k_fit_df["k"],
-            y_err=k_fit_df["k.err"],
-            param_bounds=k_bounds,
-            p_vals_initial=k_p_vals_initial,
-            fit_function=quad_nucl_curve_k_wrapper,
-            N=3,
-        )
+        if bw_k_curve_mode == "fixed_zero" and os.path.exists(tune_reference_fit_results_csv):
+            print(f"[fit_BW_params] Loading tuned k reference from {tune_reference_fit_results_csv}")
+            tune_results = _parse_fit_results_payload(tune_reference_fit_results_csv)
+            tune_k_results = tune_results["k"]
+            k_best_params = tune_k_results["Best Fit Parameters"]
+            k_best_p_vals = tune_k_results["Best P Values"]
+            k_best_chi2 = tune_k_results["Chi-Squared"]
+            k_param_uncertainties = tune_k_results["Parameter Uncertainties"]
+            k_p_val_uncertainties = tune_k_results["P Value Uncertainties"]
+        else:
+            k_best_params, k_best_p_vals, k_best_chi2, k_param_uncertainties, k_p_val_uncertainties = fit_with_dynamic_params(
+                "k",
+                x_data=k_fit_df["Q2"],
+                y_data=k_fit_df["k"],
+                y_err=k_fit_df["k.err"],
+                param_bounds=k_bounds,
+                p_vals_initial=k_p_vals_initial,
+                fit_function=quad_nucl_curve_k_wrapper,
+                N=3,
+            )
 
         # Store results
         fit_results.append({
@@ -374,50 +432,24 @@ def fit_BW_params(
 
     else:
         print(f"\n\nFile '{fit_results_csv}' exists. Loading variables from CSV.")
+        fit_results = _parse_fit_results_payload(fit_results_csv)
+        k_best_params = fit_results["k"]["Best Fit Parameters"]
+        k_best_p_vals = fit_results["k"]["Best P Values"]
+        k_best_chi2 = fit_results["k"]["Chi-Squared"]
+        k_param_uncertainties = fit_results["k"]["Parameter Uncertainties"]
+        k_p_val_uncertainties = fit_results["k"]["P Value Uncertainties"]
 
-        # Load the CSV file
-        fit_results_df = pd.read_csv(fit_results_csv)
+        gamma_best_params = fit_results["gamma"]["Best Fit Parameters"]
+        gamma_best_p_vals = fit_results["gamma"]["Best P Values"]
+        gamma_best_chi2 = fit_results["gamma"]["Chi-Squared"]
+        gamma_param_uncertainties = fit_results["gamma"]["Parameter Uncertainties"]
+        gamma_p_val_uncertainties = fit_results["gamma"]["P Value Uncertainties"]
 
-        # Define a function to parse list-like strings with irregular formatting
-        def parse_list(value):
-            if pd.isna(value):  # Handle NaN values
-                return []
-            # Remove extra spaces and split by spaces or commas
-            value = re.sub(r'\s+', ',', value.strip())  # Replace spaces with commas
-            value = value.replace('[,', '[').replace(',]', ']')  # Clean up misplaced commas
-            try:
-                return ast.literal_eval(value)
-            except Exception:
-                print(f"Error parsing value: {value}")
-                return []
-
-        # Apply parsing to the relevant columns
-        columns_to_parse = ["Best Fit Parameters", "P Value Uncertainties", "Parameter Uncertainties"]
-        for col in columns_to_parse:
-            fit_results_df[col] = fit_results_df[col].apply(parse_list)
-
-        # Extract variables from the parsed dataframe
-        for _, row in fit_results_df.iterrows():
-            if row["Parameter"] == "k":
-                k_best_params = row["Best Fit Parameters"]
-                k_best_p_vals = ast.literal_eval(row["Best P Values"])  # Parse normally formatted column
-                k_best_chi2 = row["Chi-Squared"]
-                k_param_uncertainties = row["Parameter Uncertainties"]
-                k_p_val_uncertainties = row["P Value Uncertainties"]
-
-            elif row["Parameter"] == "gamma":
-                gamma_best_params = row["Best Fit Parameters"]
-                gamma_best_p_vals = ast.literal_eval(row["Best P Values"])
-                gamma_best_chi2 = row["Chi-Squared"]
-                gamma_param_uncertainties = row["Parameter Uncertainties"]
-                gamma_p_val_uncertainties = row["P Value Uncertainties"]
-
-            elif row["Parameter"] == "mass":
-                mass_best_params = row["Best Fit Parameters"]
-                mass_best_p_vals = ast.literal_eval(row["Best P Values"])
-                mass_best_chi2 = row["Chi-Squared"]
-                mass_param_uncertainties = row["Parameter Uncertainties"]                
-                mass_p_val_uncertainties = row["P Value Uncertainties"]
+        mass_best_params = fit_results["mass"]["Best Fit Parameters"]
+        mass_best_p_vals = fit_results["mass"]["Best P Values"]
+        mass_best_chi2 = fit_results["mass"]["Chi-Squared"]
+        mass_param_uncertainties = fit_results["mass"]["Parameter Uncertainties"]
+        mass_p_val_uncertainties = fit_results["mass"]["P Value Uncertainties"]
 
         print("Variables successfully loaded from the CSV.")
 

@@ -146,34 +146,91 @@ def k_curve_tune(x, a, b, c, d, f, e):
     sine_var = b * np.sin(theta)
     weight_sine = np.clip((x[mask_high] - 2.75) / (5.0 - 2.75), 0, 1)
     k_val[mask_high] = exp_high + weight_sine * sine_var
-    
+
     return k_val
+
+
+def _sample_curve_value_and_slope(curve_func, q2_anchor, curve_args, step=1e-3):
+    """Sample a curve value and a numerical slope at the anchor point."""
+    q2_anchor = float(q2_anchor)
+    q2_minus = max(1e-6, q2_anchor - step)
+    q2_plus = q2_anchor + step
+    y_anchor = float(np.asarray(curve_func(np.array([q2_anchor], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    y_minus = float(np.asarray(curve_func(np.array([q2_minus], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    y_plus = float(np.asarray(curve_func(np.array([q2_plus], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    slope_anchor = (y_plus - y_minus) / (q2_plus - q2_minus)
+    return y_anchor, slope_anchor
+
+
+def _resolve_fixed_zero_tau(y_anchor, slope_anchor, q2_exp_start, q2_zero_start, target_fraction=0.08):
+    """
+    Resolve an exponential decay scale for the fixed-zero high-Q² bridge.
+
+    Prefer matching the local tuned-curve slope at the anchor. If that is not
+    usable, fall back to a scale that brings the bridge close to zero by the
+    start of the explicit damping window.
+    """
+    fallback_tau = (q2_zero_start - q2_exp_start) / np.log(1.0 / target_fraction)
+    if (
+        np.isfinite(y_anchor)
+        and np.isfinite(slope_anchor)
+        and y_anchor < 0.0
+        and slope_anchor > 0.0
+    ):
+        matched_tau = -y_anchor / slope_anchor
+        if np.isfinite(matched_tau) and matched_tau > 0.0:
+            return max(matched_tau, 1e-6)
+    return max(fallback_tau, 1e-6)
+
+
+def _apply_fixed_zero_high_q2_strategy(
+    x,
+    curve_func,
+    curve_args,
+    q2_exp_start=2.75,
+    q2_zero_start=3.8,
+    q2_zero=4.0,
+):
+    """
+    Keep the tuned low/mid-Q² branch, replace the high-Q² continuation with a
+    monotonic exponential bridge, and only force the exact-zero handoff over a
+    short final window.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    base_curve = np.asarray(curve_func(x, *curve_args), dtype=np.float64)
+    fixed_curve = np.array(base_curve, copy=True)
+
+    y_anchor, slope_anchor = _sample_curve_value_and_slope(curve_func, q2_exp_start, curve_args)
+    tau = _resolve_fixed_zero_tau(y_anchor, slope_anchor, q2_exp_start, q2_zero_start)
+
+    mask_exp = x > q2_exp_start
+    if np.any(mask_exp):
+        fixed_curve[mask_exp] = y_anchor * np.exp(-(x[mask_exp] - q2_exp_start) / tau)
+
+    mask_damp = (x > q2_zero_start) & (x < q2_zero)
+    if np.any(mask_damp):
+        t = (x[mask_damp] - q2_zero_start) / (q2_zero - q2_zero_start)
+        smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
+        damping = 1.0 - smoothstep
+        fixed_curve[mask_damp] = fixed_curve[mask_damp] * damping
+
+    fixed_curve[x >= q2_zero] = 0.0
+    return fixed_curve
 
 
 def k_curve_fixed_zero(x, a, b, c, d, f, e):
     """
     Fixed-zero k(Q²) model.
 
-    This keeps the tuned low- and mid-Q² behavior, but replaces the
-    high-Q² branch with a smooth transition to an exact zero tail.
+    This keeps the tuned low- and mid-Q² behavior, replaces the high-Q²
+    continuation with a matched exponential bridge, and only forces the exact
+    zero tail over the final Q² window.
     """
-    x = np.asarray(x, dtype=np.float64)
-    q_transition_start = 2.35
-    q_zero = 2.75
-    k_val = np.array(k_curve_tune(x, a, b, c, d, f, e), copy=True)
-
-    mask_transition = (x > q_transition_start) & (x < q_zero)
-    mask_zero = x >= q_zero
-    if np.any(mask_transition):
-        t = (x[mask_transition] - q_transition_start) / (q_zero - q_transition_start)
-        smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
-        damping = 1.0 - smoothstep
-        k_val[mask_transition] = k_val[mask_transition] * damping
-
-    if np.any(mask_zero):
-        k_val[mask_zero] = 0.0
-
-    return k_val
+    return _apply_fixed_zero_high_q2_strategy(
+        x,
+        k_curve_tune,
+        (a, b, c, d, f, e),
+    )
 
 
 # Backward-compatible default alias.
@@ -279,24 +336,11 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   Fixed-zero quadratic * nucl potential k(Q^2) form.
   """
-  x = np.asarray(x, dtype=np.float64)
-  q_transition_start = 2.35
-  q_zero = 2.75
-  tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
-  fixed_curve = np.array(tuned_curve, copy=True)
-
-  mask_transition = (x > q_transition_start) & (x < q_zero)
-  mask_zero = x >= q_zero
-  if np.any(mask_transition):
-    t = (x[mask_transition] - q_transition_start) / (q_zero - q_transition_start)
-    smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
-    damping = 1.0 - smoothstep
-    fixed_curve[mask_transition] = fixed_curve[mask_transition] * damping
-
-  if np.any(mask_zero):
-    fixed_curve[mask_zero] = 0.0
-
-  return fixed_curve
+  return _apply_fixed_zero_high_q2_strategy(
+    x,
+    quad_nucl_curve_k_tune,
+    (a, b, c, d, e, f, y0, p0, p1, p2, y1),
+  )
 
 
 def get_quad_nucl_curve_k(mode="non_tune"):

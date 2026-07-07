@@ -148,7 +148,7 @@ def _build_artifact_path(filename, dataset_tag):
 
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
-        return "_fixed_zero_v2"
+        return "_fixed_zero_v3"
     return ""
 
 
@@ -159,11 +159,11 @@ def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
         excluded_index = k_fit_df["Q2"].idxmax()
         excluded_k_row = k_fit_df.loc[[excluded_index]].copy()
-        k_fit_df = k_fit_df.drop(index=excluded_index).reset_index(drop=True)
         excluded_record = excluded_k_row.iloc[0]
         print(
-            "[fit_BW_params] fixed_zero mode: excluding highest-Q2 k point "
-            f"at Q2={excluded_record['Q2']:.3f}, k={excluded_record['k']:.5f} and fixing the k-tail offset to zero."
+            "[fit_BW_params] fixed_zero mode: deriving the k curve from the tuned reference fit "
+            f"and replacing only the high-Q2 continuation. Highest-Q2 point kept out of the fixed_zero diagnostic chi2: "
+            f"Q2={excluded_record['Q2']:.3f}, k={excluded_record['k']:.5f}."
         )
 
     if k_fit_df.empty:
@@ -184,6 +184,8 @@ def fit_BW_params(
     bw_k_curve_mode = normalize_bw_k_curve_mode(bw_k_curve_mode)
     if quad_nucl_curve_k_func is None:
         quad_nucl_curve_k_func = get_quad_nucl_curve_k(bw_k_curve_mode)
+    k_reference_curve_mode = "tune" if bw_k_curve_mode == "fixed_zero" else bw_k_curve_mode
+    quad_nucl_curve_k_fit_func = get_quad_nucl_curve_k(k_reference_curve_mode)
 
     delta_par_df = delta_par_df.copy()
     if "Experiment" not in delta_par_df.columns:
@@ -215,6 +217,11 @@ def fit_BW_params(
         raise RuntimeError("No finite resonance Breit-Wigner rows remain for BW parameter fitting.")
 
     k_fit_df, excluded_k_row = _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode)
+    if excluded_k_row is not None:
+        excluded_index = int(excluded_k_row.index[0])
+        k_chi2_df = delta_par_df.drop(index=excluded_index).reset_index(drop=True)
+    else:
+        k_chi2_df = delta_par_df
     curve_cache_suffix = _curve_cache_suffix(bw_k_curve_mode)
     fit_results_csv = _build_artifact_path(f"fit_results{curve_cache_suffix}.csv", dataset_tag)
 
@@ -224,9 +231,6 @@ def fit_BW_params(
     #k_ub = [1e10, 1e10, 1e10, 1e10]
     k_lb = [-1e10, -1e10, -1e10, -1e10, -1e10, -1e10, -1e10]
     k_ub = [1e10, 1e10, 1e10, 1e10, 1e10, 1e10, 1e10]
-    if bw_k_curve_mode == "fixed_zero":
-        k_lb[-1] = -1e-12
-        k_ub[-1] = 1e-12
     k_bounds = Bounds(lb=k_lb, ub=k_ub)
     P0 = 0.7
     P1 = 1.7
@@ -271,7 +275,7 @@ def fit_BW_params(
       a, b, c: quadratic curve parameters
       y0: term to have curve end at a constant value
       """  
-      return quad_nucl_curve_k_func(x, a, b, c, d, e, f, y0, P0, P1, P2, Y1)
+      return quad_nucl_curve_k_fit_func(x, a, b, c, d, e, f, y0, P0, P1, P2, Y1)
     def quad_nucl_curve_mass_wrapper(x, a, b, c, d, e, y0):
       """
       quadratic * nucl potential form
@@ -418,10 +422,6 @@ def fit_BW_params(
         print("Variables successfully loaded from the CSV.")
 
 
-    if bw_k_curve_mode == "fixed_zero" and len(k_best_params) >= 7:
-        k_best_params = list(k_best_params)
-        k_best_params[-1] = 0.0
-
     # Unpack the results
     print("k Parameters")
     print("-"*50)
@@ -465,6 +465,15 @@ def fit_BW_params(
     k_nucl_args = [q2] + [p for p in k_nucl_par] + [P for P in k_P_vals]
     k_nucl = quad_nucl_curve_k_func(*k_nucl_args)
     k_nucl_err = [p for p in k_param_uncertainties] + [p for p in k_p_val_uncertainties]
+    if bw_k_curve_mode == "fixed_zero":
+        k_chi2_values = quad_nucl_curve_k_func(
+            k_chi2_df["Q2"].to_numpy(dtype=np.float64),
+            *k_nucl_par,
+            *k_P_vals
+        )
+        k_ndf = max(1, len(k_chi2_df) - (len(k_nucl_par) + len(k_P_vals)))
+        k_nucl_chi2 = float(np.sum(((k_chi2_df["k"].to_numpy(dtype=np.float64) - k_chi2_values) / k_chi2_df["k.err"].to_numpy(dtype=np.float64)) ** 2) / k_ndf)
+        print(f"[fit_BW_params] fixed_zero diagnostic chi2 excludes the highest-Q2 k point and is recomputed as {k_nucl_chi2:.2f}.")
     # gamma
     gamma_nucl_args = [q2] + [p for p in gamma_nucl_par] + [P for P in gamma_P_vals]
     gamma_nucl = quad_nucl_curve_gamma(*gamma_nucl_args)
@@ -490,6 +499,8 @@ def fit_BW_params(
     
     def find_param_errors(i, var_name):
         x_data = delta_par_df["Q2"]
+        fit_model = None
+        display_model = None
         if var_name == "k":
             x_data = k_fit_df["Q2"]
             true_params = [p for p in k_nucl_par] + [P for P in k_P_vals]
@@ -497,21 +508,24 @@ def fit_BW_params(
             y_err = k_fit_df["k.err"]
             y_nucl = k_nucl
             bounds = (k_lb + [P-(1e-6) for P in k_P_vals], k_ub + [P+(1e-6) for P in k_P_vals])
-            model = quad_nucl_curve_k_func
+            fit_model = quad_nucl_curve_k_fit_func
+            display_model = quad_nucl_curve_k_func
         elif var_name == "mass":
             true_params = [p for p in mass_nucl_par] + [P for P in mass_P_vals]
             y_data = delta_par_df["M"]
             y_err = delta_par_df["M.err"]
             y_nucl = mass_nucl            
             bounds = (mass_lb + [P-(1e-6) for P in mass_P_vals], mass_ub + [P+(1e-6) for P in mass_P_vals])
-            model = quad_nucl_curve_mass
+            fit_model = quad_nucl_curve_mass
+            display_model = quad_nucl_curve_mass
         elif var_name == "gamma":
             true_params = [p for p in gamma_nucl_par] + [P for P in gamma_P_vals]
             y_data = delta_par_df["gamma"]
             y_err = delta_par_df["gamma.err"]
             y_nucl = gamma_nucl
             bounds = (gamma_lb + [P-(1e-6) for P in gamma_P_vals], gamma_ub + [P+(1e-6) for P in gamma_P_vals])
-            model = quad_nucl_curve_gamma
+            fit_model = quad_nucl_curve_gamma
+            display_model = quad_nucl_curve_gamma
             
         else:
             print("ERROR: Invalid variable name!")
@@ -524,7 +538,7 @@ def fit_BW_params(
 
         # Perform the initial fit
         popt, pcov = curve_fit(
-            model, x_data, y_data, p0=true_params, sigma=y_err, bounds=bounds, absolute_sigma=True
+            fit_model, x_data, y_data, p0=true_params, sigma=y_err, bounds=bounds, absolute_sigma=True
         )
 
         # Define file names for saving/loading bootstrap results
@@ -571,7 +585,7 @@ def fit_BW_params(
                     else:
                         bounds=bounds
                     boot_popt, _ = curve_fit(
-                        model, 
+                        fit_model, 
                         x_bootstrap, 
                         y_bootstrap, 
                         p0=true_params,
@@ -580,12 +594,12 @@ def fit_BW_params(
                         absolute_sigma=True
                     )                    
                     bootstrap_params[b] = boot_popt
-                    bootstrap_fits_data[b] = model(x_data, *boot_popt)
-                    bootstrap_fits_q2[b] = model(q2, *boot_popt)
+                    bootstrap_fits_data[b] = display_model(x_data, *boot_popt)
+                    bootstrap_fits_q2[b] = display_model(q2, *boot_popt)
                 except RuntimeError:
                     bootstrap_params[b] = popt
-                    bootstrap_fits_data[b] = model(x_data, *popt)
-                    bootstrap_fits_q2[b] = model(q2, *popt)
+                    bootstrap_fits_data[b] = display_model(x_data, *popt)
+                    bootstrap_fits_q2[b] = display_model(q2, *popt)
 
             # Save bootstrap results
             np.save(params_filename, bootstrap_params)
@@ -612,13 +626,13 @@ def fit_BW_params(
         def jacobian(x, params):
             epsilon = np.sqrt(np.finfo(float).eps)
             return np.array([
-                (model(x, *(params + epsilon * np.eye(len(params))[i])) - 
-                 model(x, *(params - epsilon * np.eye(len(params))[i]))) / 
+                (display_model(x, *(params + epsilon * np.eye(len(params))[i])) - 
+                 display_model(x, *(params - epsilon * np.eye(len(params))[i]))) / 
                 (2 * epsilon) for i in range(len(params))
             ]).T
 
         # Compute fit and error bars
-        fit = model(x_data, *popt)
+        fit = display_model(x_data, *popt)
         J = jacobian(x_data, popt)
         fit_var = np.sum(J @ pcov * J, axis=1)
         fit_err = np.sqrt(fit_var)
@@ -632,7 +646,7 @@ def fit_BW_params(
             return np.convolve(data, np.ones(window_size)/window_size, mode='same')
 
         # Calculate uncertainties for q2 points
-        q2_fit = model(q2, *popt)
+        q2_fit = display_model(q2, *popt)
         q2_err = np.std(bootstrap_fits_q2, axis=0)
         window_size = min(len(q2) // 3, 15)
         smoothed_q2_err = moving_average(q2_err, window_size)

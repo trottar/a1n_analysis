@@ -285,7 +285,22 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   Fixed-zero quadratic * nucl potential k(Q^2) form.
   """
-  return k_curve_fixed_zero(x, a, b, c, d, e, f) * nucl_potential(x, p0, p1, p2, y1) + np.ones(x.size)*y0
+  x = np.asarray(x, dtype=np.float64)
+  q_pivot = 2.75
+  safe_d = max(abs(d), 1e-6)
+
+  tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
+  fixed_curve = np.array(tuned_curve, copy=True)
+
+  mask_high = x > q_pivot
+  if np.any(mask_high):
+    pivot_value = quad_nucl_curve_k_tune(
+      np.array([q_pivot], dtype=np.float64),
+      a, b, c, d, e, f, y0, p0, p1, p2, y1
+    )[0]
+    fixed_curve[mask_high] = pivot_value * np.exp(-(x[mask_high] - q_pivot) / safe_d)
+
+  return fixed_curve
 
 
 def get_quad_nucl_curve_k(mode="non_tune"):

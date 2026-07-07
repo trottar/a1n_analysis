@@ -160,7 +160,7 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
     x = np.asarray(x, dtype=np.float64)
     q_low = 0.1
     q_high = 2.75
-    q_zero = 3.5
+    q_zero = 2.9
     k_val = np.array(k_curve_tune(x, a, b, c, d, f, e), copy=True)
 
     mask_transition = (x > q_high) & (x < q_zero)
@@ -178,6 +178,7 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
             h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
             h10 = t**3 - 2.0 * t**2 + t
             k_val[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
+            k_val[mask_transition] = np.minimum(k_val[mask_transition], 0.0)
 
         if np.any(mask_zero):
             k_val[mask_zero] = 0.0
@@ -290,7 +291,7 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   x = np.asarray(x, dtype=np.float64)
   q_pivot = 2.75
-  q_zero = 3.5
+  q_zero = 2.9
   tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
   fixed_curve = np.array(tuned_curve, copy=True)
 
@@ -318,6 +319,7 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
       h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
       h10 = t**3 - 2.0 * t**2 + t
       fixed_curve[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
+      fixed_curve[mask_transition] = np.minimum(fixed_curve[mask_transition], 0.0)
 
     if np.any(mask_zero):
       fixed_curve[mask_zero] = 0.0

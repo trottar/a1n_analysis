@@ -158,30 +158,20 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
     high-Q² branch with a smooth transition to an exact zero tail.
     """
     x = np.asarray(x, dtype=np.float64)
-    q_low = 0.1
-    q_high = 2.75
-    q_zero = 2.5
+    q_transition_start = 2.35
+    q_zero = 2.75
     k_val = np.array(k_curve_tune(x, a, b, c, d, f, e), copy=True)
 
-    mask_transition = (x > q_high) & (x < q_zero)
+    mask_transition = (x > q_transition_start) & (x < q_zero)
     mask_zero = x >= q_zero
-    if np.any(mask_transition) or np.any(mask_zero):
-        eps = 1e-4
-        y_pivot = k_curve_tune(np.array([q_high], dtype=np.float64), a, b, c, d, f, e)[0]
-        y_plus = k_curve_tune(np.array([q_high + eps], dtype=np.float64), a, b, c, d, f, e)[0]
-        y_minus = k_curve_tune(np.array([q_high - eps], dtype=np.float64), a, b, c, d, f, e)[0]
-        slope_pivot = (y_plus - y_minus) / (2.0 * eps)
-        interval = q_zero - q_high
+    if np.any(mask_transition):
+        t = (x[mask_transition] - q_transition_start) / (q_zero - q_transition_start)
+        smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
+        damping = 1.0 - smoothstep
+        k_val[mask_transition] = k_val[mask_transition] * damping
 
-        if np.any(mask_transition):
-            t = (x[mask_transition] - q_high) / interval
-            h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
-            h10 = t**3 - 2.0 * t**2 + t
-            k_val[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
-            k_val[mask_transition] = np.minimum(k_val[mask_transition], 0.0)
-
-        if np.any(mask_zero):
-            k_val[mask_zero] = 0.0
+    if np.any(mask_zero):
+        k_val[mask_zero] = 0.0
 
     return k_val
 
@@ -290,39 +280,21 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   Fixed-zero quadratic * nucl potential k(Q^2) form.
   """
   x = np.asarray(x, dtype=np.float64)
-  q_pivot = 2.75
-  q_zero = 2.5
+  q_transition_start = 2.35
+  q_zero = 2.75
   tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
   fixed_curve = np.array(tuned_curve, copy=True)
 
-  mask_transition = (x > q_pivot) & (x < q_zero)
+  mask_transition = (x > q_transition_start) & (x < q_zero)
   mask_zero = x >= q_zero
-  if np.any(mask_transition) or np.any(mask_zero):
-    eps = 1e-4
-    y_pivot = quad_nucl_curve_k_tune(
-      np.array([q_pivot], dtype=np.float64),
-      a, b, c, d, e, f, y0, p0, p1, p2, y1
-    )[0]
-    y_plus = quad_nucl_curve_k_tune(
-      np.array([q_pivot + eps], dtype=np.float64),
-      a, b, c, d, e, f, y0, p0, p1, p2, y1
-    )[0]
-    y_minus = quad_nucl_curve_k_tune(
-      np.array([q_pivot - eps], dtype=np.float64),
-      a, b, c, d, e, f, y0, p0, p1, p2, y1
-    )[0]
-    slope_pivot = (y_plus - y_minus) / (2.0 * eps)
-    interval = q_zero - q_pivot
+  if np.any(mask_transition):
+    t = (x[mask_transition] - q_transition_start) / (q_zero - q_transition_start)
+    smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
+    damping = 1.0 - smoothstep
+    fixed_curve[mask_transition] = fixed_curve[mask_transition] * damping
 
-    if np.any(mask_transition):
-      t = (x[mask_transition] - q_pivot) / interval
-      h00 = 2.0 * t**3 - 3.0 * t**2 + 1.0
-      h10 = t**3 - 2.0 * t**2 + t
-      fixed_curve[mask_transition] = h00 * y_pivot + h10 * interval * slope_pivot
-      fixed_curve[mask_transition] = np.minimum(fixed_curve[mask_transition], 0.0)
-
-    if np.any(mask_zero):
-      fixed_curve[mask_zero] = 0.0
+  if np.any(mask_zero):
+    fixed_curve[mask_zero] = 0.0
 
   return fixed_curve
 

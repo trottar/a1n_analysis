@@ -160,7 +160,7 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
     x = np.asarray(x, dtype=np.float64)
     q_low = 0.1
     q_high = 2.75
-    q_zero = 2.9
+    q_zero = 2.5
     k_val = np.array(k_curve_tune(x, a, b, c, d, f, e), copy=True)
 
     mask_transition = (x > q_high) & (x < q_zero)
@@ -291,7 +291,7 @@ def quad_nucl_curve_k_fixed_zero(x, a, b, c, d, e, f, y0, p0, p1, p2, y1):
   """
   x = np.asarray(x, dtype=np.float64)
   q_pivot = 2.75
-  q_zero = 2.9
+  q_zero = 2.5
   tuned_curve = quad_nucl_curve_k_tune(x, a, b, c, d, e, f, y0, p0, p1, p2, y1)
   fixed_curve = np.array(tuned_curve, copy=True)
 

@@ -278,6 +278,8 @@ def _apply_fixed_zero_high_q2_strategy(
     q2_exp_start=1.0,
     q2_match=2.75,
     q2_zero=4.0,
+    q2_blend_start=0.9,
+    q2_blend_end=1.05,
 ):
     """
     Keep the original branch below q2_exp_start, then replace the remainder
@@ -298,11 +300,30 @@ def _apply_fixed_zero_high_q2_strategy(
         q2_zero,
     )
 
-    mask_exp = (x > q2_exp_start) & (x < q2_zero)
-    if np.any(mask_exp):
-        delta_zero = q2_zero - q2_exp_start
-        core = _bridge_core(lam, x[mask_exp] - q2_exp_start, delta_zero)
-        fixed_curve[mask_exp] = y_anchor * np.power(np.clip(core, 0.0, None), power)
+    delta_zero = q2_zero - q2_exp_start
+
+    bridge_curve = np.array(base_curve, copy=True)
+    mask_bridge = (x >= q2_exp_start) & (x < q2_zero)
+    if np.any(mask_bridge):
+        core = _bridge_core(lam, x[mask_bridge] - q2_exp_start, delta_zero)
+        bridge_curve[mask_bridge] = y_anchor * np.power(np.clip(core, 0.0, None), power)
+    bridge_curve[x >= q2_zero] = 0.0
+
+    blend_start = min(q2_blend_start, q2_blend_end)
+    blend_end = max(q2_blend_start, q2_blend_end)
+    if blend_end > blend_start:
+        mask_blend = (x >= blend_start) & (x <= blend_end)
+        if np.any(mask_blend):
+            t = (x[mask_blend] - blend_start) / (blend_end - blend_start)
+            smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
+            fixed_curve[mask_blend] = (
+                (1.0 - smoothstep) * base_curve[mask_blend]
+                + smoothstep * bridge_curve[mask_blend]
+            )
+
+    mask_post_blend = (x > blend_end) & (x < q2_zero)
+    if np.any(mask_post_blend):
+        fixed_curve[mask_post_blend] = bridge_curve[mask_post_blend]
 
     fixed_curve[x >= q2_zero] = 0.0
     return fixed_curve

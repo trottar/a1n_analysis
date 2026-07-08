@@ -21,14 +21,12 @@ import json
 ##################################################################################################################################################
 
 from functions import (
-    clear_smooth_zero_tail_config,
     fit_with_dynamic_params,
     get_quad_nucl_curve_k,
     normalize_bw_k_curve_mode,
     quad_nucl_curve_k,
     quad_nucl_curve_gamma,
     quad_nucl_curve_mass,
-    set_smooth_zero_tail_config,
 )
 from utility import prefix_generated_output_name, project_path, src_path
 
@@ -219,63 +217,6 @@ def _mode_uses_tune_reference(bw_k_curve_mode):
     return bw_k_curve_mode in {"fixed_zero", "smooth_zero"}
 
 
-def _build_smooth_zero_tail_config(delta_par_df):
-    if delta_par_df.empty:
-        return None
-
-    sorted_df = delta_par_df.sort_values("Q2").reset_index(drop=True)
-    peak_row = sorted_df.iloc[-1]
-    peak_q2 = float(peak_row["Q2"])
-    peak_k = float(peak_row["k"])
-
-    lower_candidates = sorted_df[sorted_df["Q2"] < peak_q2]
-    if lower_candidates.empty:
-        return None
-
-    preferred_mask = lower_candidates["Experiment"].astype(str).str.contains("solvg|e01-012", case=False, na=False)
-    if preferred_mask.any():
-        start_row = lower_candidates.loc[preferred_mask].sort_values("Q2").iloc[-1]
-    else:
-        start_row = lower_candidates.iloc[-1]
-
-    start_q2 = float(start_row["Q2"])
-    if not np.isfinite(start_q2) or not np.isfinite(peak_q2) or peak_q2 <= start_q2:
-        return None
-
-    q2_zero = 4.0 if peak_q2 < 3.95 else peak_q2 + 0.15
-    blend_width = min(0.35, max(0.15, 0.4 * (peak_q2 - start_q2)))
-    blend_start = max(0.0, start_q2 - blend_width)
-
-    return {
-        "q2_smooth_start": start_q2,
-        "q2_peak": peak_q2,
-        "q2_zero": q2_zero,
-        "q2_blend_start": blend_start,
-        "q2_blend_end": start_q2,
-        "y_peak": peak_k,
-    }
-
-
-def _configure_smooth_zero_tail(delta_par_df, bw_k_curve_mode):
-    clear_smooth_zero_tail_config()
-    if bw_k_curve_mode != "smooth_zero":
-        return
-
-    tail_config = _build_smooth_zero_tail_config(delta_par_df)
-    if tail_config is None:
-        print("[fit_BW_params] smooth_zero mode: could not build a data-anchored tail config, using intrinsic fallback.")
-        return
-
-    set_smooth_zero_tail_config(tail_config)
-    print(
-        "[fit_BW_params] smooth_zero tail anchors: "
-        f"start Q2={tail_config['q2_smooth_start']:.3f}, "
-        f"peak Q2={tail_config['q2_peak']:.3f}, "
-        f"peak k={tail_config['y_peak']:.5f}, "
-        f"zero Q2={tail_config['q2_zero']:.3f}."
-    )
-
-
 def _parse_fit_results_payload(fit_results_csv):
     fit_results_df = pd.read_csv(fit_results_csv)
 
@@ -371,8 +312,6 @@ def fit_BW_params(
     delta_par_df = delta_par_df.loc[finite_mask].reset_index(drop=True)
     if delta_par_df.empty:
         raise RuntimeError("No finite resonance Breit-Wigner rows remain for BW parameter fitting.")
-
-    _configure_smooth_zero_tail(delta_par_df, bw_k_curve_mode)
 
     k_fit_df, excluded_k_row = _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode)
     if excluded_k_row is not None:

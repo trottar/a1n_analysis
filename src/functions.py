@@ -92,28 +92,6 @@ def normalize_bw_k_curve_mode(mode):
   return normalized
 
 
-_SMOOTH_ZERO_TAIL_CONFIG = None
-
-
-def clear_smooth_zero_tail_config():
-  global _SMOOTH_ZERO_TAIL_CONFIG
-  _SMOOTH_ZERO_TAIL_CONFIG = None
-
-
-def set_smooth_zero_tail_config(config):
-  global _SMOOTH_ZERO_TAIL_CONFIG
-  if config is None:
-    _SMOOTH_ZERO_TAIL_CONFIG = None
-  else:
-    _SMOOTH_ZERO_TAIL_CONFIG = dict(config)
-
-
-def _get_smooth_zero_tail_config():
-  if _SMOOTH_ZERO_TAIL_CONFIG is None:
-    return None
-  return dict(_SMOOTH_ZERO_TAIL_CONFIG)
-
-
 def k_curve_non_tune(x, a, b, c, d, f, e, x0=0.1, k=100):
   """Current non-tuned k(Q^2) model used in the BW chain."""
   d = 0
@@ -357,67 +335,27 @@ def _apply_smooth_zero_high_q2_strategy(
     x,
     curve_func,
     curve_args,
-    q2_smooth_start=2.75,
+    q2_smooth_start=2.60,
     q2_zero=4.0,
-    q2_blend_start=2.35,
-    q2_blend_end=2.75,
-    q2_peak=None,
-    y_smooth_start=None,
-    y_peak=None,
+    q2_blend_start=2.30,
+    q2_blend_end=2.70,
+    tail_lambda=0.80,
+    tail_power=1.20,
 ):
     """
     Preserve the tuned low/mid-Q² behavior and replace only the high-Q² tail
-    with a two-sided smooth tail: one smoothstep rise into the high-Q² anchor
-    point and one smoothstep fall to zero at q2_zero.
+    with a smooth exponential-like bridge that reaches zero at q2_zero.
     """
     x = np.asarray(x, dtype=np.float64)
     base_curve = np.asarray(curve_func(x, *curve_args), dtype=np.float64)
     smooth_curve = np.array(base_curve, copy=True)
     bridge_curve = np.array(base_curve, copy=True)
-
-    tail_config = _get_smooth_zero_tail_config()
-    if tail_config is not None:
-        q2_smooth_start = float(tail_config.get("q2_smooth_start", q2_smooth_start))
-        q2_zero = float(tail_config.get("q2_zero", q2_zero))
-        q2_blend_start = float(tail_config.get("q2_blend_start", q2_blend_start))
-        q2_blend_end = float(tail_config.get("q2_blend_end", q2_blend_end))
-        q2_peak = tail_config.get("q2_peak", q2_peak)
-        y_smooth_start = tail_config.get("y_smooth_start", y_smooth_start)
-        y_peak = tail_config.get("y_peak", y_peak)
-
-    if q2_peak is None:
-        q2_peak = q2_smooth_start + 0.75 * (q2_zero - q2_smooth_start)
-    q2_peak = float(q2_peak)
-    q2_zero = float(q2_zero)
-    q2_smooth_start = float(q2_smooth_start)
-
-    if not np.isfinite(q2_peak) or q2_peak <= q2_smooth_start or q2_peak >= q2_zero:
-        q2_peak = q2_smooth_start + 0.75 * (q2_zero - q2_smooth_start)
-
-    base_y_start, _ = _sample_curve_value_and_slope(curve_func, q2_smooth_start, curve_args)
-    if y_smooth_start is None or not np.isfinite(y_smooth_start):
-        y_smooth_start = base_y_start
-    else:
-        y_smooth_start = float(y_smooth_start)
-
-    if y_peak is None or not np.isfinite(y_peak):
-        y_peak = float(np.asarray(curve_func(np.array([q2_peak], dtype=np.float64), *curve_args), dtype=np.float64)[0])
-    else:
-        y_peak = float(y_peak)
-
-    mask_rise = (x >= q2_smooth_start) & (x <= q2_peak)
-    if np.any(mask_rise):
-        rise_width = max(q2_peak - q2_smooth_start, 1e-12)
-        t_rise = np.clip((x[mask_rise] - q2_smooth_start) / rise_width, 0.0, 1.0)
-        s_rise = 6.0 * t_rise**5 - 15.0 * t_rise**4 + 10.0 * t_rise**3
-        bridge_curve[mask_rise] = y_smooth_start + (y_peak - y_smooth_start) * s_rise
-
-    mask_fall = (x > q2_peak) & (x < q2_zero)
-    if np.any(mask_fall):
-        fall_width = max(q2_zero - q2_peak, 1e-12)
-        t_fall = np.clip((x[mask_fall] - q2_peak) / fall_width, 0.0, 1.0)
-        s_fall = 6.0 * t_fall**5 - 15.0 * t_fall**4 + 10.0 * t_fall**3
-        bridge_curve[mask_fall] = y_peak * (1.0 - s_fall)
+    y_start = float(np.asarray(curve_func(np.array([q2_smooth_start], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    mask_bridge = (x >= q2_smooth_start) & (x < q2_zero)
+    if np.any(mask_bridge):
+        delta_zero = max(q2_zero - q2_smooth_start, 1e-12)
+        core = _bridge_core(tail_lambda, x[mask_bridge] - q2_smooth_start, delta_zero)
+        bridge_curve[mask_bridge] = y_start * np.power(np.clip(core, 0.0, None), tail_power)
 
     bridge_curve[x >= q2_zero] = 0.0
 

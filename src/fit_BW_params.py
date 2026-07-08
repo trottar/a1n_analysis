@@ -192,7 +192,7 @@ def _build_artifact_path(filename, dataset_tag):
 
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
-        return "_fixed_zero_v8"
+        return "_fixed_zero_v9"
     return ""
 
 

@@ -12,7 +12,7 @@
 #
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator, griddata
+from scipy.interpolate import griddata
 from scipy.optimize import curve_fit
 from scipy.optimize import Bounds
 from scipy.optimize import minimize, differential_evolution
@@ -331,75 +331,32 @@ def _apply_fixed_zero_high_q2_strategy(
     return fixed_curve
 
 
-def _enforce_nonpositive_monotone_toward_zero(values):
-    """
-    Shape-preserving cleanup for the high-Q² bridge control values.
-
-    The bridge should approach zero monotonically without creating extra
-    oscillations. In the nominal A1n use case the tail is negative, but this
-    helper also handles the rarer case where the sampled continuation is
-    positive and should decay to zero from above.
-    """
-    cleaned = np.asarray(values, dtype=np.float64)
-    finite = cleaned[np.isfinite(cleaned)]
-    if finite.size == 0:
-        return cleaned
-
-    reference = float(finite[0])
-    if reference <= 0.0:
-        cleaned = np.minimum(cleaned, 0.0)
-        return np.maximum.accumulate(cleaned)
-
-    cleaned = np.maximum(cleaned, 0.0)
-    return np.minimum.accumulate(cleaned)
-
-
 def _apply_smooth_zero_high_q2_strategy(
     x,
     curve_func,
     curve_args,
-    q2_smooth_start=1.5,
+    q2_smooth_start=2.75,
     q2_zero=4.0,
-    q2_blend_start=1.35,
-    q2_blend_end=1.55,
-    q2_anchor_points=(1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.05, 3.4, 4.0),
+    q2_blend_start=2.35,
+    q2_blend_end=2.75,
+    tail_delay_power=2.0,
 ):
     """
     Preserve the tuned low/mid-Q² behavior and replace only the high-Q² tail
-    with a shape-preserving monotone cubic bridge that reaches zero at q2_zero.
+    with a delayed smoothstep bridge that reaches zero at q2_zero.
     """
     x = np.asarray(x, dtype=np.float64)
     base_curve = np.asarray(curve_func(x, *curve_args), dtype=np.float64)
     smooth_curve = np.array(base_curve, copy=True)
-
-    anchor_points = np.asarray(q2_anchor_points, dtype=np.float64)
-    anchor_points = anchor_points[(anchor_points >= q2_smooth_start) & (anchor_points <= q2_zero)]
-    if anchor_points.size == 0 or anchor_points[0] > q2_smooth_start:
-        anchor_points = np.insert(anchor_points, 0, q2_smooth_start)
-    if anchor_points[-1] < q2_zero:
-        anchor_points = np.append(anchor_points, q2_zero)
-    anchor_points = np.unique(anchor_points)
-
-    anchor_values = np.asarray(curve_func(anchor_points, *curve_args), dtype=np.float64)
-    anchor_values = _enforce_nonpositive_monotone_toward_zero(anchor_values)
-    anchor_values[-1] = 0.0
-
     bridge_curve = np.array(base_curve, copy=True)
-    if anchor_points.size >= 3:
-        bridge_interp = PchipInterpolator(anchor_points, anchor_values, extrapolate=True)
-        mask_bridge = (x >= q2_smooth_start) & (x < q2_zero)
-        if np.any(mask_bridge):
-            interpolated = np.asarray(bridge_interp(x[mask_bridge]), dtype=np.float64)
-            if anchor_values[0] <= 0.0:
-                bridge_curve[mask_bridge] = np.minimum(interpolated, 0.0)
-            else:
-                bridge_curve[mask_bridge] = np.maximum(interpolated, 0.0)
-    else:
-        mask_bridge = (x >= q2_smooth_start) & (x < q2_zero)
-        if np.any(mask_bridge):
-            delta = q2_zero - q2_smooth_start
-            t = np.clip((x[mask_bridge] - q2_smooth_start) / max(delta, 1e-12), 0.0, 1.0)
-            bridge_curve[mask_bridge] = anchor_values[0] * (1.0 - t) ** 2
+    y_start = float(np.asarray(curve_func(np.array([q2_smooth_start], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    mask_bridge = (x >= q2_smooth_start) & (x < q2_zero)
+    if np.any(mask_bridge):
+        delta = max(q2_zero - q2_smooth_start, 1e-12)
+        t = np.clip((x[mask_bridge] - q2_smooth_start) / delta, 0.0, 1.0)
+        delayed_t = np.power(t, tail_delay_power)
+        smoothstep = 6.0 * delayed_t**5 - 15.0 * delayed_t**4 + 10.0 * delayed_t**3
+        bridge_curve[mask_bridge] = y_start * (1.0 - smoothstep)
 
     bridge_curve[x >= q2_zero] = 0.0
 

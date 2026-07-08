@@ -195,7 +195,7 @@ def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
         return "_fixed_zero_v12"
     if bw_k_curve_mode == "smooth_zero":
-        return "_smooth_zero_v1"
+        return "_smooth_zero_v2"
     return ""
 
 

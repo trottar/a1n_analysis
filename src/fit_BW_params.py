@@ -192,7 +192,7 @@ def _build_artifact_path(filename, dataset_tag):
 
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
-        return "_fixed_zero_v6"
+        return "_fixed_zero_v8"
     return ""
 
 
@@ -802,6 +802,35 @@ def fit_BW_params(
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
 
+    # plot the fits with the data in the high-Q2 region
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
+
+    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
+
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
+
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
+
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
+
+    _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_nucl)
+
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+
+    fig.tight_layout()
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
+
+    pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
 
     # plot the fits with the data
     fig, axs = plt.subplots(1, 3, figsize=(18,10))
@@ -880,36 +909,6 @@ def fit_BW_params(
     # Save figures
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
-    
-    # plot the fits with the data in the high-Q2 region
-    fig, axs = plt.subplots(1, 3, figsize=(18,10))
-
-    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
-
-    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
-    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
-    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
-
-    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
-    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
-    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
-
-    axs[0].legend(fontsize=config["font_sizes"]["legend"])
-    axs[1].legend(fontsize=config["font_sizes"]["legend"])
-    axs[2].legend(fontsize=config["font_sizes"]["legend"])
-
-    _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_nucl)
-
-    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
-    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
-    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
-
-    fig.tight_layout()
-    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
-
-    pdf.savefig(fig, bbox_inches="tight")
-    plt.close(fig)
-    
     return {
         "k params" : {
             "curve_mode" : bw_k_curve_mode,

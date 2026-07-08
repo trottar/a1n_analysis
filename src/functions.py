@@ -162,49 +162,80 @@ def _sample_curve_value_and_slope(curve_func, q2_anchor, curve_args, step=1e-3):
     return y_anchor, slope_anchor
 
 
-def _resolve_fixed_zero_tau(y_anchor, q2_exp_start, q2_zero_start, target_fraction=0.35):
+def _resolve_fixed_zero_exponential_bridge(y_start, y_match, q2_exp_start, q2_match, q2_zero, target_fraction=0.02):
     """
-    Resolve an exponential decay scale for the fixed-zero high-Q² bridge.
+    Resolve a smooth stretched-exponential bridge from q2_exp_start to q2_zero.
 
-    Use an interval-controlled decay scale so the bridge remains visibly
-    nonzero until the explicit damping window begins.
+    The bridge is:
+      y(Q²) = y_start * exp(-beta * (Q² - q2_exp_start)^power)
+
+    with `power` chosen so the bridge passes through the sampled curve near
+    q2_match and is effectively zero at q2_zero.
     """
-    del y_anchor
-    tau = (q2_zero_start - q2_exp_start) / np.log(1.0 / target_fraction)
-    return max(tau, 1e-6)
+    delta_match = float(q2_match - q2_exp_start)
+    delta_zero = float(q2_zero - q2_exp_start)
+    fallback_power = 2.0
+    fallback_beta = np.log(1.0 / target_fraction) / (delta_zero ** fallback_power)
+
+    if (
+        not np.isfinite(y_start)
+        or not np.isfinite(y_match)
+        or delta_match <= 0.0
+        or delta_zero <= 0.0
+        or target_fraction <= 0.0
+        or target_fraction >= 1.0
+    ):
+        return fallback_beta, fallback_power
+
+    ratio = abs(y_match / y_start) if y_start != 0.0 else np.nan
+    if not np.isfinite(ratio) or ratio <= 0.0 or ratio >= 1.0:
+        return fallback_beta, fallback_power
+
+    numerator = np.log(np.log(1.0 / target_fraction) / np.log(1.0 / ratio))
+    denominator = np.log(delta_zero / delta_match)
+    if not np.isfinite(numerator) or not np.isfinite(denominator) or denominator == 0.0:
+        return fallback_beta, fallback_power
+
+    power = numerator / denominator
+    if not np.isfinite(power) or power <= 0.0:
+        return fallback_beta, fallback_power
+
+    beta = np.log(1.0 / target_fraction) / (delta_zero ** power)
+    if not np.isfinite(beta) or beta <= 0.0:
+        return fallback_beta, fallback_power
+
+    return beta, power
 
 
 def _apply_fixed_zero_high_q2_strategy(
     x,
     curve_func,
     curve_args,
-    q2_exp_start=2.75,
-    q2_zero_start=3.8,
+    q2_exp_start=1.0,
+    q2_match=2.75,
     q2_zero=4.0,
 ):
     """
-    Keep the tuned low/mid-Q² branch, replace the high-Q² continuation with a
-    monotonic exponential bridge, and only force the exact-zero handoff over a
-    short final window.
+    Keep the original branch below q2_exp_start, then replace the remainder
+    with one smooth exponential-like bridge that approaches zero by q2_zero.
     """
     x = np.asarray(x, dtype=np.float64)
     base_curve = np.asarray(curve_func(x, *curve_args), dtype=np.float64)
     fixed_curve = np.array(base_curve, copy=True)
 
-    y_anchor, slope_anchor = _sample_curve_value_and_slope(curve_func, q2_exp_start, curve_args)
-    del slope_anchor
-    tau = _resolve_fixed_zero_tau(y_anchor, q2_exp_start, q2_zero_start)
+    y_anchor = float(np.asarray(curve_func(np.array([q2_exp_start], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    y_match = float(np.asarray(curve_func(np.array([q2_match], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    beta, power = _resolve_fixed_zero_exponential_bridge(
+        y_anchor,
+        y_match,
+        q2_exp_start,
+        q2_match,
+        q2_zero,
+    )
 
-    mask_exp = x > q2_exp_start
+    mask_exp = (x > q2_exp_start) & (x < q2_zero)
     if np.any(mask_exp):
-        fixed_curve[mask_exp] = y_anchor * np.exp(-(x[mask_exp] - q2_exp_start) / tau)
-
-    mask_damp = (x > q2_zero_start) & (x < q2_zero)
-    if np.any(mask_damp):
-        t = (x[mask_damp] - q2_zero_start) / (q2_zero - q2_zero_start)
-        smoothstep = 6.0 * t**5 - 15.0 * t**4 + 10.0 * t**3
-        damping = 1.0 - smoothstep
-        fixed_curve[mask_damp] = fixed_curve[mask_damp] * damping
+        fixed_curve[mask_exp] = y_anchor * np.exp(-beta * (x[mask_exp] - q2_exp_start) ** power)
 
     fixed_curve[x >= q2_zero] = 0.0
     return fixed_curve
@@ -214,9 +245,8 @@ def k_curve_fixed_zero(x, a, b, c, d, f, e):
     """
     Fixed-zero k(Q²) model.
 
-    This keeps the tuned low- and mid-Q² behavior, replaces the high-Q²
-    continuation with a matched exponential bridge, and only forces the exact
-    zero tail over the final Q² window.
+    This keeps the original behavior below Q²≈1 and replaces the higher-Q²
+    continuation with one smooth exponential bridge that reaches zero at Q²=4.
     """
     return _apply_fixed_zero_high_q2_strategy(
         x,

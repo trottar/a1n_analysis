@@ -15,16 +15,17 @@ from dis_fit_models import (
     get_dis_fit_model_keys,
     normalize_dis_fit_model,
 )
-from utility import project_path, safe_tabulate as tabulate, src_path
+from utility import prefix_generated_output_name, project_path, safe_tabulate as tabulate, src_path
 
 
 def _build_artifact_path(filename, dataset_tag):
+    dated_filename = prefix_generated_output_name(filename)
     if dataset_tag == "legacy":
-        return project_path("fit_data", filename)
+        return project_path("fit_data", dated_filename)
 
     tagged_dir = project_path("fit_data", dataset_tag)
     os.makedirs(tagged_dir, exist_ok=True)
-    return os.path.join(tagged_dir, filename)
+    return os.path.join(tagged_dir, dated_filename)
 
 
 def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_key, source_group=None):

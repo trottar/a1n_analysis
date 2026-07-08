@@ -12,6 +12,7 @@
 #
 import signal
 from collections import defaultdict
+from datetime import date
 import sys, os, subprocess
 
 try:
@@ -56,6 +57,18 @@ def project_display_path(path):
         return os.path.basename(normalized_path).replace("\\", "/")
 
     return normalized_path.replace("\\", "/")
+
+
+def generated_output_date_prefix():
+    return date.today().strftime("%Y_%m_%d")
+
+
+def prefix_generated_output_name(filename):
+    directory, basename = os.path.split(os.fspath(filename))
+    if not basename:
+        return os.fspath(filename)
+    prefixed_basename = f"{generated_output_date_prefix()}_{basename}"
+    return os.path.join(directory, prefixed_basename) if directory else prefixed_basename
 
 
 ################################################################################################################################################

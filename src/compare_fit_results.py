@@ -102,6 +102,18 @@ def resolve_override_path(fit_data_root, raw_path):
     return path.resolve()
 
 
+def resolve_generated_artifact_path(artifact_dir, filename):
+    direct_path = artifact_dir / filename
+    if direct_path.exists():
+        return direct_path
+
+    matches = sorted(artifact_dir.glob(f"*_{filename}"))
+    if matches:
+        return matches[-1]
+
+    return direct_path
+
+
 def find_splash_files(fit_data_root, mode):
     patterns = {
         "legacy": ["load_data_splash_legacy_*.txt"],
@@ -621,7 +633,7 @@ def generate_comparison_plots(summary_payload, output_dir):
 
 
 def load_bw_summary(artifact_dir):
-    csv_path = artifact_dir / "fit_results.csv"
+    csv_path = resolve_generated_artifact_path(artifact_dir, "fit_results.csv")
     if not csv_path.exists():
         return {"available": False, "path": csv_path, "parameters": {}}
 
@@ -651,7 +663,7 @@ def safe_corrcoef(samples):
 def load_bootstrap_summary(artifact_dir):
     bootstrap = {}
     for parameter in BW_PARAMETERS:
-        params_path = artifact_dir / f"bootstrap_{parameter}_params.npy"
+        params_path = resolve_generated_artifact_path(artifact_dir, f"bootstrap_{parameter}_params.npy")
         if not params_path.exists():
             bootstrap[parameter] = {
                 "available": False,
@@ -690,8 +702,8 @@ def load_bootstrap_summary(artifact_dir):
 
 
 def load_transition_summary(artifact_dir):
-    results_path = artifact_dir / "full_results.csv"
-    errors_path = artifact_dir / "full_results_errors.csv"
+    results_path = resolve_generated_artifact_path(artifact_dir, "full_results.csv")
+    errors_path = resolve_generated_artifact_path(artifact_dir, "full_results_errors.csv")
     if not results_path.exists() or not errors_path.exists():
         return {
             "available": False,
@@ -722,7 +734,7 @@ def load_transition_summary(artifact_dir):
 
 
 def load_dis_summary(artifact_dir):
-    summary_path = artifact_dir / "dis_fit_summary.json"
+    summary_path = resolve_generated_artifact_path(artifact_dir, "dis_fit_summary.json")
     if not summary_path.exists():
         return {"available": False, "path": summary_path}
 

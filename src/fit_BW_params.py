@@ -28,7 +28,7 @@ from functions import (
     quad_nucl_curve_gamma,
     quad_nucl_curve_mass,
 )
-from utility import project_path, src_path
+from utility import prefix_generated_output_name, project_path, src_path
 
 ##################################################################################################################################################
 
@@ -182,12 +182,13 @@ def _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_
 
 
 def _build_artifact_path(filename, dataset_tag):
+    dated_filename = prefix_generated_output_name(filename)
     if dataset_tag == "legacy":
-        return project_path("fit_data", filename)
+        return project_path("fit_data", dated_filename)
 
     tagged_dir = project_path("fit_data", dataset_tag)
     os.makedirs(tagged_dir, exist_ok=True)
-    return os.path.join(tagged_dir, filename)
+    return os.path.join(tagged_dir, dated_filename)
 
 
 def _curve_cache_suffix(bw_k_curve_mode):

@@ -7,7 +7,7 @@ import glob
 import numpy as np
 import pandas as pd
 
-from utility import project_display_path, project_path, src_path
+from utility import prefix_generated_output_name, project_display_path, project_path, src_path
 
 MANIFEST_FILENAME = "source_manifest_3he_dis.json"
 DEFAULT_SOURCE_GROUP = "auto"
@@ -583,8 +583,8 @@ def source_group_audit_frame(metadata):
 
 def write_source_group_reports(metadata, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    breakdown_path = os.path.join(output_dir, "dis_fit_source_breakdown.txt")
-    audit_path = os.path.join(output_dir, "dis_fit_source_audit.csv")
+    breakdown_path = os.path.join(output_dir, prefix_generated_output_name("dis_fit_source_breakdown.txt"))
+    audit_path = os.path.join(output_dir, prefix_generated_output_name("dis_fit_source_audit.csv"))
 
     breakdown_lines = source_group_breakdown_lines(metadata)
     with open(breakdown_path, "w", encoding="utf-8") as handle:

@@ -31,7 +31,7 @@ from dis_fit_data_sources import (
 )
 from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
 from functions import get_quad_nucl_curve_k, normalize_bw_k_curve_mode
-from utility import project_path, show_pdf_with_evince
+from utility import generated_output_date_prefix, prefix_generated_output_name, project_path, show_pdf_with_evince
 
 ##################################################################################################################################################
 
@@ -198,13 +198,14 @@ if DIS_DATA_MODE != "source_group" and DATASET_MODE == "current" and ALLOW_SPARS
 if DIS_DATA_MODE == "source_group" and DATASET_MODE == "current" and DIS_CURRENT_SOURCE != "all_cut":
     DATASET_TAG = f"{DATASET_TAG}_dissrc_{sanitize_dataset_tag(DIS_CURRENT_SOURCE)}"
 DATASET_TAG = f"{DATASET_TAG}_k_{sanitize_dataset_tag(BW_K_CURVE_MODEL)}"
-ANALYSIS_TAG = derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)
+ANALYSIS_TAG = sanitize_dataset_tag(f"{generated_output_date_prefix()}_{derive_dis_fit_tag(DATASET_TAG, DIS_FIT_MODEL)}")
 BW_K_CURVE_FUNC = get_quad_nucl_curve_k(BW_K_CURVE_MODEL)
 
 
 def build_output_path(base_path, dataset_tag, analysis_scope):
     if dataset_tag == "legacy" and analysis_scope == "full":
-        return base_path
+        base_dir, base_name = os.path.split(base_path)
+        return os.path.join(base_dir, prefix_generated_output_name(base_name))
 
     output_dir, filename = os.path.split(base_path)
     tag_parts = []
@@ -214,7 +215,7 @@ def build_output_path(base_path, dataset_tag, analysis_scope):
         tag_parts.append(analysis_scope)
     tagged_dir = os.path.join(output_dir, *tag_parts)
     os.makedirs(tagged_dir, exist_ok=True)
-    return os.path.join(tagged_dir, filename)
+    return os.path.join(tagged_dir, prefix_generated_output_name(filename))
 
 
 def active_mode_label(dataset_mode, analysis_scope, dis_data_mode, dis_source_group):

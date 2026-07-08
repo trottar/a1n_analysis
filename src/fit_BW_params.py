@@ -138,15 +138,14 @@ def _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config):
 
 
 def _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_nucl):
-    high_q2_start = 2.5
-    q2_max = float(np.nanmax(q2))
-    x_max = q2_max + 0.15
+    high_q2_start = 1.0
+    high_q2_end = 4.5
 
     for ax in axs:
-        ax.set_xlim(high_q2_start, x_max)
+        ax.set_xlim(high_q2_start, high_q2_end)
 
-    region_mask_curve = q2 >= high_q2_start
-    region_mask_data = delta_par_df["Q2"] >= high_q2_start
+    region_mask_curve = (q2 >= high_q2_start) & (q2 <= high_q2_end)
+    region_mask_data = (delta_par_df["Q2"] >= high_q2_start) & (delta_par_df["Q2"] <= high_q2_end)
 
     def _tight_ylim(curve_values, data_values, data_errors, fallback_pad):
         values = []

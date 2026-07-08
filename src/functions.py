@@ -162,7 +162,24 @@ def _sample_curve_value_and_slope(curve_func, q2_anchor, curve_args, step=1e-3):
     return y_anchor, slope_anchor
 
 
-def _resolve_fixed_zero_exponential_bridge(y_start, y_match, q2_exp_start, q2_match, q2_zero, power=2.0):
+def _bridge_core(lam, delta, delta_zero):
+    endpoint = np.exp(-lam * delta_zero)
+    numerator = np.exp(-lam * delta) - endpoint
+    denominator = 1.0 - endpoint
+    if denominator == 0.0:
+        return np.nan
+    return numerator / denominator
+
+
+def _resolve_fixed_zero_exponential_bridge(
+    y_start,
+    slope_start,
+    y_match,
+    q2_exp_start,
+    q2_match,
+    q2_zero,
+    fallback_power=2.0,
+):
     """
     Resolve a smooth exponential-like bridge from q2_exp_start to q2_zero.
 
@@ -178,8 +195,9 @@ def _resolve_fixed_zero_exponential_bridge(y_start, y_match, q2_exp_start, q2_ma
       y(q2_zero) = 0
       y'(q2_zero) = 0      for power > 1
 
-    `lambda` is chosen so the bridge passes through the sampled curve at
-    q2_match.
+    `lambda` and `power` are chosen to match:
+      the original slope at q2_exp_start
+      the sampled curve value at q2_match
     """
     delta_match = float(q2_match - q2_exp_start)
     delta_zero = float(q2_zero - q2_exp_start)
@@ -187,44 +205,70 @@ def _resolve_fixed_zero_exponential_bridge(y_start, y_match, q2_exp_start, q2_ma
 
     if (
         not np.isfinite(y_start)
+        or not np.isfinite(slope_start)
         or not np.isfinite(y_match)
         or delta_match <= 0.0
         or delta_zero <= 0.0
+        or y_start == 0.0
+        or slope_start <= 0.0
     ):
-        return fallback_lambda, power
+        return fallback_lambda, fallback_power
 
     ratio = abs(y_match / y_start) if y_start != 0.0 else np.nan
     if not np.isfinite(ratio) or ratio <= 0.0 or ratio >= 1.0:
-        return fallback_lambda, power
+        return fallback_lambda, fallback_power
 
-    target_g = ratio ** (1.0 / power)
-
-    def bridge_core(lam, delta):
+    def power_from_lambda(lam):
         endpoint = np.exp(-lam * delta_zero)
-        numerator = np.exp(-lam * delta) - endpoint
         denominator = 1.0 - endpoint
-        return numerator / denominator
+        if denominator <= 0.0:
+            return np.nan
+        return slope_start * denominator / (-y_start * lam)
 
-    lam_lo = 1e-6
-    lam_hi = 1.0
-    value_hi = bridge_core(lam_hi, delta_match)
-    expansions = 0
-    while value_hi > target_g and expansions < 40:
-        lam_hi *= 2.0
-        value_hi = bridge_core(lam_hi, delta_match)
-        expansions += 1
+    def constraint(lam):
+        p = power_from_lambda(lam)
+        g_match = _bridge_core(lam, delta_match, delta_zero)
+        if not np.isfinite(p) or not np.isfinite(g_match) or p <= 1.0 or g_match <= 0.0 or g_match >= 1.0:
+            return np.nan
+        return np.log(ratio) - p * np.log(g_match)
 
-    if value_hi > target_g:
-        return fallback_lambda, power
+    lambda_grid = np.logspace(-4, 2, 400)
+    bracket = None
+    prev_lam = None
+    prev_val = None
+    for lam in lambda_grid:
+        val = constraint(lam)
+        if not np.isfinite(val):
+            continue
+        if prev_val is not None and prev_val * val <= 0.0:
+            bracket = (prev_lam, lam)
+            break
+        prev_lam = lam
+        prev_val = val
 
+    if bracket is None:
+        return fallback_lambda, fallback_power
+
+    lam_lo, lam_hi = bracket
+    val_lo = constraint(lam_lo)
     for _ in range(80):
         lam_mid = 0.5 * (lam_lo + lam_hi)
-        if bridge_core(lam_mid, delta_match) > target_g:
-            lam_lo = lam_mid
-        else:
+        val_mid = constraint(lam_mid)
+        if not np.isfinite(val_mid):
             lam_hi = lam_mid
+            continue
+        if val_lo * val_mid <= 0.0:
+            lam_hi = lam_mid
+        else:
+            lam_lo = lam_mid
+            val_lo = val_mid
 
-    return 0.5 * (lam_lo + lam_hi), power
+    lam = 0.5 * (lam_lo + lam_hi)
+    power = power_from_lambda(lam)
+    if not np.isfinite(power) or power <= 1.0:
+        return fallback_lambda, fallback_power
+
+    return lam, power
 
 
 def _apply_fixed_zero_high_q2_strategy(
@@ -243,10 +287,11 @@ def _apply_fixed_zero_high_q2_strategy(
     base_curve = np.asarray(curve_func(x, *curve_args), dtype=np.float64)
     fixed_curve = np.array(base_curve, copy=True)
 
-    y_anchor = float(np.asarray(curve_func(np.array([q2_exp_start], dtype=np.float64), *curve_args), dtype=np.float64)[0])
+    y_anchor, slope_anchor = _sample_curve_value_and_slope(curve_func, q2_exp_start, curve_args)
     y_match = float(np.asarray(curve_func(np.array([q2_match], dtype=np.float64), *curve_args), dtype=np.float64)[0])
     lam, power = _resolve_fixed_zero_exponential_bridge(
         y_anchor,
+        slope_anchor,
         y_match,
         q2_exp_start,
         q2_match,
@@ -256,10 +301,7 @@ def _apply_fixed_zero_high_q2_strategy(
     mask_exp = (x > q2_exp_start) & (x < q2_zero)
     if np.any(mask_exp):
         delta_zero = q2_zero - q2_exp_start
-        endpoint = np.exp(-lam * delta_zero)
-        numerator = np.exp(-lam * (x[mask_exp] - q2_exp_start)) - endpoint
-        denominator = 1.0 - endpoint
-        core = numerator / denominator
+        core = _bridge_core(lam, x[mask_exp] - q2_exp_start, delta_zero)
         fixed_curve[mask_exp] = y_anchor * np.power(np.clip(core, 0.0, None), power)
 
     fixed_curve[x >= q2_zero] = 0.0

@@ -194,6 +194,8 @@ def _build_artifact_path(filename, dataset_tag):
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
         return "_fixed_zero_v12"
+    if bw_k_curve_mode == "smooth_zero":
+        return "_smooth_zero_v1"
     return ""
 
 
@@ -209,6 +211,10 @@ def _swap_k_curve_tag(dataset_tag, from_mode, to_mode):
         return dataset_tag[: -len(current_suffix)] + replacement_suffix
 
     return dataset_tag
+
+
+def _mode_uses_tune_reference(bw_k_curve_mode):
+    return bw_k_curve_mode in {"fixed_zero", "smooth_zero"}
 
 
 def _parse_fit_results_payload(fit_results_csv):
@@ -247,13 +253,13 @@ def _prepare_k_fit_dataframe(delta_par_df, bw_k_curve_mode):
     k_fit_df = delta_par_df.copy()
     excluded_k_row = None
 
-    if bw_k_curve_mode == "fixed_zero":
+    if _mode_uses_tune_reference(bw_k_curve_mode):
         excluded_index = k_fit_df["Q2"].idxmax()
         excluded_k_row = k_fit_df.loc[[excluded_index]].copy()
         excluded_record = excluded_k_row.iloc[0]
         print(
-            "[fit_BW_params] fixed_zero mode: reusing the tuned k-fit solution and replacing only the high-Q2 continuation. "
-            f"Highest-Q2 point kept out of the fixed_zero diagnostic chi2: "
+            f"[fit_BW_params] {bw_k_curve_mode} mode: reusing the tuned k-fit solution and replacing only the high-Q2 continuation. "
+            f"Highest-Q2 point kept out of the {bw_k_curve_mode} diagnostic chi2: "
             f"Q2={excluded_record['Q2']:.3f}, k={excluded_record['k']:.5f}."
         )
 
@@ -275,7 +281,7 @@ def fit_BW_params(
     bw_k_curve_mode = normalize_bw_k_curve_mode(bw_k_curve_mode)
     if quad_nucl_curve_k_func is None:
         quad_nucl_curve_k_func = get_quad_nucl_curve_k(bw_k_curve_mode)
-    k_reference_curve_mode = "tune" if bw_k_curve_mode == "fixed_zero" else bw_k_curve_mode
+    k_reference_curve_mode = "tune" if _mode_uses_tune_reference(bw_k_curve_mode) else bw_k_curve_mode
     quad_nucl_curve_k_fit_func = get_quad_nucl_curve_k(k_reference_curve_mode)
 
     delta_par_df = delta_par_df.copy()
@@ -315,7 +321,7 @@ def fit_BW_params(
         k_chi2_df = delta_par_df
     curve_cache_suffix = _curve_cache_suffix(bw_k_curve_mode)
     fit_results_csv = _build_artifact_path(f"fit_results{curve_cache_suffix}.csv", dataset_tag)
-    tune_reference_dataset_tag = _swap_k_curve_tag(dataset_tag, "fixed_zero", "tune")
+    tune_reference_dataset_tag = _swap_k_curve_tag(dataset_tag, bw_k_curve_mode, "tune")
     tune_reference_fit_results_csv = _build_artifact_path("fit_results.csv", tune_reference_dataset_tag)
 
     #k_lb = [-1e10, -1e10, -1e10, -1e-10]
@@ -388,7 +394,7 @@ def fit_BW_params(
         print("-"*35)
         print(f"K Quad-Nucl Potential Fit Params [{bw_k_curve_mode}]")
         print("-"*35)
-        if bw_k_curve_mode == "fixed_zero" and os.path.exists(tune_reference_fit_results_csv):
+        if _mode_uses_tune_reference(bw_k_curve_mode) and os.path.exists(tune_reference_fit_results_csv):
             print(f"[fit_BW_params] Loading tuned k reference from {tune_reference_fit_results_csv}")
             tune_results = _parse_fit_results_payload(tune_reference_fit_results_csv)
             tune_k_results = tune_results["k"]
@@ -542,7 +548,7 @@ def fit_BW_params(
     k_nucl_args = [q2] + [p for p in k_nucl_par] + [P for P in k_P_vals]
     k_nucl = quad_nucl_curve_k_func(*k_nucl_args)
     k_nucl_err = [p for p in k_param_uncertainties] + [p for p in k_p_val_uncertainties]
-    if bw_k_curve_mode == "fixed_zero":
+    if _mode_uses_tune_reference(bw_k_curve_mode):
         k_chi2_values = quad_nucl_curve_k_func(
             k_chi2_df["Q2"].to_numpy(dtype=np.float64),
             *k_nucl_par,
@@ -550,7 +556,7 @@ def fit_BW_params(
         )
         k_ndf = max(1, len(k_chi2_df) - (len(k_nucl_par) + len(k_P_vals)))
         k_nucl_chi2 = float(np.sum(((k_chi2_df["k"].to_numpy(dtype=np.float64) - k_chi2_values) / k_chi2_df["k.err"].to_numpy(dtype=np.float64)) ** 2) / k_ndf)
-        print(f"[fit_BW_params] fixed_zero diagnostic chi2 excludes the highest-Q2 k point and is recomputed as {k_nucl_chi2:.2f}.")
+        print(f"[fit_BW_params] {bw_k_curve_mode} diagnostic chi2 excludes the highest-Q2 k point and is recomputed as {k_nucl_chi2:.2f}.")
     # gamma
     gamma_nucl_args = [q2] + [p for p in gamma_nucl_par] + [P for P in gamma_P_vals]
     gamma_nucl = quad_nucl_curve_gamma(*gamma_nucl_args)

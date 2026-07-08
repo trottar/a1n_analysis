@@ -162,25 +162,16 @@ def _sample_curve_value_and_slope(curve_func, q2_anchor, curve_args, step=1e-3):
     return y_anchor, slope_anchor
 
 
-def _resolve_fixed_zero_tau(y_anchor, slope_anchor, q2_exp_start, q2_zero_start, target_fraction=0.08):
+def _resolve_fixed_zero_tau(y_anchor, q2_exp_start, q2_zero_start, target_fraction=0.35):
     """
     Resolve an exponential decay scale for the fixed-zero high-Q² bridge.
 
-    Prefer matching the local tuned-curve slope at the anchor. If that is not
-    usable, fall back to a scale that brings the bridge close to zero by the
-    start of the explicit damping window.
+    Use an interval-controlled decay scale so the bridge remains visibly
+    nonzero until the explicit damping window begins.
     """
-    fallback_tau = (q2_zero_start - q2_exp_start) / np.log(1.0 / target_fraction)
-    if (
-        np.isfinite(y_anchor)
-        and np.isfinite(slope_anchor)
-        and y_anchor < 0.0
-        and slope_anchor > 0.0
-    ):
-        matched_tau = -y_anchor / slope_anchor
-        if np.isfinite(matched_tau) and matched_tau > 0.0:
-            return max(matched_tau, 1e-6)
-    return max(fallback_tau, 1e-6)
+    del y_anchor
+    tau = (q2_zero_start - q2_exp_start) / np.log(1.0 / target_fraction)
+    return max(tau, 1e-6)
 
 
 def _apply_fixed_zero_high_q2_strategy(
@@ -201,7 +192,8 @@ def _apply_fixed_zero_high_q2_strategy(
     fixed_curve = np.array(base_curve, copy=True)
 
     y_anchor, slope_anchor = _sample_curve_value_and_slope(curve_func, q2_exp_start, curve_args)
-    tau = _resolve_fixed_zero_tau(y_anchor, slope_anchor, q2_exp_start, q2_zero_start)
+    del slope_anchor
+    tau = _resolve_fixed_zero_tau(y_anchor, q2_exp_start, q2_zero_start)
 
     mask_exp = x > q2_exp_start
     if np.any(mask_exp):

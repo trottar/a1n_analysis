@@ -137,6 +137,50 @@ def _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config):
     _plot_experiment_points(axs[2], delta_par_df, "M", "M.err", experiment_styles, config)
 
 
+def _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_nucl):
+    high_q2_start = 2.5
+    q2_max = float(np.nanmax(q2))
+    x_max = q2_max + 0.15
+
+    for ax in axs:
+        ax.set_xlim(high_q2_start, x_max)
+
+    region_mask_curve = q2 >= high_q2_start
+    region_mask_data = delta_par_df["Q2"] >= high_q2_start
+
+    def _tight_ylim(curve_values, data_values, data_errors, fallback_pad):
+        values = []
+        if np.any(region_mask_curve):
+            curve_region = np.asarray(curve_values)[region_mask_curve]
+            values.append(curve_region)
+        if np.any(region_mask_data):
+            data_region = np.asarray(data_values)[region_mask_data]
+            err_region = np.asarray(data_errors)[region_mask_data]
+            values.extend([data_region - err_region, data_region + err_region])
+        if not values:
+            return None
+        merged = np.concatenate(values)
+        finite = merged[np.isfinite(merged)]
+        if finite.size == 0:
+            return None
+        y_min = float(np.min(finite))
+        y_max = float(np.max(finite))
+        span = y_max - y_min
+        pad = fallback_pad if span <= 0 else max(fallback_pad, 0.2 * span)
+        return (y_min - pad, y_max + pad)
+
+    k_ylim = _tight_ylim(k_nucl, delta_par_df["k"], delta_par_df["k.err"], fallback_pad=0.0015)
+    gamma_ylim = _tight_ylim(gamma_nucl, delta_par_df["gamma"], delta_par_df["gamma.err"], fallback_pad=0.03)
+    mass_ylim = _tight_ylim(mass_nucl, delta_par_df["M"], delta_par_df["M.err"], fallback_pad=0.01)
+
+    if k_ylim is not None:
+        axs[0].set_ylim(*k_ylim)
+    if gamma_ylim is not None:
+        axs[1].set_ylim(*gamma_ylim)
+    if mass_ylim is not None:
+        axs[2].set_ylim(*mass_ylim)
+
+
 def _build_artifact_path(filename, dataset_tag):
     if dataset_tag == "legacy":
         return project_path("fit_data", filename)
@@ -148,7 +192,7 @@ def _build_artifact_path(filename, dataset_tag):
 
 def _curve_cache_suffix(bw_k_curve_mode):
     if bw_k_curve_mode == "fixed_zero":
-        return "_fixed_zero_v5"
+        return "_fixed_zero_v6"
     return ""
 
 
@@ -834,6 +878,35 @@ def fit_BW_params(
     fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
 
     # Save figures
+    pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+    
+    # plot the fits with the data in the high-Q2 region
+    fig, axs = plt.subplots(1, 3, figsize=(18,10))
+
+    _plot_experiment_triplet(axs, delta_par_df, experiment_styles, config)
+
+    axs[0].plot(q2, k_nucl, label="New Fit $\chi_v^2$=" + f"{k_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[1].plot(q2, gamma_nucl, label="New Fit $\chi_v^2$=" + f"{gamma_nucl_chi2:.2f}", color=config["colors"]["fit"])
+    axs[2].plot(q2, mass_nucl, label="New Fit $\chi_v^2$=" + f"{mass_nucl_chi2:.2f}", color=config["colors"]["fit"])
+
+    axs[0].set_ylabel("k", fontsize=config["font_sizes"]["y_axis"])
+    axs[1].set_ylabel("$\Gamma$", fontsize=config["font_sizes"]["y_axis"])
+    axs[2].set_ylabel("M", fontsize=config["font_sizes"]["y_axis"])
+
+    axs[0].legend(fontsize=config["font_sizes"]["legend"])
+    axs[1].legend(fontsize=config["font_sizes"]["legend"])
+    axs[2].legend(fontsize=config["font_sizes"]["legend"])
+
+    _set_high_q2_triplet_limits(axs, delta_par_df, q2, k_nucl, gamma_nucl, mass_nucl)
+
+    axs[0].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[1].axhline(y=0, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+    axs[2].axhline(y=1.232, color=config["colors"]["grid"], linestyle='--', alpha=config["grid"]["alpha"])
+
+    fig.tight_layout()
+    fig.text(0.53, 0.001, "$Q^2\ ({GeV}^2)$", ha='center', va='center', fontsize=config["font_sizes"]["x_axis"])
+
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
     

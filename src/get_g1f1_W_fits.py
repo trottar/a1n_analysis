@@ -260,6 +260,21 @@ def _apply_resonance_tight_layout(fig, use_external_box):
     else:
         fig.tight_layout()
 
+
+def _ensure_visible_w_min_tick(ax, w_min_data, w_max_data):
+    if not np.isfinite(w_min_data) or not np.isfinite(w_max_data):
+        return
+    if abs(float(w_min_data) - 1.0) > 1e-9:
+        return
+    if (float(w_max_data) - float(w_min_data)) < 4.0:
+        return
+
+    current_ticks = [float(tick) for tick in ax.get_xticks() if w_min_data <= tick <= w_max_data]
+    if any(abs(tick - 1.0) < 1e-9 for tick in current_ticks):
+        return
+
+    ax.set_xticks(sorted(set([1.0] + current_ticks)))
+
 def get_g1f1_W_fits(
         w, w_min, w_max, w_res_min, w_res_max, quad_fit_err,
         res_df, dis_fit_params, dis_transition_fit,
@@ -1432,6 +1447,7 @@ def get_g1f1_W_fits_q2_bin(
         w_min_data = 1.0
         w_max_data = g1f1_df['W'][g1f1_df['Q2_labels'] == l].max() + 0.1 * g1f1_df['W'][g1f1_df['Q2_labels'] == l].max()
         axs[row, col].set_xlim(w_min_data, w_max_data)
+        _ensure_visible_w_min_tick(axs[row, col], w_min_data, w_max_data)
         
         #axs[row, col].set_xlim(0.9, 2.5)
         #axs[row, col].set_ylim(-0.15, 0.1)
@@ -1478,6 +1494,7 @@ def get_g1f1_W_fits_q2_bin(
         axs[row + 1, col].set_ylabel("Residuals", fontsize=config["font_sizes"]["labels"])
 
         axs[row + 1, col].set_xlim(w_min_data, w_max_data)
+        _ensure_visible_w_min_tick(axs[row + 1, col], w_min_data, w_max_data)
         
         #axs[row + 1, col].set_xlim(0.9, 2.5)
         axs[row + 1, col].set_ylim(-0.05, 0.05)
@@ -1605,6 +1622,7 @@ def get_g1f1_W_fits_q2_bin(
         w_min_data = 1.0
         w_max_data = bin_frame['W'].max() + 0.1 * bin_frame['W'].max()
         axs[row, col].set_xlim(w_min_data, w_max_data)
+        _ensure_visible_w_min_tick(axs[row, col], w_min_data, w_max_data)
 
         yticks = axs[row, col].get_yticks()
         yticklabels = ["" if y == min(yticks) else f"{y:.2f}" for y in yticks]
@@ -1633,6 +1651,7 @@ def get_g1f1_W_fits_q2_bin(
         axs[row + 1, col].set_xlabel("W (GeV)", fontsize=config["font_sizes"]["x_axis"])
         axs[row + 1, col].set_ylabel("Residuals", fontsize=config["font_sizes"]["labels"])
         axs[row + 1, col].set_xlim(w_min_data, w_max_data)
+        _ensure_visible_w_min_tick(axs[row + 1, col], w_min_data, w_max_data)
         axs[row + 1, col].set_ylim(-0.05, 0.05)
 
         if config["grid"]["enabled"]:

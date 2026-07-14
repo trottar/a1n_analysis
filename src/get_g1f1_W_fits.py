@@ -1429,7 +1429,7 @@ def get_g1f1_W_fits_q2_bin(
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
-        w_min_data = g1f1_df['W'][g1f1_df['Q2_labels'] == l].min() - 0.1 * g1f1_df['W'][g1f1_df['Q2_labels'] == l].min()
+        w_min_data = 1.0
         w_max_data = g1f1_df['W'][g1f1_df['Q2_labels'] == l].max() + 0.1 * g1f1_df['W'][g1f1_df['Q2_labels'] == l].max()
         axs[row, col].set_xlim(w_min_data, w_max_data)
         
@@ -1602,7 +1602,7 @@ def get_g1f1_W_fits_q2_bin(
         axs[row, col].set_ylabel("$g_1^{3He}/F_1^{3He}$", fontsize=config["font_sizes"]["labels"])
         axs[row, col].set_title(l, fontsize=config["font_sizes"]["labels"])
 
-        w_min_data = bin_frame['W'].min() - 0.1 * bin_frame['W'].min()
+        w_min_data = 1.0
         w_max_data = bin_frame['W'].max() + 0.1 * bin_frame['W'].max()
         axs[row, col].set_xlim(w_min_data, w_max_data)
 

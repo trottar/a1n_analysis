@@ -91,7 +91,7 @@ DIS_CURRENT_SOURCE = "dis_csv"
 # BW_K_CURVE_MODEL = "tune"
 # BW_K_CURVE_MODEL = "fixed_zero"
 # BW_K_CURVE_MODEL = "smooth_zero"
-BW_K_CURVE_MODEL = "tune"
+BW_K_CURVE_MODEL = "fixed_zero"
 
 # DIS fit model variants:
 # DIS_FIT_MODEL = "fullx"

@@ -122,7 +122,7 @@ NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
 # Full-scope fallback variants:
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = False
-FALLBACK_TO_DIS_ON_FULL_FAILURE = True
+FALLBACK_TO_DIS_ON_FULL_FAILURE = False
 
 # Full-failure debug variants:
 # DEBUG_FULL_FAILURE_TRACEBACK = True
@@ -689,6 +689,54 @@ def run_analysis(analysis_scope):
         "source_group_description": input_description,
     }
 
+    def append_nachtmann_pages(
+        dis_fit_params=None,
+        dis_transition_fit=None,
+        bw_fit_params=None,
+        full_w_max=None,
+    ):
+        """Append optional Nachtmann pages without interrupting the established fit PDF."""
+        try:
+            nachtmann_data_result = create_nachtmann_data_only_outputs(
+                g1f1_df,
+                ANALYSIS_TAG,
+                pdf,
+                mode_label,
+                requested_high_q2_bins=NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS,
+            )
+
+            if analysis_scope != "full":
+                return
+
+            create_nachtmann_complete_fit_outputs(
+                nachtmann_data_result,
+                ANALYSIS_TAG,
+                pdf,
+                mode_label,
+                dis_fit_params,
+                dis_transition_fit,
+                bw_fit_params["k params"]["nucl_par"],
+                bw_fit_params["k params"]["nucl_curve_err"],
+                bw_fit_params["gamma params"]["nucl_par"],
+                bw_fit_params["gamma params"]["nucl_curve_err"],
+                bw_fit_params["mass params"]["nucl_par"],
+                bw_fit_params["mass params"]["nucl_curve_err"],
+                bw_fit_params["k params"]["P_vals"],
+                bw_fit_params["gamma params"]["P_vals"],
+                bw_fit_params["mass params"]["P_vals"],
+                full_w_max=full_w_max,
+                q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+                w_min=w_min,
+                quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+            )
+        except Exception as exc:
+            print(
+                f"[{mode_label}] Nachtmann pages were not appended "
+                f"({exc.__class__.__name__}: {exc}). Existing fit pages were preserved."
+            )
+            if DEBUG_FULL_FAILURE_TRACEBACK:
+                print(traceback.format_exc())
+
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
 
@@ -723,15 +771,8 @@ def run_analysis(analysis_scope):
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
-        nachtmann_data_result = create_nachtmann_data_only_outputs(
-            g1f1_df,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            requested_high_q2_bins=NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS,
-        )
-
         if analysis_scope == "dis_only":
+            append_nachtmann_pages()
             print(
                 f"[{mode_label}] Skipping Nachtmann complete-fit comparison in dis_only scope "
                 "because the resonance and transition stages were not executed."
@@ -780,6 +821,21 @@ def run_analysis(analysis_scope):
                   (1.085, 1.4), (1.085, 1.4), (1.085, 1.5), (1.100, 1.5),
                   (1.100, 1.45), (1.100, 1.5), (1.100, 1.5), (1.100, 1.5),
                   (1.100, 1.5), (1.100, 1.65), (1.100, 1.8)]
+
+        resonance_label_count = len(res_df["Q2_labels"].dropna().unique())
+        configured_bin_count = len(w_lims)
+        if resonance_label_count > configured_bin_count:
+            extra_bin_count = resonance_label_count - configured_bin_count
+            print(
+                f"[{mode_label}] Extending BW seed configuration from {configured_bin_count} "
+                f"to {resonance_label_count} Q2 bins."
+            )
+            # These defaults keep added source-group bins in the established Delta fit window.
+            k_init.extend([k_init[-1]] * extra_bin_count)
+            mass_init.extend([mass_init[-1]] * extra_bin_count)
+            gamma_init.extend([gamma_init[-1]] * extra_bin_count)
+            w_lims.extend([w_lims[-1]] * extra_bin_count)
+
         bw_res_df, bw_w_lims = prepare_resonance_fit_inputs(
             DATASET_MODE, analysis_scope, res_df, w_lims
         )
@@ -868,28 +924,6 @@ def run_analysis(analysis_scope):
                                                 quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
-        create_nachtmann_complete_fit_outputs(
-            nachtmann_data_result,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            dis_fit_params,
-            dis_transition_fit,
-            bw_fit_params["k params"]["nucl_par"],
-            bw_fit_params["k params"]["nucl_curve_err"],
-            bw_fit_params["gamma params"]["nucl_par"],
-            bw_fit_params["gamma params"]["nucl_curve_err"],
-            bw_fit_params["mass params"]["nucl_par"],
-            bw_fit_params["mass params"]["nucl_curve_err"],
-            bw_fit_params["k params"]["P_vals"],
-            bw_fit_params["gamma params"]["P_vals"],
-            bw_fit_params["mass params"]["P_vals"],
-            full_w_max=full_w_max,
-            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
-            w_min=w_min,
-            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
-        )
-
         print(f"[{mode_label}] Stage: Combined W-fit pages")
         get_g1f1_W_fits(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
@@ -929,8 +963,15 @@ def run_analysis(analysis_scope):
                          w_lims,
                          pdf,
                          dataset_tag=ANALYSIS_TAG,
-                         quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+                          quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
             )
+
+        append_nachtmann_pages(
+            dis_fit_params=dis_fit_params,
+            dis_transition_fit=dis_transition_fit,
+            bw_fit_params=bw_fit_params,
+            full_w_max=full_w_max,
+        )
 
     return outputpdf
 

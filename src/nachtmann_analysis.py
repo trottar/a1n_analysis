@@ -333,7 +333,6 @@ def create_nachtmann_data_only_outputs(
 
     ax.set_xlabel(r"Nachtmann $\xi$")
     ax.set_ylabel(r"$g_1^{3\mathrm{He}}/F_1^{3\mathrm{He}}$")
-    ax.set_title("Nachtmann data-only comparison: A1n ALL + highest spin-duality bins")
     ax.grid(True, linestyle="--", alpha=0.35)
     handles, labels = ax.get_legend_handles_labels()
     if handles:

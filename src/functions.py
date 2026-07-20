@@ -38,6 +38,36 @@ def W_to_x(W, Q2):
   Mp = 0.93870319 # average nucleon mass in 3He
   return Q2/(W**2 + Q2 - Mp**2)
 
+def nachtmann_x(xbj, q2, mass=0.93870319):
+  """
+  Compute the Nachtmann scaling variable xi for Bjorken x and Q^2 in GeV^2.
+
+  xi = 2x / (1 + sqrt(1 + 4 M^2 x^2 / Q^2))
+
+  Nonfinite inputs and Q^2 <= 0 return NaN. Supports NumPy broadcasting for
+  scalars, arrays, pandas Series, and other array-like inputs.
+  """
+  x_array = np.asarray(xbj, dtype=np.double)
+  q2_array = np.asarray(q2, dtype=np.double)
+
+  with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+    radicand = 1.0 + (4.0 * (mass ** 2) * (x_array ** 2)) / q2_array
+    sqrt_term = np.sqrt(radicand)
+    xi = (2.0 * x_array) / (1.0 + sqrt_term)
+
+  invalid_mask = (
+      ~np.isfinite(x_array)
+      | ~np.isfinite(q2_array)
+      | (q2_array <= 0.0)
+      | ~np.isfinite(radicand)
+      | (radicand < 0.0)
+  )
+  xi = np.where(invalid_mask, np.nan, xi)
+
+  if np.ndim(xi) == 0:
+    return float(xi)
+  return xi
+
 #TODO (DONE): reformulate this function so k_new is the peak height
 def breit_wigner_res(w, M, k, gamma):
   """fit for constant Q2"""

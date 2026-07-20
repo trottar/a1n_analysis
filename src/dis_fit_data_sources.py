@@ -7,6 +7,7 @@ import glob
 import numpy as np
 import pandas as pd
 
+from functions import nachtmann_x
 from utility import prefix_generated_output_name, project_display_path, project_path, src_path
 
 MANIFEST_FILENAME = "source_manifest_3he_dis.json"
@@ -31,6 +32,7 @@ CANONICAL_COLUMNS = [
     "Label",
     "Q2",
     "X",
+    "Nachtmann_x",
     "W",
     "G1F1",
     "G1F1.err",
@@ -290,6 +292,7 @@ def _build_standard_canonical_frame(raw_df, source_key, source_group, source_con
             "Label": source_config["label"],
             "Q2": q2,
             "X": x,
+            "Nachtmann_x": nachtmann_x(x, q2, mass=0.93870319),
             "W": w_values,
             "G1F1": g1f1,
             "G1F1.err": g1f1_err,
@@ -326,6 +329,7 @@ def _build_current_canonical_frame(raw_df, source_key, source_group, source_conf
             "Label": source_config["label"],
             "Q2": q2,
             "X": x,
+            "Nachtmann_x": nachtmann_x(x, q2, mass=0.93870319),
             "W": w_values,
             "G1F1": g1f1,
             "G1F1.err": g1f1_err,
@@ -366,6 +370,7 @@ def load_3he_g1f1_source(source_key, manifest, source_group="ungrouped"):
     canonical_df = canonical_df.dropna(subset=["Q2", "X", "W", "G1F1", "G1F1.err"]).copy()
     canonical_df["Q2"] = pd.to_numeric(canonical_df["Q2"], errors="coerce")
     canonical_df["X"] = pd.to_numeric(canonical_df["X"], errors="coerce")
+    canonical_df["Nachtmann_x"] = pd.to_numeric(canonical_df["Nachtmann_x"], errors="coerce")
     canonical_df["W"] = pd.to_numeric(canonical_df["W"], errors="coerce")
     canonical_df["G1F1"] = pd.to_numeric(canonical_df["G1F1"], errors="coerce")
     canonical_df["G1F1.err"] = pd.to_numeric(canonical_df["G1F1.err"], errors="coerce")

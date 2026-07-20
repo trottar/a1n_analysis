@@ -124,6 +124,15 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Full-x Quadratic",
         "curve_label": "Full-x DIS Fit",
         "comparison_color": "tab:red",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = x^alpha * "
+            "[a + b x + c x^2 + d exp(-0.5 * ((x - x0) / sigma)^2)] * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = x^\alpha \left[a + bx + cx^2 + "
+            r"d \exp\left(-\frac{1}{2}\left(\frac{x-x_0}{\sigma}\right)^2\right)\right]"
+            r"\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
     "quad_alpha": {
         "func": g1f1_quad_alpha_DIS,
@@ -144,6 +153,12 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Power-Law Quadratic",
         "curve_label": "Power-Law Quadratic Alpha DIS Fit",
         "comparison_color": "tab:orange",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = x^alpha * (a + b x + c x^2) * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = x^\alpha (a + bx + cx^2)\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
     "cubic_alpha": {
         "func": g1f1_cubic_alpha_DIS,
@@ -165,6 +180,12 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Power-Law Cubic",
         "curve_label": "Power-Law Cubic Alpha DIS Fit",
         "comparison_color": "tab:brown",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = x^alpha * (a + b x + c x^2 + d x^3) * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = x^\alpha (a + bx + cx^2 + dx^3)\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
     "quad2": {
         "func": g1f1_quad2_DIS,
@@ -179,6 +200,12 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Constrained Quadratic",
         "curve_label": "Constrained Quadratic DIS Fit",
         "comparison_color": "tab:green",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = [c * (x - x0)^2 + y0] * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = \left[c(x-x_0)^2 + y_0\right]\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
     "quad": {
         "func": g1f1_quad_DIS,
@@ -190,6 +217,12 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Quadratic",
         "curve_label": "Quadratic DIS Fit",
         "comparison_color": "tab:blue",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = (a + b x + c x^2) * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = (a + bx + cx^2)\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
     "cubic": {
         "func": g1f1_cubic_DIS,
@@ -201,6 +234,12 @@ DIS_FIT_MODEL_REGISTRY = {
         "display_name": "Cubic",
         "curve_label": "Cubic DIS Fit",
         "comparison_color": "tab:purple",
+        "functional_form_text": (
+            "g1/F1(x,Q2) = (a + b x + c x^2 + d x^3) * (1 + beta / Q2)"
+        ),
+        "functional_form_latex": (
+            r"\frac{g_1}{F_1}(x,Q^2) = (a + bx + cx^2 + dx^3)\left(1+\frac{\beta}{Q^2}\right)"
+        ),
     },
 }
 

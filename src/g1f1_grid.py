@@ -17,16 +17,12 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import json
 
+from complete_fit_helpers import evaluate_complete_fit_from_x
 from functions import (
-    k_gamma_mass_loop,
-    k_new_new, k_new_new_err, 
-    x_to_W, W_to_x, red_chi_sqr,
-    breit_wigner_bump_wrapper, breit_wigner_bump,
-    breit_wigner_wrapper, breit_wigner_res,
-    quad_nucl_curve_k, quad_nucl_curve_gamma, quad_nucl_curve_mass, 
-    damping_function,
+    nachtmann_x,
+    quad_nucl_curve_k,
+    x_to_W,
 )
-from dis_fit_models import evaluate_dis_fit
 from utility import prefix_generated_output_name, project_path, src_path
 
 def _build_artifact_path(filename, dataset_tag):
@@ -73,21 +69,6 @@ def create_g1f1_grid(
     n_x_points = 1000
     x_grid = np.arange(0.001, 1.001, 0.001, dtype=np.double)
 
-    best_fit_results, q2_bin_params, q2_bin_errors = dis_transition_fit
-
-    # Wrappers to safely evaluate transition functions for a given Q²
-    def w_dis_transition_wrapper(q2):
-        try:
-            return best_fit_results['w_dis_transition']['eval_func'](q2)
-        except Exception:
-            return np.nan, np.nan
-
-    def damping_dis_width_wrapper(q2):
-        try:
-            return best_fit_results['damping_dis_width']['eval_func'](q2)
-        except Exception:
-            return np.nan, np.nan
-
     ##########################################
     # 3) Loop over Q² values, compute y_dis and y_complete, plus uncertainties
     ##########################################
@@ -96,48 +77,28 @@ def create_g1f1_grid(
     for q2_val in q2_grid:
         # Compute W values from x for the current Q² value
         w_vals = x_to_W(x_grid, np.full_like(x_grid, q2_val))
-        
-        # -- Compute transition parameters --
-        w_dis_transition, w_dis_transition_err = w_dis_transition_wrapper(q2_val)
-        damping_dis_width, damping_dis_width_err = damping_dis_width_wrapper(q2_val)
 
-        k_fit_params = [k_nucl_par]
-        gamma_fit_params = [gamma_nucl_par]
-        mass_fit_params = [mass_nucl_par]
-        fit_funcs_k = [quad_nucl_curve_k_func]
-        fit_funcs_gamma = [quad_nucl_curve_gamma]
-        fit_funcs_mass = [quad_nucl_curve_mass]
-
-        # Extract (k, gamma, mass) using your loop generator
-        (ii, jj, ijj, k, k_err,
-         gamma, gamma_err,
-         mass, mass_err) = next(
-            k_gamma_mass_loop(
-                q2_val, w_vals,
-                k_fit_params, gamma_fit_params, mass_fit_params,
-                fit_funcs_k, fit_funcs_gamma, fit_funcs_mass,
-                k_P_vals, gamma_P_vals, mass_P_vals,
-                k_nucl_err, gamma_nucl_err, mass_nucl_err
-            )
+        curve_payload = evaluate_complete_fit_from_x(
+            q2_val,
+            x_grid,
+            dis_fit_params,
+            dis_transition_fit,
+            k_nucl_par,
+            k_nucl_err,
+            gamma_nucl_par,
+            gamma_nucl_err,
+            mass_nucl_par,
+            mass_nucl_err,
+            k_P_vals,
+            gamma_P_vals,
+            mass_P_vals,
+            w_values=w_vals,
+            quad_nucl_curve_k_func=quad_nucl_curve_k_func,
         )
-
-        # -- Compute the resonance shape --
-        y_bw = breit_wigner_res(w_vals, mass, k, gamma)
-
-        # In this formulation, x_bj is simply the x_grid
-        xbj = x_grid
-
-        # -- Compute DIS part --
-        y_dis = evaluate_dis_fit(dis_fit_params, xbj, np.full_like(xbj, q2_val))
-
-        # -- Compute the transition/damping part and complete function --
-        k_new_val = k_new_new(q2_val)
-        k_new_err_val = k_new_new_err(q2_val, 0.01)
-        y_bw_bump = breit_wigner_bump(w_vals, 1.55, k_new_val, 0.25)
-        y_transition = y_bw_bump + (y_bw - y_dis)
-        damping_dis = damping_function(w_vals, w_dis_transition, damping_dis_width)
-        y_complete = y_transition * damping_dis + y_dis
-        y_complete = np.nan_to_num(y_complete, nan=0.0)
+        xbj = curve_payload["X"]
+        y_dis = curve_payload["y_dis"]
+        y_complete = curve_payload["y_complete"]
+        nachtmann_vals = nachtmann_x(xbj, np.full_like(xbj, q2_val))
 
         # -- Quantify extrapolation uncertainties (3% relative error placeholder) --
         y_dis_err = np.abs(0.03 * y_dis)
@@ -146,12 +107,13 @@ def create_g1f1_grid(
         # -- Store each x value (with corresponding W and computed values) as a row --
         for i in range(len(x_grid)):
             data_rows.append({
-                "Q2":               q2_val,
-                "W":                w_vals[i],
-                "xbj":              xbj[i],
-                "y_dis":            y_dis[i],
-                "y_dis_err":        y_dis_err[i],
-                "y_complete":       y_complete[i],
+                    "Q2":               q2_val,
+                    "W":                w_vals[i],
+                    "xbj":              xbj[i],
+                    "Nachtmann_x":      nachtmann_vals[i],
+                    "y_dis":            y_dis[i],
+                    "y_dis_err":        y_dis_err[i],
+                    "y_complete":       y_complete[i],
                 "y_complete_err":   y_complete_err[i],
             })
 

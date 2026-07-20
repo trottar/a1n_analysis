@@ -109,6 +109,16 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
+# Nachtmann spin-duality display variants:
+# NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 2
+# NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 3
+NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 3
+
+# Nachtmann complete-fit Q2 override variants:
+# NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
+# NACHTMANN_COMPLETE_FIT_Q2_VALUES = [2.6, 3.1, 3.8]
+NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
+
 # Full-scope fallback variants:
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = True
 # FALLBACK_TO_DIS_ON_FULL_FAILURE = False
@@ -579,6 +589,11 @@ from plot_BW_params import plot_BW_params
 from fit_BW_params import fit_BW_params
 from fit_dis_transition import fit_dis_transition
 from get_g1f1_W_fits import get_g1f1_W_fits, get_g1f1_W_fits_q2_bin
+from nachtmann_analysis import (
+    create_nachtmann_complete_fit_outputs,
+    create_nachtmann_data_only_outputs,
+    write_nachtmann_g1f1_output,
+)
 
 from g1f1_grid import create_g1f1_grid
 from functions import fit_error, weighted_avg
@@ -590,6 +605,11 @@ if DATASET_MODE not in {"legacy", "current", "6gev"}:
 
 if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
+
+if NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS not in {2, 3}:
+    raise ValueError(
+        "NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS must be 2 or 3."
+    )
 
 def load_analysis_data(analysis_scope):
     resolved_source_group = (
@@ -638,6 +658,9 @@ def run_analysis(analysis_scope):
     )
     input_description = describe_fit_inputs(DATASET_MODE, analysis_scope, DIS_DATA_MODE, DIS_SOURCE_GROUP)
 
+    canonical_g1f1_output = write_nachtmann_g1f1_output(g1f1_df, ANALYSIS_TAG)
+    print(f"[{mode_label}] Nachtmann-augmented g1/F1 output saved to {canonical_g1f1_output}")
+
     # independent variable data to feed to curve fit, X and Q2
     indep_data = [dis_df['X'], dis_df['Q2']]
 
@@ -652,6 +675,19 @@ def run_analysis(analysis_scope):
     print(f"[{mode_label}] Writing PDF to {outputpdf}")
     print(f"[{mode_label}] Requested DIS fit model: {DIS_FIT_MODEL}")
     print(f"[{mode_label}] Requested BW k-curve model: {BW_K_CURVE_MODEL}")
+
+    run_metadata = {
+        "generated_date": generated_output_date_prefix(),
+        "DATASET_MODE": DATASET_MODE,
+        "ANALYSIS_SCOPE": analysis_scope,
+        "DIS_DATA_MODE": DIS_DATA_MODE,
+        "active_DIS_SOURCE_GROUP": resolved_source_group if DIS_DATA_MODE == "source_group" else "none",
+        "DIS_W_MIN": DIS_W_MIN if DIS_DATA_MODE == "source_group" else None,
+        "DIS_UNCUT_SOURCE_KEYS": DIS_UNCUT_SOURCE_KEYS if DIS_DATA_MODE == "source_group" else [],
+        "DIS_CURRENT_SOURCE": DIS_CURRENT_SOURCE if DIS_DATA_MODE == "source_group" else "all_cut",
+        "requested_DIS_FIT_MODEL": DIS_FIT_MODEL,
+        "source_group_description": input_description,
+    }
 
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
@@ -672,7 +708,10 @@ def run_analysis(analysis_scope):
             dataset_tag=ANALYSIS_TAG,
             dis_fit_model=DIS_FIT_MODEL,
             source_group=resolved_source_group if DIS_DATA_MODE == "source_group" else None,
+            run_metadata=run_metadata,
         )
+        print(f"[{mode_label}] Stage: DIS fit report")
+        print(f"[{mode_label}] DIS fit report saved under {analysis_output_dir(ANALYSIS_TAG)}")
 
         # Generate fitted curve using the fitted parameters for constant q2
         x = np.linspace(1e-6, 1.0, 1000, dtype=np.double)
@@ -684,7 +723,19 @@ def run_analysis(analysis_scope):
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
+        nachtmann_data_result = create_nachtmann_data_only_outputs(
+            g1f1_df,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            requested_high_q2_bins=NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS,
+        )
+
         if analysis_scope == "dis_only":
+            print(
+                f"[{mode_label}] Skipping Nachtmann complete-fit comparison in dis_only scope "
+                "because the resonance and transition stages were not executed."
+            )
             print("DIS-only scope selected. Skipping resonance, BW, transition, and grid stages.")
             return outputpdf
 
@@ -815,6 +866,28 @@ def run_analysis(analysis_scope):
                                                 pdf,
                                                 dataset_tag=ANALYSIS_TAG,
                                                 quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+        )
+
+        create_nachtmann_complete_fit_outputs(
+            nachtmann_data_result,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            dis_fit_params,
+            dis_transition_fit,
+            bw_fit_params["k params"]["nucl_par"],
+            bw_fit_params["k params"]["nucl_curve_err"],
+            bw_fit_params["gamma params"]["nucl_par"],
+            bw_fit_params["gamma params"]["nucl_curve_err"],
+            bw_fit_params["mass params"]["nucl_par"],
+            bw_fit_params["mass params"]["nucl_curve_err"],
+            bw_fit_params["k params"]["P_vals"],
+            bw_fit_params["gamma params"]["P_vals"],
+            bw_fit_params["mass params"]["P_vals"],
+            full_w_max=full_w_max,
+            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+            w_min=w_min,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Combined W-fit pages")

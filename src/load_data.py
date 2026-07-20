@@ -25,7 +25,7 @@ from dis_fit_data_sources import (
     resolve_source_group_name,
     source_group_breakdown_lines,
 )
-from functions import x_to_W
+from functions import nachtmann_x, x_to_W
 from utility import project_display_path, project_path
 
 ##################################################################################################################################################
@@ -165,8 +165,28 @@ def _create_bins_for_category_maximize(df, category, min_count=5, gap_factor=2.0
     return pd.Series(bin_labels, index=indices)
 
 
+def _with_nachtmann_x(df):
+    if df is None or df.empty:
+        if df is None:
+            return df
+        updated_df = df.copy()
+        if "Nachtmann_x" not in updated_df.columns:
+            updated_df["Nachtmann_x"] = pd.Series(dtype=float)
+        return updated_df
+
+    updated_df = df.copy()
+    updated_df["Q2"] = pd.to_numeric(updated_df["Q2"], errors="coerce")
+    updated_df["X"] = pd.to_numeric(updated_df["X"], errors="coerce")
+    updated_df["Nachtmann_x"] = nachtmann_x(
+        updated_df["X"].to_numpy(dtype=np.double),
+        updated_df["Q2"].to_numpy(dtype=np.double),
+        mass=0.93870319,
+    )
+    return updated_df
+
+
 def _prepare_g1f1_df(g1f1_df, excluded_labels=None):
-    g1f1_df = g1f1_df.copy()
+    g1f1_df = _with_nachtmann_x(g1f1_df)
 
     print("Columns:", g1f1_df.columns.tolist())
 
@@ -222,6 +242,11 @@ def _load_current_g1f1_frame(path, label):
             "Q2": raw_df["Q2"],
             "W": w_values,
             "X": raw_df["xbj"],
+            "Nachtmann_x": nachtmann_x(
+                raw_df["xbj"].to_numpy(dtype=np.double),
+                raw_df["Q2"].to_numpy(dtype=np.double),
+                mass=0.93870319,
+            ),
             "G1F1": raw_df["g1F1_He3"],
             "G1F1.err": g1f1_err,
             "Label": label,
@@ -237,7 +262,7 @@ def _empty_frame(columns):
 
 
 def _build_dis_cut_df(g1f1_df, label=None):
-    dis_df = g1f1_df.copy()
+    dis_df = _with_nachtmann_x(g1f1_df)
     dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
     dis_df["W"] = pd.to_numeric(dis_df["W"], errors="coerce")
     dis_df = dis_df[(dis_df["Q2"] > 1.0) & (dis_df["W"] > 2.0)].copy()
@@ -248,7 +273,7 @@ def _build_dis_cut_df(g1f1_df, label=None):
 
 def _build_mingyu_dis_df():
     mingyu_df = pd.read_csv(MINGYU_DIS_PATH)
-    return pd.DataFrame(
+    return _with_nachtmann_x(pd.DataFrame(
         {
             "Q2": mingyu_df["Q2"],
             "W": mingyu_df["W.cal"],
@@ -257,7 +282,7 @@ def _build_mingyu_dis_df():
             "G1F1.err": mingyu_df["g1f1.err"],
             "Label": ["Mingyu DIS" for _ in range(len(mingyu_df["Q2"]))],
         }
-    )
+    ))
 
 
 def _load_legacy_fit_support(analysis_scope):

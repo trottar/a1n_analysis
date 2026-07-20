@@ -3,6 +3,7 @@
 import json
 import os
 import time
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,42 +29,10 @@ def _build_artifact_path(filename, dataset_tag):
     return os.path.join(tagged_dir, dated_filename)
 
 
-def _save_dis_fit_summary(dataset_tag, dis_df, dis_fit_results, requested_model_key, source_group=None):
+def _save_dis_fit_summary(dataset_tag, summary_payload):
     summary_path = _build_artifact_path("dis_fit_summary.json", dataset_tag)
-    payload = {
-        "dataset_tag": dataset_tag,
-        "source_group": source_group,
-        "requested_model_key": requested_model_key,
-        "selected_model_key": dis_fit_results["model_key"],
-        "model_display_name": dis_fit_results["model_display_name"],
-        "curve_label": dis_fit_results["curve_label"],
-        "n_points": int(len(dis_df)),
-        "x_range": [
-            float(np.min(dis_df["X"])),
-            float(np.max(dis_df["X"])),
-        ],
-        "q2_range": [
-            float(np.min(dis_df["Q2"])),
-            float(np.max(dis_df["Q2"])),
-        ],
-        "parameter_names": list(dis_fit_results["parameter_names"]),
-        "par_quad": np.asarray(dis_fit_results["par_quad"], dtype=float).tolist(),
-        "par_err_quad": np.asarray(dis_fit_results["par_err_quad"], dtype=float).tolist(),
-        "cov_quad": np.asarray(dis_fit_results["cov_quad"], dtype=float).tolist(),
-        "corr_quad": np.asarray(dis_fit_results["corr_quad"], dtype=float).tolist(),
-        "chi2_quad": float(dis_fit_results["chi2_quad"]),
-        "chi2_distance_from_unity": float(dis_fit_results["chi2_distance_from_unity"]),
-        "beta_val": float(dis_fit_results["beta_val"]),
-        "residual_summary": {
-            "mean": float(np.mean(dis_fit_results["residuals"])),
-            "std": float(np.std(dis_fit_results["residuals"])),
-            "min": float(np.min(dis_fit_results["residuals"])),
-            "max": float(np.max(dis_fit_results["residuals"])),
-        },
-    }
-
     with open(summary_path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
+        json.dump(summary_payload, handle, indent=2, sort_keys=True)
     print(f"[get_dis_fit] Saved DIS fit summary to {summary_path}")
 
 
@@ -142,13 +111,309 @@ def _save_dis_fit_timing_summary(dataset_tag, timing_rows):
     print(f"[get_dis_fit] Saved DIS fit timing summary to {timing_path}")
 
 
-def _covariance_to_correlation(cov_matrix):
-    std_devs = np.sqrt(np.diag(cov_matrix))
-    return cov_matrix / np.outer(std_devs, std_devs)
+def _covariance_to_correlation(cov_matrix, parameter_names):
+    covariance = np.asarray(cov_matrix, dtype=float)
+    if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
+        raise ValueError("Covariance matrix must be square before conversion to a correlation matrix.")
+    if covariance.shape[0] != len(parameter_names):
+        raise ValueError(
+            "Covariance matrix dimension does not match the number of fit parameters."
+        )
+
+    n_params = covariance.shape[0]
+    correlation = np.full((n_params, n_params), np.nan, dtype=float)
+    variances = np.diag(covariance)
+    std_devs = np.sqrt(np.where(np.isfinite(variances) & (variances >= 0.0), variances, np.nan))
+
+    for row_index in range(n_params):
+        for column_index in range(n_params):
+            denominator = std_devs[row_index] * std_devs[column_index]
+            if np.isfinite(denominator) and denominator > 0.0:
+                correlation[row_index, column_index] = covariance[row_index, column_index] / denominator
+
+    for row_index in range(n_params):
+        for column_index in range(row_index + 1, n_params):
+            left_value = correlation[row_index, column_index]
+            right_value = correlation[column_index, row_index]
+            if np.isfinite(left_value) and np.isfinite(right_value):
+                sym_value = 0.5 * (left_value + right_value)
+            elif np.isfinite(left_value):
+                sym_value = left_value
+            elif np.isfinite(right_value):
+                sym_value = right_value
+            else:
+                sym_value = np.nan
+            correlation[row_index, column_index] = sym_value
+            correlation[column_index, row_index] = sym_value
+
+    for diag_index in range(n_params):
+        if np.isfinite(std_devs[diag_index]) and std_devs[diag_index] > 0.0:
+            correlation[diag_index, diag_index] = 1.0
+        else:
+            correlation[diag_index, diag_index] = np.nan
+
+    correlation[np.isinf(correlation)] = np.nan
+    return correlation
 
 
 def _dis_fit_ranking_key(result):
     return (float(result["chi2_distance_from_unity"]), float(result["chi2_quad"]))
+
+
+def _matrix_warnings(dis_fit_result):
+    warnings = []
+    undefined_uncertainties = [
+        name
+        for name, error in zip(dis_fit_result["parameter_names"], dis_fit_result["par_err_quad"])
+        if not np.isfinite(error)
+    ]
+    if undefined_uncertainties:
+        warnings.append(
+            "Undefined parameter uncertainties for: " + ", ".join(undefined_uncertainties)
+        )
+
+    corr_matrix = np.asarray(dis_fit_result["corr_quad"], dtype=float)
+    off_diagonal_mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
+    if np.any(~np.isfinite(corr_matrix[off_diagonal_mask])):
+        warnings.append("One or more off-diagonal correlations are undefined (NaN).")
+    return warnings
+
+
+def _serialize_dis_fit_result(dis_fit_result, *, selected_model_key):
+    return {
+        "model_key": dis_fit_result["model_key"],
+        "model_display_name": dis_fit_result["model_display_name"],
+        "curve_label": dis_fit_result["curve_label"],
+        "functional_form_text": dis_fit_result["functional_form_text"],
+        "functional_form_latex": dis_fit_result["functional_form_latex"],
+        "parameter_names": list(dis_fit_result["parameter_names"]),
+        "par_quad": np.asarray(dis_fit_result["par_quad"], dtype=float).tolist(),
+        "par_err_quad": np.asarray(dis_fit_result["par_err_quad"], dtype=float).tolist(),
+        "cov_quad": np.asarray(dis_fit_result["cov_quad"], dtype=float).tolist(),
+        "corr_quad": np.asarray(dis_fit_result["corr_quad"], dtype=float).tolist(),
+        "chi2_total": float(dis_fit_result["chi2_total"]),
+        "chi2_quad": float(dis_fit_result["chi2_quad"]),
+        "ndf": int(dis_fit_result["ndf"]),
+        "chi2_distance_from_unity": float(dis_fit_result["chi2_distance_from_unity"]),
+        "beta_val": float(dis_fit_result["beta_val"]),
+        "runtime_sec": float(dis_fit_result.get("runtime_sec", np.nan)),
+        "selected_downstream": bool(dis_fit_result["model_key"] == selected_model_key),
+        "warnings": _matrix_warnings(dis_fit_result),
+    }
+
+
+def _build_dis_fit_summary_payload(
+    dataset_tag,
+    dis_df,
+    selected_result,
+    fit_results,
+    failed_results,
+    requested_model_key,
+    *,
+    source_group=None,
+    run_metadata=None,
+):
+    payload = {
+        "dataset_tag": dataset_tag,
+        "source_group": source_group,
+        "requested_model_key": requested_model_key,
+        "selected_model_key": selected_result["model_key"],
+        "selected_downstream_model": selected_result["model_key"],
+        "model_display_name": selected_result["model_display_name"],
+        "curve_label": selected_result["curve_label"],
+        "functional_form_text": selected_result["functional_form_text"],
+        "functional_form_latex": selected_result["functional_form_latex"],
+        "n_points": int(len(dis_df)),
+        "x_range": [
+            float(np.min(dis_df["X"])),
+            float(np.max(dis_df["X"])),
+        ],
+        "q2_range": [
+            float(np.min(dis_df["Q2"])),
+            float(np.max(dis_df["Q2"])),
+        ],
+        "parameter_names": list(selected_result["parameter_names"]),
+        "par_quad": np.asarray(selected_result["par_quad"], dtype=float).tolist(),
+        "par_err_quad": np.asarray(selected_result["par_err_quad"], dtype=float).tolist(),
+        "cov_quad": np.asarray(selected_result["cov_quad"], dtype=float).tolist(),
+        "corr_quad": np.asarray(selected_result["corr_quad"], dtype=float).tolist(),
+        "chi2_total": float(selected_result["chi2_total"]),
+        "chi2_quad": float(selected_result["chi2_quad"]),
+        "ndf": int(selected_result["ndf"]),
+        "chi2_distance_from_unity": float(selected_result["chi2_distance_from_unity"]),
+        "beta_val": float(selected_result["beta_val"]),
+        "residual_summary": {
+            "mean": float(np.mean(selected_result["residuals"])),
+            "std": float(np.std(selected_result["residuals"])),
+            "min": float(np.min(selected_result["residuals"])),
+            "max": float(np.max(selected_result["residuals"])),
+        },
+        "warnings": _matrix_warnings(selected_result),
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "run_metadata": run_metadata or {},
+        "models": [
+            _serialize_dis_fit_result(result, selected_model_key=selected_result["model_key"])
+            for result in _ordered_fit_results(fit_results)
+        ],
+        "failed_results": failed_results,
+    }
+    return payload
+
+
+def _matrix_to_markdown(matrix, labels):
+    header = "| | " + " | ".join(labels) + " |"
+    separator = "|" + "---|" * (len(labels) + 1)
+    rows = [header, separator]
+    for row_label, row_values in zip(labels, np.asarray(matrix, dtype=float)):
+        formatted_values = [
+            "nan" if not np.isfinite(value) else f"{value:.6g}"
+            for value in row_values
+        ]
+        rows.append(f"| {row_label} | " + " | ".join(formatted_values) + " |")
+    return "\n".join(rows)
+
+
+def _save_dis_fit_report_files(
+    dataset_tag,
+    summary_payload,
+):
+    report_path = _build_artifact_path("dis_fit_report.md", dataset_tag)
+    parameters_path = _build_artifact_path("dis_fit_parameters.csv", dataset_tag)
+    covariance_path = _build_artifact_path("dis_fit_covariance.csv", dataset_tag)
+    correlations_path = _build_artifact_path("dis_fit_correlations.csv", dataset_tag)
+
+    parameter_rows = []
+    covariance_rows = []
+    correlation_rows = []
+    report_lines = [
+        "# DIS Fit Report",
+        "",
+        f"- Generated at: {summary_payload['generated_at']}",
+        f"- Requested DIS_FIT_MODEL: {summary_payload['requested_model_key']}",
+        f"- Selected downstream model: {summary_payload['selected_model_key']}",
+        f"- Dataset tag: {summary_payload['dataset_tag']}",
+        f"- Source group: {summary_payload.get('source_group') or 'none'}",
+        "",
+        "## Run Metadata",
+        "",
+    ]
+
+    for key, value in (summary_payload.get("run_metadata") or {}).items():
+        if isinstance(value, (list, tuple)):
+            rendered_value = ", ".join(str(item) for item in value)
+        else:
+            rendered_value = value
+        report_lines.append(f"- {key}: {rendered_value}")
+
+    for model_payload in summary_payload["models"]:
+        report_lines.extend(
+            [
+                "",
+                f"## Model `{model_payload['model_key']}`",
+                "",
+                f"- Display name: {model_payload['model_display_name']}",
+                f"- Selected downstream: {model_payload['selected_downstream']}",
+                f"- Total chi2: {model_payload['chi2_total']:.6g}",
+                f"- NDF: {model_payload['ndf']}",
+                f"- Reduced chi2: {model_payload['chi2_quad']:.6g}",
+                f"- |chi2_red - 1|: {model_payload['chi2_distance_from_unity']:.6g}",
+                "",
+                "### Functional Form",
+                "",
+                f"- Text: `{model_payload['functional_form_text']}`",
+                f"- LaTeX: `${model_payload['functional_form_latex']}$",
+                "",
+                "### Parameters",
+                "",
+                "| Parameter | Value | Uncertainty |",
+                "|---|---:|---:|",
+            ]
+        )
+        for parameter_index, (parameter_name, parameter_value, parameter_error) in enumerate(
+            zip(
+                model_payload["parameter_names"],
+                model_payload["par_quad"],
+                model_payload["par_err_quad"],
+            )
+        ):
+            report_lines.append(
+                f"| {parameter_name} | {parameter_value:.6g} | "
+                f"{'nan' if not np.isfinite(parameter_error) else f'{parameter_error:.6g}'} |"
+            )
+            parameter_rows.append(
+                {
+                    "model_key": model_payload["model_key"],
+                    "selected_downstream": model_payload["selected_downstream"],
+                    "parameter_index": parameter_index,
+                    "parameter_name": parameter_name,
+                    "value": parameter_value,
+                    "uncertainty": parameter_error,
+                    "chi2_total": model_payload["chi2_total"],
+                    "chi2_red": model_payload["chi2_quad"],
+                    "ndf": model_payload["ndf"],
+                    "functional_form_text": model_payload["functional_form_text"],
+                }
+            )
+
+        report_lines.extend(
+            [
+                "",
+                "### Covariance Matrix",
+                "",
+                _matrix_to_markdown(model_payload["cov_quad"], model_payload["parameter_names"]),
+                "",
+                "### Correlation Matrix",
+                "",
+                _matrix_to_markdown(model_payload["corr_quad"], model_payload["parameter_names"]),
+            ]
+        )
+
+        if model_payload["warnings"]:
+            report_lines.extend(["", "### Warnings", ""])
+            for warning in model_payload["warnings"]:
+                report_lines.append(f"- {warning}")
+
+        parameter_names = model_payload["parameter_names"]
+        covariance_matrix = np.asarray(model_payload["cov_quad"], dtype=float)
+        correlation_matrix = np.asarray(model_payload["corr_quad"], dtype=float)
+        for row_index, row_name in enumerate(parameter_names):
+            for column_index, column_name in enumerate(parameter_names):
+                covariance_rows.append(
+                    {
+                        "model_key": model_payload["model_key"],
+                        "row_index": row_index,
+                        "row_parameter": row_name,
+                        "column_index": column_index,
+                        "column_parameter": column_name,
+                        "value": covariance_matrix[row_index, column_index],
+                    }
+                )
+                correlation_rows.append(
+                    {
+                        "model_key": model_payload["model_key"],
+                        "row_index": row_index,
+                        "row_parameter": row_name,
+                        "column_index": column_index,
+                        "column_parameter": column_name,
+                        "value": correlation_matrix[row_index, column_index],
+                    }
+                )
+
+    if summary_payload["failed_results"]:
+        report_lines.extend(["", "## Failed Models", ""])
+        for failure in summary_payload["failed_results"]:
+            report_lines.append(
+                f"- `{failure['model_key']}` ({failure['model_display_name']}): {failure['error']}"
+            )
+
+    with open(report_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(report_lines) + "\n")
+
+    pd.DataFrame(parameter_rows).to_csv(parameters_path, index=False)
+    pd.DataFrame(covariance_rows).to_csv(covariance_path, index=False)
+    pd.DataFrame(correlation_rows).to_csv(correlations_path, index=False)
+    print(f"[get_dis_fit] Saved DIS fit report to {report_path}")
+    return report_path, parameters_path, covariance_path, correlations_path
 
 
 ALL_FIT_LINE_STYLES = [
@@ -264,17 +529,21 @@ def _fit_single_dis_model(model_key, indep_data, dis_df, x_dense, q2_dense):
         constr=config["bounds"],
     )
 
-    corr_quad = _covariance_to_correlation(covariance)
+    corr_quad = _covariance_to_correlation(covariance, config["param_names"])
     beta_val = float(params[config["beta_index"]])
     fit_vals = config["func"]([x_dense, q2_dense], *params)
     residuals = (
         dis_df["G1F1"] - config["func"]([dis_df["X"], dis_df["Q2"]], *params)
     ) / dis_df["G1F1.err"]
+    ndf = max(len(dis_df) - len(config["param_names"]), 0)
+    chi2_total = float(chi2_quad * ndf) if ndf > 0 else np.nan
 
     result = {
         "model_key": model_key,
         "model_display_name": config["display_name"],
         "curve_label": config["curve_label"],
+        "functional_form_text": config["functional_form_text"],
+        "functional_form_latex": config["functional_form_latex"],
         "parameter_names": list(config["param_names"]),
         "partials": list(config["partials"]),
         "beta_index": config["beta_index"],
@@ -283,11 +552,13 @@ def _fit_single_dis_model(model_key, indep_data, dis_df, x_dense, q2_dense):
         "cov_quad": covariance,
         "corr_quad": corr_quad,
         "par_err_quad": param_sigmas,
+        "chi2_total": chi2_total,
         "chi2_quad": chi2_quad,
         "chi2_distance_from_unity": abs(float(chi2_quad) - 1.0),
         "beta_val": beta_val,
         "fit_vals": fit_vals,
         "residuals": residuals,
+        "ndf": ndf,
     }
     _print_fit_summary(result)
     return result
@@ -549,7 +820,18 @@ def fit_dis_model_suite(indep_data, dis_df, x_dense, q2_dense, dis_fit_model="fu
     }
 
 
-def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_tag="legacy", dis_fit_model="fullx", source_group=None):
+def get_dis_fit(
+    indep_data,
+    dis_df,
+    q2_interp,
+    x_dense,
+    q2_dense,
+    pdf,
+    dataset_tag="legacy",
+    dis_fit_model="fullx",
+    source_group=None,
+    run_metadata=None,
+):
     suite = fit_dis_model_suite(
         indep_data,
         dis_df,
@@ -576,12 +858,17 @@ def get_dis_fit(indep_data, dis_df, q2_interp, x_dense, q2_dense, pdf, dataset_t
     else:
         _plot_active_dis_fit(selected_result, dis_df, x_dense, q2_dense, pdf)
 
-    _save_dis_fit_summary(
+    summary_payload = _build_dis_fit_summary_payload(
         dataset_tag,
         dis_df,
         selected_result,
+        fit_results,
+        failed_results,
         requested_model_key,
         source_group=active_source_group,
+        run_metadata=run_metadata,
     )
+    _save_dis_fit_summary(dataset_tag, summary_payload)
+    _save_dis_fit_report_files(dataset_tag, summary_payload)
     _save_dis_fit_timing_summary(dataset_tag, suite["timing_rows"])
     return selected_result

@@ -42,7 +42,10 @@ def evaluate_complete_fit_from_x(
     quad_nucl_curve_k_func=quad_nucl_curve_k,
 ):
     x_array = np.asarray(x_values, dtype=np.double)
-    q2_value = float(q2)
+    # The BW parameter curves use ``x.size`` internally.  Preserve the NumPy
+    # scalar behavior from the original grid loop instead of coercing to a
+    # Python float, which has no ``size`` attribute.
+    q2_value = np.double(q2)
     q2_array = np.full_like(x_array, q2_value, dtype=np.double)
     if w_values is None:
         w_array = x_to_W(x_array, q2_array)

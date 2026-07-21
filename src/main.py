@@ -734,16 +734,18 @@ def run_analysis(analysis_scope):
 
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
-        nachtmann_data_result = create_nachtmann_data_only_outputs(
-            g1f1_df,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            requested_q2_values=NACHTMANN_Q2_VALUES,
-            q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
-        )
 
         if analysis_scope == "dis_only":
+            # Keep the standalone Nachtmann data page as the final DIS-only
+            # PDF page, after every regular DIS output.
+            create_nachtmann_data_only_outputs(
+                g1f1_df,
+                ANALYSIS_TAG,
+                pdf,
+                mode_label,
+                requested_q2_values=NACHTMANN_Q2_VALUES,
+                q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
+            )
             print(
                 f"[{mode_label}] Skipping Nachtmann complete-fit comparison in dis_only scope "
                 "because the resonance and transition stages were not executed."
@@ -895,28 +897,6 @@ def run_analysis(analysis_scope):
                                                 quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
-        create_nachtmann_complete_fit_outputs(
-            nachtmann_data_result,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            dis_fit_params,
-            dis_transition_fit,
-            bw_fit_params["k params"]["nucl_par"],
-            bw_fit_params["k params"]["nucl_curve_err"],
-            bw_fit_params["gamma params"]["nucl_par"],
-            bw_fit_params["gamma params"]["nucl_curve_err"],
-            bw_fit_params["mass params"]["nucl_par"],
-            bw_fit_params["mass params"]["nucl_curve_err"],
-            bw_fit_params["k params"]["P_vals"],
-            bw_fit_params["gamma params"]["P_vals"],
-            bw_fit_params["mass params"]["P_vals"],
-            full_w_max=full_w_max,
-            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
-            w_min=w_min,
-            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
-        )
-
         print(f"[{mode_label}] Stage: Combined W-fit pages")
         get_g1f1_W_fits(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
@@ -958,6 +938,38 @@ def run_analysis(analysis_scope):
                          dataset_tag=ANALYSIS_TAG,
                           quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
             )
+
+        # Append both standalone Nachtmann pages only after every established
+        # fit/grid page so they remain the final pages of g1f1_fits.pdf.
+        nachtmann_data_result = create_nachtmann_data_only_outputs(
+            g1f1_df,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            requested_q2_values=NACHTMANN_Q2_VALUES,
+            q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
+        )
+        create_nachtmann_complete_fit_outputs(
+            nachtmann_data_result,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            dis_fit_params,
+            dis_transition_fit,
+            bw_fit_params["k params"]["nucl_par"],
+            bw_fit_params["k params"]["nucl_curve_err"],
+            bw_fit_params["gamma params"]["nucl_par"],
+            bw_fit_params["gamma params"]["nucl_curve_err"],
+            bw_fit_params["mass params"]["nucl_par"],
+            bw_fit_params["mass params"]["nucl_curve_err"],
+            bw_fit_params["k params"]["P_vals"],
+            bw_fit_params["gamma params"]["P_vals"],
+            bw_fit_params["mass params"]["P_vals"],
+            full_w_max=full_w_max,
+            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+            w_min=w_min,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+        )
 
     return outputpdf
 

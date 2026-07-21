@@ -447,7 +447,7 @@ def create_nachtmann_data_only_outputs(
     print(f"[{mode_label}] Requested normalized Q2 values: {metadata['requested_data_q2_values']}")
     print(f"[{mode_label}] Resolved normalized Q2 bins: {metadata['selected_bin_labels'] or 'none'}")
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(8, 6))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
 
     if plot_df.empty:
@@ -479,7 +479,7 @@ def create_nachtmann_data_only_outputs(
                 capsize=2,
                 linewidth=1.0,
                 markersize=5,
-                label="A1n ALL — individual $Q^2$ values",
+                label="A1n ALL",
             )
 
         if "Q2_labels" in plot_df.columns:
@@ -493,23 +493,10 @@ def create_nachtmann_data_only_outputs(
                 )
                 if bin_frame.empty:
                     continue
-                requested_value = bin_match["requested_q2"]
-                normalized_bin_mean = bin_match["resolved_mean_q2"]
                 spin_mean = bin_match.get("spin_duality_mean_q2")
                 if spin_mean is None:
                     continue
-                if f"{requested_value:.3f}" == f"{normalized_bin_mean:.3f}":
-                    legend_label = (
-                        "E01-012 spin duality: "
-                        f"$\\langle Q^2 \\rangle$={spin_mean:.3f} GeV$^2$"
-                    )
-                else:
-                    legend_label = (
-                        "E01-012 spin duality: "
-                        f"requested $Q^2$={requested_value:.3f}, "
-                        f"$\\langle Q^2 \\rangle_{{\\mathrm{{E01-012}}}}$={spin_mean:.3f} GeV$^2$ "
-                        f"(normalized bin={normalized_bin_mean:.3f})"
-                    )
+                legend_label = f"E01-012 ($\\langle Q^2 \\rangle$={spin_mean:.1f} GeV$^2$)"
                 color = color_map(idx)
                 ax.errorbar(
                     bin_frame["Nachtmann_x"],
@@ -541,21 +528,11 @@ def create_nachtmann_data_only_outputs(
 
     ax.set_xlabel(r"Nachtmann $\xi$")
     ax.set_ylabel(r"$g_1^{3\mathrm{He}}/F_1^{3\mathrm{He}}$")
-    ax.set_title("A1n ALL versus E01-012 spin-duality comparison in Nachtmann $\\xi$")
-    ax.text(
-        0.02,
-        0.02,
-        "A1n ALL points use their individual measured $Q^2$ values.",
-        transform=ax.transAxes,
-        fontsize=10,
-        ha="left",
-        va="bottom",
-    )
     ax.grid(True, linestyle="--", alpha=0.35)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
-        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=True)
-    fig.tight_layout(rect=(0.0, 0.0, 0.82, 1.0))
+        ax.legend(loc="best", frameon=False, fontsize=9)
+    fig.tight_layout()
 
     fig.savefig(pdf_path, bbox_inches="tight")
     fig.savefig(png_path, dpi=200, bbox_inches="tight")

@@ -496,53 +496,55 @@ def create_nachtmann_data_only_outputs(
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(-0.05, 0.05)
     else:
-        a1n_mask = _source_key_mask(plot_df, A1N_ALL_SOURCE_KEY)
-        if not bool(a1n_mask.any()):
-            a1n_mask = _label_mask(plot_df, "A1n all")
-        a1n_frame = plot_df.loc[a1n_mask].copy()
-        if not a1n_frame.empty:
-            ax.errorbar(
-                a1n_frame["Nachtmann_x"],
-                a1n_frame["G1F1"],
-                yerr=np.abs(a1n_frame["G1F1.err"]),
-                fmt="o",
-                linestyle="none",
-                color="#17becf",
-                ecolor="#17becf",
-                capsize=2,
-                linewidth=1.0,
-                markersize=5,
-                label="A1n ALL",
-            )
-
         if "Q2_labels" in plot_df.columns:
             resolved_bin_matches = metadata["resolved_data_bin_matches"]
             color_map = plt.get_cmap("turbo", max(len(resolved_bin_matches), 1))
             for idx, bin_match in enumerate(resolved_bin_matches):
-                bin_frame = _select_resolved_spin_bin_rows(
+                a1n_bin_frame = _select_resolved_a1n_bin_rows(
+                    plot_df,
+                    bin_match["resolved_label"],
+                    a1n_source_key=metadata["a1n_all_source_key"],
+                )
+                spin_bin_frame = _select_resolved_spin_bin_rows(
                     plot_df,
                     bin_match["resolved_label"],
                     spin_source_key=metadata["spin_duality_source_key"],
                 )
-                if bin_frame.empty:
-                    continue
-                if bin_match.get("spin_duality_mean_q2") is None:
-                    continue
-                legend_label = f"E01-012 ($Q^2$={bin_match['requested_q2']:.1f} GeV$^2$)"
                 color = color_map(idx)
-                ax.errorbar(
-                    bin_frame["Nachtmann_x"],
-                    bin_frame["G1F1"],
-                    yerr=np.abs(bin_frame["G1F1.err"]),
-                    fmt=_SPIN_BIN_MARKERS[idx % len(_SPIN_BIN_MARKERS)],
-                    linestyle="none",
-                    color=color,
-                    ecolor=color,
-                    capsize=2,
-                    linewidth=1.0,
-                    markersize=6,
-                    label=legend_label,
-                )
+                legend_label = f"$Q^2={bin_match['requested_q2']:.1f}$ GeV$^2$"
+                label_drawn = False
+                if not a1n_bin_frame.empty:
+                    ax.errorbar(
+                        a1n_bin_frame["Nachtmann_x"],
+                        a1n_bin_frame["G1F1"],
+                        yerr=np.abs(a1n_bin_frame["G1F1.err"]),
+                        fmt="o",
+                        linestyle="none",
+                        color=color,
+                        ecolor=color,
+                        capsize=2,
+                        linewidth=1.0,
+                        markersize=5,
+                        label=legend_label,
+                    )
+                    label_drawn = True
+                if not spin_bin_frame.empty:
+                    ax.errorbar(
+                        spin_bin_frame["Nachtmann_x"],
+                        spin_bin_frame["G1F1"],
+                        yerr=np.abs(spin_bin_frame["G1F1.err"]),
+                        fmt=_SPIN_BIN_MARKERS[idx % len(_SPIN_BIN_MARKERS)],
+                        linestyle="none",
+                        color=color,
+                        ecolor=color,
+                        capsize=2,
+                        linewidth=1.0,
+                        markersize=6,
+                        label="_nolegend_" if label_drawn else legend_label,
+                    )
+                    label_drawn = True
+                if not label_drawn:
+                    ax.plot([], [], marker="o", linestyle="none", color=color, label=legend_label)
 
         ax.set_xlim(
             max(0.0, float(np.min(plot_df["Nachtmann_x"])) - 0.02),
@@ -751,7 +753,8 @@ def create_nachtmann_complete_fit_outputs(
             q2_frame["y_complete"],
             color=color_map(idx),
             linewidth=2.0,
-            label=fr"$Q^2={q2_value:.3f}$ GeV$^2$",
+            # Match the configured display-bin labels used by the data page.
+            label=fr"$Q^2={q2_value:.1f}$ GeV$^2$",
         )
 
     ax.set_xlabel(r"Nachtmann $\xi$")

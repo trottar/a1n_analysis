@@ -112,7 +112,7 @@ ANALYSIS_SCOPE = "full"
 
 # Requested E01-012/Solvignon spin-duality Q2-bin values in GeV^2.
 # Any nonempty number of values is allowed and their order is preserved.
-NACHTMANN_Q2_VALUES = [1.2, 3.2, 4.5, 7.5]
+NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
 # E01-012 Q2-label bin mean.

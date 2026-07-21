@@ -15,9 +15,65 @@ from utility import prefix_generated_output_name, project_path
 A1N_ALL_SOURCE_KEY = "a1n_all"
 SPIN_DUALITY_SOURCE_KEY = "psolv_e01012_g1g2"
 NACHTMANN_MASS_GEV = 0.93870319
+_Q2_DUPLICATE_TOLERANCE = 1.0e-9
+_SPIN_BIN_MARKERS = (
+    "^", "s", "D", "P", "X", "v", "<", ">", "h", "p", "*", "8", "H", "d", "o",
+)
 
-_SPIN_BIN_COLORS = ["#6a3d9a", "#1f78b4", "#33a02c"]
-_SPIN_BIN_MARKERS = ["^", "s", "D"]
+
+def _normalize_requested_q2_values(values, setting_name):
+    if isinstance(values, (str, bytes)):
+        raise ValueError(f"{setting_name} must be a nonempty list-like sequence of finite positive Q2 values.")
+    try:
+        normalized_values = [float(value) for value in values]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{setting_name} must be a nonempty list-like sequence of finite positive Q2 values."
+        ) from exc
+
+    if not normalized_values:
+        raise ValueError(f"{setting_name} must not be empty.")
+    for value in normalized_values:
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{setting_name} values must be finite and strictly positive; received {value!r}.")
+    for value_index, value in enumerate(normalized_values):
+        for prior_value in normalized_values[:value_index]:
+            if abs(value - prior_value) <= _Q2_DUPLICATE_TOLERANCE:
+                raise ValueError(
+                    f"{setting_name} contains duplicate or effectively identical values "
+                    f"({prior_value:.12g} and {value:.12g})."
+                )
+    return normalized_values
+
+
+def validate_nachtmann_q2_configuration(
+    requested_data_q2_values,
+    q2_match_tolerance,
+    complete_fit_q2_values=None,
+):
+    """Validate and normalize the user-controlled Nachtmann Q2 settings."""
+    normalized_requested_values = _normalize_requested_q2_values(
+        requested_data_q2_values,
+        "NACHTMANN_Q2_VALUES",
+    )
+    try:
+        normalized_match_tolerance = float(q2_match_tolerance)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("NACHTMANN_Q2_MATCH_TOLERANCE must be a finite nonnegative number.") from exc
+    if not np.isfinite(normalized_match_tolerance) or normalized_match_tolerance < 0.0:
+        raise ValueError("NACHTMANN_Q2_MATCH_TOLERANCE must be a finite nonnegative number.")
+
+    normalized_complete_values = None
+    if complete_fit_q2_values is not None:
+        normalized_complete_values = _normalize_requested_q2_values(
+            complete_fit_q2_values,
+            "NACHTMANN_COMPLETE_FIT_Q2_VALUES",
+        )
+    return (
+        normalized_requested_values,
+        normalized_match_tolerance,
+        normalized_complete_values,
+    )
 
 
 def _analysis_output_dir(analysis_tag):
@@ -144,18 +200,104 @@ def _spin_q2_bin_stats(spin_df):
     return grouped_df, sorted(stats, key=lambda item: item["mean_q2"])
 
 
+def _spin_source_mask(df, source_key=SPIN_DUALITY_SOURCE_KEY):
+    # Normalized data carry manifest provenance.  Once that column exists,
+    # never recover a missing E01-012 source from a similar human label.
+    if "source_key" in df.columns:
+        return _source_key_mask(df, source_key)
+    # Retain the legacy-label fallback only for older tables with no source
+    # provenance column at all.
+    return _label_mask(df, "Solvg. E01-012")
+
+
+def _available_spin_bin_summary(all_bin_stats):
+    if not all_bin_stats:
+        return "none"
+    return "; ".join(
+        f"{item['label']} (mean={item['mean_q2']:.6g} GeV^2)"
+        for item in all_bin_stats
+    )
+
+
+def _resolve_requested_spin_bins(all_bin_stats, requested_q2_values, q2_match_tolerance):
+    requested_values = _normalize_requested_q2_values(requested_q2_values, "NACHTMANN_Q2_VALUES")
+    if not all_bin_stats:
+        raise ValueError("No E01-012 Q2-label bins are available for Nachtmann matching.")
+
+    available_summary = _available_spin_bin_summary(all_bin_stats)
+    matches = []
+    unmatched_values = []
+    matched_labels = set()
+    duplicate_match_values = []
+    for requested_value in requested_values:
+        nearest_bin = min(
+            all_bin_stats,
+            key=lambda item: abs(requested_value - item["mean_q2"]),
+        )
+        absolute_difference = abs(requested_value - nearest_bin["mean_q2"])
+        if absolute_difference > q2_match_tolerance:
+            unmatched_values.append(requested_value)
+            continue
+        if nearest_bin["label"] in matched_labels:
+            duplicate_match_values.append(
+                (requested_value, nearest_bin["label"], nearest_bin["mean_q2"])
+            )
+            continue
+        matched_labels.add(nearest_bin["label"])
+        matches.append(
+            {
+                "requested_q2": float(requested_value),
+                "resolved_label": str(nearest_bin["label"]),
+                "resolved_mean_q2": float(nearest_bin["mean_q2"]),
+                "min_q2": float(nearest_bin["min_q2"]),
+                "max_q2": float(nearest_bin["max_q2"]),
+                "n_points": int(nearest_bin["n_points"]),
+                "absolute_difference": float(absolute_difference),
+            }
+        )
+
+    if unmatched_values:
+        requested_text = ", ".join(f"{value:.12g}" for value in unmatched_values)
+        raise ValueError(
+            "Unmatched requested E01-012 Q2 value(s): "
+            f"{requested_text}. Available E01-012 bin means and labels: {available_summary}. "
+            f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
+        )
+    if duplicate_match_values:
+        collision_text = "; ".join(
+            f"{requested_value:.12g} -> {label} (mean={mean_q2:.12g})"
+            for requested_value, label, mean_q2 in duplicate_match_values
+        )
+        raise ValueError(
+            "NACHTMANN_Q2_VALUES cannot be matched one-to-one to E01-012 bins: "
+            f"{collision_text}. Available E01-012 bin means and labels: {available_summary}. "
+            f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
+        )
+    return matches
+
+
+def _select_resolved_spin_bin_rows(plot_df, resolved_bin_label, spin_source_key=SPIN_DUALITY_SOURCE_KEY):
+    """Recover one plotted E01-012 bin without admitting another source sharing its label."""
+    if "Q2_labels" not in plot_df.columns:
+        return plot_df.iloc[0:0].copy()
+    spin_source_mask = _spin_source_mask(plot_df, spin_source_key)
+    return plot_df.loc[
+        spin_source_mask & plot_df["Q2_labels"].astype(str).eq(str(resolved_bin_label))
+    ].copy()
+
+
 def select_nachtmann_display_subset(
     g1f1_df,
-    requested_high_q2_bins=3,
+    requested_q2_values,
+    q2_match_tolerance,
     *,
     a1n_source_key=A1N_ALL_SOURCE_KEY,
     spin_source_key=SPIN_DUALITY_SOURCE_KEY,
 ):
-    if requested_high_q2_bins not in {2, 3}:
-        raise ValueError(
-            "NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS must be 2 or 3."
-        )
-
+    requested_values, match_tolerance, _unused_complete_values = validate_nachtmann_q2_configuration(
+        requested_q2_values,
+        q2_match_tolerance,
+    )
     working_df = g1f1_df.copy()
     missing_warnings = []
 
@@ -168,30 +310,29 @@ def select_nachtmann_display_subset(
             f"A1n ALL source '{a1n_source_key}' is not present in the active normalized g1/F1 DataFrame."
         )
 
-    spin_mask = _source_key_mask(working_df, spin_source_key)
-    if not bool(spin_mask.any()):
-        spin_mask = _label_mask(working_df, "Solvg. E01-012")
+    spin_mask = _spin_source_mask(working_df, spin_source_key)
     spin_frame = working_df.loc[spin_mask].copy()
     if spin_frame.empty:
-        missing_warnings.append(
-            f"Spin-duality source '{spin_source_key}' is not present in the active normalized g1/F1 DataFrame."
+        raise ValueError(
+            f"Spin-duality source '{spin_source_key}' is not present in the active normalized g1/F1 DataFrame; "
+            "cannot resolve NACHTMANN_Q2_VALUES."
         )
 
-    selected_spin_frame = spin_frame.iloc[0:0].copy()
-    selected_bin_stats = []
-    all_bin_stats = []
-    selected_bin_labels = []
-    if not spin_frame.empty:
-        binned_spin_frame, all_bin_stats = _spin_q2_bin_stats(spin_frame)
-        ranked_stats = sorted(all_bin_stats, key=lambda item: item["mean_q2"])
-        selected_bin_stats = ranked_stats[-requested_high_q2_bins:]
-        selected_bin_labels = [item["label"] for item in sorted(selected_bin_stats, key=lambda item: item["mean_q2"], reverse=True)]
-        if selected_bin_stats:
-            selected_label_set = {item["label"] for item in selected_bin_stats}
-            selected_spin_frame = binned_spin_frame[
-                binned_spin_frame["Q2_labels"].astype(str).isin(selected_label_set)
-            ].copy()
-
+    binned_spin_frame, all_bin_stats = _spin_q2_bin_stats(spin_frame)
+    resolved_bin_matches = _resolve_requested_spin_bins(
+        all_bin_stats,
+        requested_values,
+        match_tolerance,
+    )
+    selected_spin_frames = [
+        _select_resolved_spin_bin_rows(
+            binned_spin_frame,
+            match["resolved_label"],
+            spin_source_key=spin_source_key,
+        )
+        for match in resolved_bin_matches
+    ]
+    selected_spin_frame = pd.concat(selected_spin_frames, ignore_index=True)
     selected_df = pd.concat([a1n_frame, selected_spin_frame], ignore_index=True)
     selected_df = selected_df.replace([np.inf, -np.inf], np.nan)
 
@@ -200,9 +341,11 @@ def select_nachtmann_display_subset(
         "a1n_all_source_key": a1n_source_key,
         "a1n_all_points": int(len(a1n_frame)),
         "spin_duality_source_key": spin_source_key,
-        "requested_high_q2_bins": int(requested_high_q2_bins),
-        "selected_bin_labels": selected_bin_labels,
-        "selected_spin_duality_bin_stats": selected_bin_stats,
+        "requested_data_q2_values": requested_values,
+        "q2_match_tolerance": match_tolerance,
+        "resolved_data_bin_matches": resolved_bin_matches,
+        "selected_bin_labels": [match["resolved_label"] for match in resolved_bin_matches],
+        "selected_spin_duality_bin_stats": resolved_bin_matches,
         "all_spin_duality_bin_stats": all_bin_stats,
         "selected_spin_duality_points": int(len(selected_spin_frame)),
         "mass_used_gev": NACHTMANN_MASS_GEV,
@@ -232,11 +375,13 @@ def create_nachtmann_data_only_outputs(
     pdf,
     mode_label,
     *,
-    requested_high_q2_bins=3,
+    requested_q2_values,
+    q2_match_tolerance,
 ):
     selected_df, metadata = select_nachtmann_display_subset(
         g1f1_df,
-        requested_high_q2_bins=requested_high_q2_bins,
+        requested_q2_values=requested_q2_values,
+        q2_match_tolerance=q2_match_tolerance,
     )
     plot_columns = ["Nachtmann_x", "G1F1", "G1F1.err"]
     plot_df = selected_df.copy()
@@ -279,7 +424,8 @@ def create_nachtmann_data_only_outputs(
     print(f"[{mode_label}] Stage: Nachtmann data-only comparison")
     print(f"[{mode_label}] A1n ALL points selected: {metadata['a1n_all_points']}")
     print(f"[{mode_label}] Spin-duality source: {metadata['spin_duality_source_key']}")
-    print(f"[{mode_label}] Selected high-Q2 spin-duality bins: {metadata['selected_bin_labels'] or 'none'}")
+    print(f"[{mode_label}] Requested E01-012 Q2 values: {metadata['requested_data_q2_values']}")
+    print(f"[{mode_label}] Resolved E01-012 bins: {metadata['selected_bin_labels'] or 'none'}")
 
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
@@ -313,29 +459,46 @@ def create_nachtmann_data_only_outputs(
                 capsize=2,
                 linewidth=1.0,
                 markersize=5,
-                label="A1n ALL",
+                label="A1n ALL — individual $Q^2$ values",
             )
 
         if "Q2_labels" in plot_df.columns:
-            for idx, bin_info in enumerate(metadata["selected_spin_duality_bin_stats"]):
-                bin_frame = plot_df[plot_df["Q2_labels"].astype(str) == bin_info["label"]].copy()
+            resolved_bin_matches = metadata["resolved_data_bin_matches"]
+            color_map = plt.get_cmap("turbo", max(len(resolved_bin_matches), 1))
+            for idx, bin_match in enumerate(resolved_bin_matches):
+                bin_frame = _select_resolved_spin_bin_rows(
+                    plot_df,
+                    bin_match["resolved_label"],
+                    spin_source_key=metadata["spin_duality_source_key"],
+                )
                 if bin_frame.empty:
                     continue
+                requested_value = bin_match["requested_q2"]
+                resolved_mean = bin_match["resolved_mean_q2"]
+                if f"{requested_value:.3f}" == f"{resolved_mean:.3f}":
+                    legend_label = (
+                        "E01-012 spin duality: "
+                        f"$\\langle Q^2 \\rangle$={resolved_mean:.3f} GeV$^2$"
+                    )
+                else:
+                    legend_label = (
+                        "E01-012 spin duality: "
+                        f"requested $Q^2$={requested_value:.3f}, "
+                        f"$\\langle Q^2 \\rangle$={resolved_mean:.3f} GeV$^2$"
+                    )
+                color = color_map(idx)
                 ax.errorbar(
                     bin_frame["Nachtmann_x"],
                     bin_frame["G1F1"],
                     yerr=np.abs(bin_frame["G1F1.err"]),
                     fmt=_SPIN_BIN_MARKERS[idx % len(_SPIN_BIN_MARKERS)],
                     linestyle="none",
-                    color=_SPIN_BIN_COLORS[idx % len(_SPIN_BIN_COLORS)],
-                    ecolor=_SPIN_BIN_COLORS[idx % len(_SPIN_BIN_COLORS)],
+                    color=color,
+                    ecolor=color,
                     capsize=2,
                     linewidth=1.0,
                     markersize=6,
-                    label=(
-                        f"Spin duality: "
-                        f"$\\langle Q^2 \\rangle$={bin_info['mean_q2']:.3f} GeV$^2$"
-                    ),
+                    label=legend_label,
                 )
 
         ax.set_xlim(
@@ -354,7 +517,16 @@ def create_nachtmann_data_only_outputs(
 
     ax.set_xlabel(r"Nachtmann $\xi$")
     ax.set_ylabel(r"$g_1^{3\mathrm{He}}/F_1^{3\mathrm{He}}$")
-    ax.set_title("Data-only comparison in Nachtmann $\\xi$")
+    ax.set_title("A1n ALL versus E01-012 spin-duality comparison in Nachtmann $\\xi$")
+    ax.text(
+        0.02,
+        0.02,
+        "A1n ALL points use their individual measured $Q^2$ values.",
+        transform=ax.transAxes,
+        fontsize=10,
+        ha="left",
+        va="bottom",
+    )
     ax.grid(True, linestyle="--", alpha=0.35)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
@@ -387,67 +559,19 @@ def create_nachtmann_data_only_outputs(
     }
 
 
-def _deduplicate_q2_values(values, tolerance=0.05):
-    unique_values = []
-    for value in sorted(float(candidate) for candidate in values if np.isfinite(candidate) and candidate > 0.0):
-        if not unique_values or all(abs(value - existing) > tolerance for existing in unique_values):
-            unique_values.append(value)
-    return unique_values
-
-
 def resolve_nachtmann_complete_fit_q2_values(selection_result, q2_override=None):
     if q2_override is not None:
-        if not isinstance(q2_override, (list, tuple, np.ndarray)):
-            raise ValueError("NACHTMANN_COMPLETE_FIT_Q2_VALUES must be None or a list-like of positive Q2 values.")
-        override_values = _deduplicate_q2_values(q2_override, tolerance=1.0e-9)
-        if not override_values:
-            raise ValueError("NACHTMANN_COMPLETE_FIT_Q2_VALUES did not contain any finite positive Q2 values.")
-        return override_values
+        return _normalize_requested_q2_values(
+            q2_override,
+            "NACHTMANN_COMPLETE_FIT_Q2_VALUES",
+        )
 
-    metadata = selection_result["metadata"]
-    selected_df = selection_result["selected_df"]
-    spin_values = [
-        item["mean_q2"]
-        for item in metadata.get("selected_spin_duality_bin_stats", [])
-        if np.isfinite(item.get("mean_q2", np.nan))
-    ]
-    q2_values = _deduplicate_q2_values(spin_values)
-
-    if "source_key" in selected_df.columns:
-        a1n_frame = selected_df[selected_df["source_key"].astype(str) == A1N_ALL_SOURCE_KEY].copy()
-    else:
-        a1n_frame = selected_df[_label_mask(selected_df, "A1n all")].copy()
-
-    if len(q2_values) < 3 and not a1n_frame.empty:
-        a1n_q2 = pd.to_numeric(a1n_frame["Q2"], errors="coerce").dropna().to_numpy(dtype=float)
-        if a1n_q2.size:
-            candidate_values = [
-                float(np.median(a1n_q2)),
-                float(np.quantile(a1n_q2, 0.25)),
-                float(np.quantile(a1n_q2, 0.75)),
-                float(np.mean(a1n_q2)),
-            ]
-            for candidate in candidate_values:
-                if len(q2_values) >= 3:
-                    break
-                merged = _deduplicate_q2_values(q2_values + [candidate])
-                if len(merged) > len(q2_values):
-                    q2_values = merged
-
-    if len(q2_values) < 3:
-        fallback_spin_values = [
-            item["mean_q2"]
-            for item in metadata.get("all_spin_duality_bin_stats", [])
-            if np.isfinite(item.get("mean_q2", np.nan))
-        ]
-        for candidate in fallback_spin_values:
-            if len(q2_values) >= 3:
-                break
-            merged = _deduplicate_q2_values(q2_values + [candidate])
-            if len(merged) > len(q2_values):
-                q2_values = merged
-
-    return q2_values[:4]
+    resolved_matches = selection_result["metadata"].get("resolved_data_bin_matches", [])
+    if not resolved_matches:
+        raise ValueError(
+            "No resolved E01-012 bins are available for the complete-fit Nachtmann comparison."
+        )
+    return [float(match["resolved_mean_q2"]) for match in resolved_matches]
 
 
 def build_nachtmann_complete_fit_curve_frame(
@@ -463,6 +587,7 @@ def build_nachtmann_complete_fit_curve_frame(
     x_grid = np.asarray(x_grid, dtype=np.double)
 
     rows = []
+    row_counts = []
     for q2 in q2_values:
         q2_value = float(q2)
         q2_array = np.full_like(x_grid, q2_value, dtype=np.double)
@@ -473,6 +598,14 @@ def build_nachtmann_complete_fit_curve_frame(
         x_valid = x_grid[valid_mask]
         w_valid = w_values[valid_mask]
         if x_valid.size == 0:
+            row_counts.append(
+                {
+                    "Q2": q2_value,
+                    "candidate_rows": 0,
+                    "dropped_nonfinite_rows": 0,
+                    "exported_rows": 0,
+                }
+            )
             continue
 
         curve_payload = complete_curve_evaluator(x_valid, q2_value, w_valid)
@@ -488,14 +621,26 @@ def build_nachtmann_complete_fit_curve_frame(
                 "y_complete": y_complete,
             }
         )
+        candidate_rows = int(len(curve_df))
         curve_df = curve_df.replace([np.inf, -np.inf], np.nan)
         curve_df = curve_df.dropna(subset=["Q2", "X", "Nachtmann_x", "W", "y_complete"])
         curve_df = curve_df.sort_values("Nachtmann_x")
+        row_counts.append(
+            {
+                "Q2": q2_value,
+                "candidate_rows": candidate_rows,
+                "dropped_nonfinite_rows": int(candidate_rows - len(curve_df)),
+                "exported_rows": int(len(curve_df)),
+            }
+        )
         rows.append(curve_df)
 
     if not rows:
-        return pd.DataFrame(columns=["Q2", "X", "Nachtmann_x", "W", "y_complete"])
-    return pd.concat(rows, ignore_index=True)
+        result_df = pd.DataFrame(columns=["Q2", "X", "Nachtmann_x", "W", "y_complete"])
+    else:
+        result_df = pd.concat(rows, ignore_index=True)
+    result_df.attrs["curve_row_counts"] = row_counts
+    return result_df
 
 
 def create_nachtmann_complete_fit_outputs(
@@ -524,17 +669,8 @@ def create_nachtmann_complete_fit_outputs(
     if not q2_values:
         raise RuntimeError("Could not determine any Q2 values for the Nachtmann complete-fit comparison.")
 
-    q2_selection_warnings = []
-    if q2_override is None and len(q2_values) < 3:
-        q2_selection_warnings.append(
-            "Fewer than three distinct finite Q2 values were available from the selected "
-            "spin-duality bins and A1n ALL coverage; plotting the available values."
-        )
-
     print(f"[{mode_label}] Stage: Nachtmann complete-fit comparison")
     print(f"[{mode_label}] Complete-fit Q2 values: {q2_values}")
-    for warning in q2_selection_warnings:
-        print(f"[{mode_label}] Nachtmann complete-fit warning: {warning}")
 
     def complete_curve_evaluator(x_values, q2_value, w_values):
         return evaluate_complete_fit_from_x(
@@ -553,6 +689,7 @@ def create_nachtmann_complete_fit_outputs(
             mass_P_vals,
             w_values=w_values,
             quad_nucl_curve_k_func=quad_nucl_curve_k_func,
+            fill_invalid_with_zero=False,
         )
 
     curve_df = build_nachtmann_complete_fit_curve_frame(
@@ -571,7 +708,7 @@ def create_nachtmann_complete_fit_outputs(
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
 
-    color_cycle = ["#d62728", "#1f77b4", "#2ca02c", "#9467bd"]
+    color_map = plt.get_cmap("turbo", max(len(q2_values), 1))
     for idx, q2_value in enumerate(q2_values):
         q2_frame = curve_df[np.isclose(curve_df["Q2"], q2_value)].copy()
         if q2_frame.empty:
@@ -579,7 +716,7 @@ def create_nachtmann_complete_fit_outputs(
         ax.plot(
             q2_frame["Nachtmann_x"],
             q2_frame["y_complete"],
-            color=color_cycle[idx % len(color_cycle)],
+            color=color_map(idx),
             linewidth=2.0,
             label=fr"$Q^2={q2_value:.3f}$ GeV$^2$",
         )
@@ -620,8 +757,12 @@ def create_nachtmann_complete_fit_outputs(
     metadata = {
         "generated_at": datetime.now().astimezone().isoformat(),
         "Q2_values": q2_values,
-        "q2_selection_mode": "override" if q2_override is not None else "automatic",
-        "q2_selection_warnings": q2_selection_warnings,
+        "requested_data_q2_values": selection_result["metadata"]["requested_data_q2_values"],
+        "q2_match_tolerance": selection_result["metadata"]["q2_match_tolerance"],
+        "resolved_data_bin_matches": selection_result["metadata"]["resolved_data_bin_matches"],
+        "complete_fit_q2_source": "explicit_override" if q2_override is not None else "resolved_e01012_bins",
+        "complete_fit_q2_values": q2_values,
+        "nonfinite_curve_rows_by_q2": curve_df.attrs.get("curve_row_counts", []),
         "dis_model_key": dis_fit_params["model_key"],
         "requested_dis_model_key": dis_fit_params.get("requested_model_key", dis_fit_params["model_key"]),
         "evaluation_coordinate": "Bjorken x",

@@ -40,6 +40,7 @@ def evaluate_complete_fit_from_x(
     *,
     w_values=None,
     quad_nucl_curve_k_func=quad_nucl_curve_k,
+    fill_invalid_with_zero=True,
 ):
     x_array = np.asarray(x_values, dtype=np.double)
     # The BW parameter curves use ``x.size`` internally.  Preserve the NumPy
@@ -105,7 +106,13 @@ def evaluate_complete_fit_from_x(
     y_bw_bump = breit_wigner_bump(w_array, 1.55, k_new_new(q2_value), 0.25)
     y_transition = y_bw_bump + (y_bw - y_dis)
     damping_dis = damping_function(w_array, w_dis_transition, damping_dis_width)
-    y_complete = np.nan_to_num(y_transition * damping_dis + y_dis, nan=0.0)
+    y_complete = y_transition * damping_dis + y_dis
+    if fill_invalid_with_zero:
+        # Preserve the historical grid behavior unless a caller explicitly
+        # requests scientific NaN propagation for a plotted/exported curve.
+        y_complete = np.nan_to_num(y_complete, nan=0.0)
+    else:
+        y_complete = np.where(np.isfinite(y_complete), y_complete, np.nan)
 
     return {
         "Q2": q2_array,

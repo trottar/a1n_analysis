@@ -31,6 +31,7 @@ from dis_fit_data_sources import (
 )
 from dis_fit_models import derive_dis_fit_tag, evaluate_dis_fit, normalize_dis_fit_model
 from functions import get_quad_nucl_curve_k, normalize_bw_k_curve_mode
+from nachtmann_analysis import validate_nachtmann_q2_configuration
 from utility import generated_output_date_prefix, prefix_generated_output_name, project_path, show_pdf_with_evince
 
 ##################################################################################################################################################
@@ -109,14 +110,16 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
-# Nachtmann spin-duality display variants:
-# NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 2
-# NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 3
-NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS = 3
+# Requested E01-012/Solvignon spin-duality Q2-bin values in GeV^2.
+# Any nonempty number of values is allowed and their order is preserved.
+NACHTMANN_Q2_VALUES = [1.2, 3.2, 4.5, 7.5]
 
-# Nachtmann complete-fit Q2 override variants:
-# NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
-# NACHTMANN_COMPLETE_FIT_Q2_VALUES = [2.6, 3.1, 3.8]
+# Maximum allowed difference between a requested value and an existing
+# E01-012 Q2-label bin mean.
+NACHTMANN_Q2_MATCH_TOLERANCE = 0.20
+
+# None reuses the resolved E01-012 bin means above. An explicit list uses
+# those exact values, in order, for the complete-fit curves.
 NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
 
 # Full-scope fallback variants:
@@ -138,6 +141,16 @@ ALLOW_SPARSE_CURRENT_FULL = False
 # USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = True
 # USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = False
 USE_LEGACY_FIT_SUPPORT_FOR_CURRENT = True
+
+(
+    NACHTMANN_Q2_VALUES,
+    NACHTMANN_Q2_MATCH_TOLERANCE,
+    NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+) = validate_nachtmann_q2_configuration(
+    NACHTMANN_Q2_VALUES,
+    NACHTMANN_Q2_MATCH_TOLERANCE,
+    NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+)
 
 def resolve_latest_current_dataset_path(suffix):
     pattern = project_path("data", f"g1F1he3_*_{suffix}.csv")
@@ -606,11 +619,6 @@ if DATASET_MODE not in {"legacy", "current", "6gev"}:
 if ANALYSIS_SCOPE not in {"full", "dis_only"}:
     raise ValueError(f"Unsupported ANALYSIS_SCOPE '{ANALYSIS_SCOPE}'. Expected 'full' or 'dis_only'.")
 
-if NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS not in {2, 3}:
-    raise ValueError(
-        "NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS must be 2 or 3."
-    )
-
 def load_analysis_data(analysis_scope):
     resolved_source_group = (
         resolve_source_group_name(DATASET_MODE, analysis_scope, DIS_SOURCE_GROUP)
@@ -689,69 +697,6 @@ def run_analysis(analysis_scope):
         "source_group_description": input_description,
     }
 
-    def append_nachtmann_data_page():
-        """Append the diagnostic data page after the DIS-only pages."""
-        try:
-            return create_nachtmann_data_only_outputs(
-                g1f1_df,
-                ANALYSIS_TAG,
-                pdf,
-                mode_label,
-                requested_high_q2_bins=NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS,
-            )
-        except Exception as exc:
-            print(
-                f"[{mode_label}] Nachtmann data-only page was not appended "
-                f"({exc.__class__.__name__}: {exc}). Existing fit pages were preserved."
-            )
-            if DEBUG_FULL_FAILURE_TRACEBACK:
-                print(traceback.format_exc())
-            return None
-
-    def append_nachtmann_complete_page(
-        nachtmann_data_result,
-        dis_fit_params,
-        dis_transition_fit,
-        bw_fit_params,
-        full_w_max,
-    ):
-        """Append the full-scope curve page once transition fitting has completed."""
-        if nachtmann_data_result is None:
-            print(
-                f"[{mode_label}] Skipping Nachtmann complete-fit comparison because "
-                "the data-only selection was unavailable."
-            )
-            return None
-        try:
-            create_nachtmann_complete_fit_outputs(
-                nachtmann_data_result,
-                ANALYSIS_TAG,
-                pdf,
-                mode_label,
-                dis_fit_params,
-                dis_transition_fit,
-                bw_fit_params["k params"]["nucl_par"],
-                bw_fit_params["k params"]["nucl_curve_err"],
-                bw_fit_params["gamma params"]["nucl_par"],
-                bw_fit_params["gamma params"]["nucl_curve_err"],
-                bw_fit_params["mass params"]["nucl_par"],
-                bw_fit_params["mass params"]["nucl_curve_err"],
-                bw_fit_params["k params"]["P_vals"],
-                bw_fit_params["gamma params"]["P_vals"],
-                bw_fit_params["mass params"]["P_vals"],
-                full_w_max=full_w_max,
-                q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
-                w_min=w_min,
-                quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
-            )
-        except Exception as exc:
-            print(
-                f"[{mode_label}] Nachtmann complete-fit page was not appended "
-                f"({exc.__class__.__name__}: {exc}). Existing fit pages were preserved."
-            )
-            if DEBUG_FULL_FAILURE_TRACEBACK:
-                print(traceback.format_exc())
-
     # Create a PdfPages object to manage the PDF file
     with PdfPages(outputpdf) as pdf:
 
@@ -785,7 +730,14 @@ def run_analysis(analysis_scope):
 
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
-        nachtmann_data_result = append_nachtmann_data_page()
+        nachtmann_data_result = create_nachtmann_data_only_outputs(
+            g1f1_df,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            requested_q2_values=NACHTMANN_Q2_VALUES,
+            q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
+        )
 
         if analysis_scope == "dis_only":
             print(
@@ -939,12 +891,26 @@ def run_analysis(analysis_scope):
                                                 quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
-        append_nachtmann_complete_page(
+        create_nachtmann_complete_fit_outputs(
             nachtmann_data_result,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
             dis_fit_params,
             dis_transition_fit,
-            bw_fit_params,
-            full_w_max,
+            bw_fit_params["k params"]["nucl_par"],
+            bw_fit_params["k params"]["nucl_curve_err"],
+            bw_fit_params["gamma params"]["nucl_par"],
+            bw_fit_params["gamma params"]["nucl_curve_err"],
+            bw_fit_params["mass params"]["nucl_par"],
+            bw_fit_params["mass params"]["nucl_curve_err"],
+            bw_fit_params["k params"]["P_vals"],
+            bw_fit_params["gamma params"]["P_vals"],
+            bw_fit_params["mass params"]["P_vals"],
+            full_w_max=full_w_max,
+            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+            w_min=w_min,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Combined W-fit pages")

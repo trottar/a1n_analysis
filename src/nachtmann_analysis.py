@@ -238,6 +238,19 @@ def create_nachtmann_data_only_outputs(
         g1f1_df,
         requested_high_q2_bins=requested_high_q2_bins,
     )
+    plot_columns = ["Nachtmann_x", "G1F1", "G1F1.err"]
+    plot_df = selected_df.copy()
+    if all(column in plot_df.columns for column in plot_columns):
+        plot_df = plot_df.replace([np.inf, -np.inf], np.nan).dropna(subset=plot_columns)
+    else:
+        plot_df = plot_df.iloc[0:0].copy()
+    metadata["plotted_points"] = int(len(plot_df))
+    metadata["dropped_nonfinite_plot_points"] = int(len(selected_df) - len(plot_df))
+    if metadata["dropped_nonfinite_plot_points"]:
+        metadata.setdefault("plot_warnings", []).append(
+            "Rows with nonfinite Nachtmann_x, G1F1, or G1F1.err were retained in the CSV "
+            "but omitted from the plotted points."
+        )
 
     csv_path = _build_artifact_path(analysis_tag, "nachtmann_data_points.csv")
     json_path = _build_artifact_path(analysis_tag, "nachtmann_data_selection.json")
@@ -271,7 +284,7 @@ def create_nachtmann_data_only_outputs(
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
 
-    if selected_df.empty:
+    if plot_df.empty:
         ax.text(
             0.5,
             0.5,
@@ -284,10 +297,10 @@ def create_nachtmann_data_only_outputs(
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(-0.05, 0.05)
     else:
-        a1n_mask = _source_key_mask(selected_df, A1N_ALL_SOURCE_KEY)
+        a1n_mask = _source_key_mask(plot_df, A1N_ALL_SOURCE_KEY)
         if not bool(a1n_mask.any()):
-            a1n_mask = _label_mask(selected_df, "A1n all")
-        a1n_frame = selected_df.loc[a1n_mask].copy()
+            a1n_mask = _label_mask(plot_df, "A1n all")
+        a1n_frame = plot_df.loc[a1n_mask].copy()
         if not a1n_frame.empty:
             ax.errorbar(
                 a1n_frame["Nachtmann_x"],
@@ -303,9 +316,9 @@ def create_nachtmann_data_only_outputs(
                 label="A1n ALL",
             )
 
-        if "Q2_labels" in selected_df.columns:
+        if "Q2_labels" in plot_df.columns:
             for idx, bin_info in enumerate(metadata["selected_spin_duality_bin_stats"]):
-                bin_frame = selected_df[selected_df["Q2_labels"].astype(str) == bin_info["label"]].copy()
+                bin_frame = plot_df[plot_df["Q2_labels"].astype(str) == bin_info["label"]].copy()
                 if bin_frame.empty:
                     continue
                 ax.errorbar(
@@ -326,13 +339,22 @@ def create_nachtmann_data_only_outputs(
                 )
 
         ax.set_xlim(
-            max(0.0, float(np.nanmin(selected_df["Nachtmann_x"])) - 0.02),
-            min(1.0, float(np.nanmax(selected_df["Nachtmann_x"])) + 0.02),
+            max(0.0, float(np.min(plot_df["Nachtmann_x"])) - 0.02),
+            min(1.0, float(np.max(plot_df["Nachtmann_x"])) + 0.02),
         )
-        ax.set_ylim(*_resolve_data_ylim(selected_df["G1F1"]))
+        y_error = np.abs(plot_df["G1F1.err"].to_numpy(dtype=float))
+        y_values = np.concatenate(
+            [
+                plot_df["G1F1"].to_numpy(dtype=float),
+                plot_df["G1F1"].to_numpy(dtype=float) - y_error,
+                plot_df["G1F1"].to_numpy(dtype=float) + y_error,
+            ]
+        )
+        ax.set_ylim(*_resolve_data_ylim(y_values))
 
     ax.set_xlabel(r"Nachtmann $\xi$")
     ax.set_ylabel(r"$g_1^{3\mathrm{He}}/F_1^{3\mathrm{He}}$")
+    ax.set_title("Data-only comparison in Nachtmann $\\xi$")
     ax.grid(True, linestyle="--", alpha=0.35)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
@@ -502,8 +524,17 @@ def create_nachtmann_complete_fit_outputs(
     if not q2_values:
         raise RuntimeError("Could not determine any Q2 values for the Nachtmann complete-fit comparison.")
 
+    q2_selection_warnings = []
+    if q2_override is None and len(q2_values) < 3:
+        q2_selection_warnings.append(
+            "Fewer than three distinct finite Q2 values were available from the selected "
+            "spin-duality bins and A1n ALL coverage; plotting the available values."
+        )
+
     print(f"[{mode_label}] Stage: Nachtmann complete-fit comparison")
     print(f"[{mode_label}] Complete-fit Q2 values: {q2_values}")
+    for warning in q2_selection_warnings:
+        print(f"[{mode_label}] Nachtmann complete-fit warning: {warning}")
 
     def complete_curve_evaluator(x_values, q2_value, w_values):
         return evaluate_complete_fit_from_x(
@@ -589,6 +620,8 @@ def create_nachtmann_complete_fit_outputs(
     metadata = {
         "generated_at": datetime.now().astimezone().isoformat(),
         "Q2_values": q2_values,
+        "q2_selection_mode": "override" if q2_override is not None else "automatic",
+        "q2_selection_warnings": q2_selection_warnings,
         "dis_model_key": dis_fit_params["model_key"],
         "requested_dis_model_key": dis_fit_params.get("requested_model_key", dis_fit_params["model_key"]),
         "evaluation_coordinate": "Bjorken x",

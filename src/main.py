@@ -689,25 +689,40 @@ def run_analysis(analysis_scope):
         "source_group_description": input_description,
     }
 
-    def append_nachtmann_pages(
-        dis_fit_params=None,
-        dis_transition_fit=None,
-        bw_fit_params=None,
-        full_w_max=None,
-    ):
-        """Append optional Nachtmann pages without interrupting the established fit PDF."""
+    def append_nachtmann_data_page():
+        """Append the diagnostic data page after the DIS-only pages."""
         try:
-            nachtmann_data_result = create_nachtmann_data_only_outputs(
+            return create_nachtmann_data_only_outputs(
                 g1f1_df,
                 ANALYSIS_TAG,
                 pdf,
                 mode_label,
                 requested_high_q2_bins=NACHTMANN_SPIN_DUALITY_HIGH_Q2_BINS,
             )
+        except Exception as exc:
+            print(
+                f"[{mode_label}] Nachtmann data-only page was not appended "
+                f"({exc.__class__.__name__}: {exc}). Existing fit pages were preserved."
+            )
+            if DEBUG_FULL_FAILURE_TRACEBACK:
+                print(traceback.format_exc())
+            return None
 
-            if analysis_scope != "full":
-                return
-
+    def append_nachtmann_complete_page(
+        nachtmann_data_result,
+        dis_fit_params,
+        dis_transition_fit,
+        bw_fit_params,
+        full_w_max,
+    ):
+        """Append the full-scope curve page once transition fitting has completed."""
+        if nachtmann_data_result is None:
+            print(
+                f"[{mode_label}] Skipping Nachtmann complete-fit comparison because "
+                "the data-only selection was unavailable."
+            )
+            return None
+        try:
             create_nachtmann_complete_fit_outputs(
                 nachtmann_data_result,
                 ANALYSIS_TAG,
@@ -731,7 +746,7 @@ def run_analysis(analysis_scope):
             )
         except Exception as exc:
             print(
-                f"[{mode_label}] Nachtmann pages were not appended "
+                f"[{mode_label}] Nachtmann complete-fit page was not appended "
                 f"({exc.__class__.__name__}: {exc}). Existing fit pages were preserved."
             )
             if DEBUG_FULL_FAILURE_TRACEBACK:
@@ -770,9 +785,9 @@ def run_analysis(analysis_scope):
 
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
+        nachtmann_data_result = append_nachtmann_data_page()
 
         if analysis_scope == "dis_only":
-            append_nachtmann_pages()
             print(
                 f"[{mode_label}] Skipping Nachtmann complete-fit comparison in dis_only scope "
                 "because the resonance and transition stages were not executed."
@@ -924,6 +939,14 @@ def run_analysis(analysis_scope):
                                                 quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
+        append_nachtmann_complete_page(
+            nachtmann_data_result,
+            dis_fit_params,
+            dis_transition_fit,
+            bw_fit_params,
+            full_w_max,
+        )
+
         print(f"[{mode_label}] Stage: Combined W-fit pages")
         get_g1f1_W_fits(w, w_min, full_w_max, w_res_min, w_res_max, quad_fit_err,
                         res_df, dis_fit_params, dis_transition_fit,
@@ -965,13 +988,6 @@ def run_analysis(analysis_scope):
                          dataset_tag=ANALYSIS_TAG,
                           quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
             )
-
-        append_nachtmann_pages(
-            dis_fit_params=dis_fit_params,
-            dis_transition_fit=dis_transition_fit,
-            bw_fit_params=bw_fit_params,
-            full_w_max=full_w_max,
-        )
 
     return outputpdf
 

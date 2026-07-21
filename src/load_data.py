@@ -175,7 +175,9 @@ def _with_nachtmann_x(df):
         return updated_df
 
     updated_df = df.copy()
-    updated_df["Q2"] = pd.to_numeric(updated_df["Q2"], errors="coerce")
+    # Normalize kinematics before calculating xi.  Some legacy tables encode
+    # Q2 as a label-like string that _convert_q2 can still recover.
+    updated_df["Q2"] = updated_df["Q2"].apply(_convert_q2)
     updated_df["X"] = pd.to_numeric(updated_df["X"], errors="coerce")
     updated_df["Nachtmann_x"] = nachtmann_x(
         updated_df["X"].to_numpy(dtype=np.double),
@@ -189,8 +191,6 @@ def _prepare_g1f1_df(g1f1_df, excluded_labels=None):
     g1f1_df = _with_nachtmann_x(g1f1_df)
 
     print("Columns:", g1f1_df.columns.tolist())
-
-    g1f1_df["Q2"] = g1f1_df["Q2"].apply(_convert_q2)
 
     unique_q2 = sorted(g1f1_df["Q2"].dropna().unique())
     print("\nUnique Q2 values after cleaning:", unique_q2)
@@ -263,7 +263,6 @@ def _empty_frame(columns):
 
 def _build_dis_cut_df(g1f1_df, label=None):
     dis_df = _with_nachtmann_x(g1f1_df)
-    dis_df["Q2"] = dis_df["Q2"].apply(_convert_q2)
     dis_df["W"] = pd.to_numeric(dis_df["W"], errors="coerce")
     dis_df = dis_df[(dis_df["Q2"] > 1.0) & (dis_df["W"] > 2.0)].copy()
     if label is not None:

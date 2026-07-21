@@ -173,9 +173,16 @@ def _matrix_warnings(dis_fit_result):
         )
 
     corr_matrix = np.asarray(dis_fit_result["corr_quad"], dtype=float)
-    off_diagonal_mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
-    if np.any(~np.isfinite(corr_matrix[off_diagonal_mask])):
-        warnings.append("One or more off-diagonal correlations are undefined (NaN).")
+    undefined_correlation_mask = ~np.isfinite(corr_matrix)
+    if np.any(undefined_correlation_mask):
+        undefined_diagonal = np.any(~np.isfinite(np.diag(corr_matrix)))
+        if undefined_diagonal:
+            warnings.append(
+                "One or more correlation diagonal entries are undefined because the corresponding "
+                "covariance uncertainty is nonfinite or nonpositive."
+            )
+        if np.any(undefined_correlation_mask & ~np.eye(corr_matrix.shape[0], dtype=bool)):
+            warnings.append("One or more off-diagonal correlations are undefined (NaN).")
     return warnings
 
 

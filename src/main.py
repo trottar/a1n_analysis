@@ -117,9 +117,10 @@ ANALYSIS_SCOPE = "full"
 NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
-# normalized Q2-label-bin mean.  The labels are range-derived, so a 0.60
-# GeV^2 tolerance accepts the configured nearby high-Q2 bin values.
-NACHTMANN_Q2_MATCH_TOLERANCE = 0.60
+# normalized Q2-label-bin mean.  The labels are range-derived and their
+# point-weighted means can be displaced, so 0.80 GeV^2 accepts the configured
+# nearby High-Q2 bins centered around 3.2, 4.5, and 7.5 GeV^2.
+NACHTMANN_Q2_MATCH_TOLERANCE = 0.80
 
 # None reuses the resolved normalized-bin means above. An explicit list uses
 # those exact values, in order, for the complete-fit curves.

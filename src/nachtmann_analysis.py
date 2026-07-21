@@ -605,9 +605,21 @@ def resolve_nachtmann_complete_fit_q2_values(selection_result, q2_override=None)
     resolved_matches = selection_result["metadata"].get("resolved_data_bin_matches", [])
     if not resolved_matches:
         raise ValueError(
-            "No resolved E01-012 bins are available for the complete-fit Nachtmann comparison."
+            "No resolved bins are available for the complete-fit Nachtmann comparison."
         )
-    return [float(match["resolved_mean_q2"]) for match in resolved_matches]
+    spin_q2_values = [
+        float(match["spin_duality_mean_q2"])
+        for match in resolved_matches
+        if match.get("spin_duality_n_points", 0) > 0
+        and match.get("spin_duality_mean_q2") is not None
+        and np.isfinite(match["spin_duality_mean_q2"])
+    ]
+    if not spin_q2_values:
+        raise ValueError(
+            "No selected E01-012 bins with plotted points are available for the "
+            "complete-fit Nachtmann comparison."
+        )
+    return spin_q2_values
 
 
 def build_nachtmann_complete_fit_curve_frame(
@@ -796,7 +808,9 @@ def create_nachtmann_complete_fit_outputs(
         "requested_data_q2_values": selection_result["metadata"]["requested_data_q2_values"],
         "q2_match_tolerance": selection_result["metadata"]["q2_match_tolerance"],
         "resolved_data_bin_matches": selection_result["metadata"]["resolved_data_bin_matches"],
-        "complete_fit_q2_source": "explicit_override" if q2_override is not None else "resolved_e01012_bins",
+        "complete_fit_q2_source": (
+            "explicit_override" if q2_override is not None else "selected_spin_duality_bin_means"
+        ),
         "complete_fit_q2_values": q2_values,
         "nonfinite_curve_rows_by_q2": curve_df.attrs.get("curve_row_counts", []),
         "dis_model_key": dis_fit_params["model_key"],

@@ -220,7 +220,7 @@ def _available_spin_bin_summary(all_bin_stats):
 
 
 def _resolve_requested_q2_bins(all_bin_stats, requested_q2_values, q2_match_tolerance):
-    """Resolve requested Q2 values against the normalized analysis-bin structure."""
+    """Resolve requested Q2 values against the normalized display-bin structure."""
     requested_values = _normalize_requested_q2_values(requested_q2_values, "NACHTMANN_Q2_VALUES")
     if not all_bin_stats:
         raise ValueError("No normalized Q2-label bins are available for Nachtmann matching.")
@@ -331,10 +331,8 @@ def select_nachtmann_display_subset(
             "cannot resolve NACHTMANN_Q2_VALUES."
         )
 
-    # Q2_labels are created for the full normalized analysis frame.  Resolve
-    # requested display bins against that same structure (including the high
-    # Q2 A1n bin near 7.5 GeV^2), then retain A1n and E01-012 rows only from
-    # those same bins for a like-for-like comparison with the fit curves.
+    # Resolve against the configured normalized display bins, then retain A1n
+    # and E01-012 rows from the corresponding labels.
     binned_spin_frame, spin_bin_stats = _spin_q2_bin_stats(spin_frame)
     _binned_display_frame, all_bin_stats = _spin_q2_bin_stats(working_df)
     resolved_bin_matches = _resolve_requested_q2_bins(
@@ -528,10 +526,9 @@ def create_nachtmann_data_only_outputs(
                 )
                 if bin_frame.empty:
                     continue
-                spin_mean = bin_match.get("spin_duality_mean_q2")
-                if spin_mean is None:
+                if bin_match.get("spin_duality_mean_q2") is None:
                     continue
-                legend_label = f"E01-012 ($\\langle Q^2 \\rangle$={spin_mean:.1f} GeV$^2$)"
+                legend_label = f"E01-012 ($Q^2$={bin_match['requested_q2']:.1f} GeV$^2$)"
                 color = color_map(idx)
                 ax.errorbar(
                     bin_frame["Nachtmann_x"],
@@ -607,19 +604,7 @@ def resolve_nachtmann_complete_fit_q2_values(selection_result, q2_override=None)
         raise ValueError(
             "No resolved bins are available for the complete-fit Nachtmann comparison."
         )
-    spin_q2_values = [
-        float(match["spin_duality_mean_q2"])
-        for match in resolved_matches
-        if match.get("spin_duality_n_points", 0) > 0
-        and match.get("spin_duality_mean_q2") is not None
-        and np.isfinite(match["spin_duality_mean_q2"])
-    ]
-    if not spin_q2_values:
-        raise ValueError(
-            "No selected E01-012 bins with plotted points are available for the "
-            "complete-fit Nachtmann comparison."
-        )
-    return spin_q2_values
+    return [float(value) for value in selection_result["metadata"]["requested_data_q2_values"]]
 
 
 def build_nachtmann_complete_fit_curve_frame(
@@ -809,7 +794,7 @@ def create_nachtmann_complete_fit_outputs(
         "q2_match_tolerance": selection_result["metadata"]["q2_match_tolerance"],
         "resolved_data_bin_matches": selection_result["metadata"]["resolved_data_bin_matches"],
         "complete_fit_q2_source": (
-            "explicit_override" if q2_override is not None else "selected_spin_duality_bin_means"
+            "explicit_override" if q2_override is not None else "requested_display_bin_values"
         ),
         "complete_fit_q2_values": q2_values,
         "nonfinite_curve_rows_by_q2": curve_df.attrs.get("curve_row_counts", []),

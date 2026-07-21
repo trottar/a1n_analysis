@@ -110,16 +110,14 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
-# Requested normalized display-bin Q2 values in GeV^2.  Matching uses the
-# global Q2_labels structure (including the high-Q2 bin near 7.5 GeV^2),
-# while only psolv_e01012_g1g2 rows are plotted as the spin-duality overlay.
-# Any nonempty number of values is allowed and their order is preserved.
+# Requested normalized display-bin Q2 values in GeV^2.  These values are used
+# directly for the complete-fit curves; the data page selects their matching
+# normalized Q2_labels bins. Any nonempty number of values is allowed.
 NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
-# normalized Q2-label-bin mean.  The labels are range-derived and their
-# point-weighted means can be displaced, so 0.80 GeV^2 accepts the configured
-# nearby High-Q2 bins centered around 3.2, 4.5, and 7.5 GeV^2.
+# normalized Q2-label-bin mean. The labels are range-derived, so their
+# point-weighted means can be displaced from the requested bin values.
 NACHTMANN_Q2_MATCH_TOLERANCE = 0.80
 
 # None reuses the resolved normalized-bin means above. An explicit list uses

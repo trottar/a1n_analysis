@@ -287,6 +287,18 @@ def _select_resolved_spin_bin_rows(plot_df, resolved_bin_label, spin_source_key=
     ].copy()
 
 
+def _select_resolved_a1n_bin_rows(plot_df, resolved_bin_label, a1n_source_key=A1N_ALL_SOURCE_KEY):
+    """Recover one A1n ALL bin using the same normalized Q2-label selection."""
+    if "Q2_labels" not in plot_df.columns:
+        return plot_df.iloc[0:0].copy()
+    a1n_source_mask = _source_key_mask(plot_df, a1n_source_key)
+    if not bool(a1n_source_mask.any()):
+        a1n_source_mask = _label_mask(plot_df, "A1n all")
+    return plot_df.loc[
+        a1n_source_mask & plot_df["Q2_labels"].astype(str).eq(str(resolved_bin_label))
+    ].copy()
+
+
 def select_nachtmann_display_subset(
     g1f1_df,
     requested_q2_values,
@@ -305,8 +317,8 @@ def select_nachtmann_display_subset(
     a1n_mask = _source_key_mask(working_df, a1n_source_key)
     if not bool(a1n_mask.any()):
         a1n_mask = _label_mask(working_df, "A1n all")
-    a1n_frame = working_df.loc[a1n_mask].copy()
-    if a1n_frame.empty:
+    a1n_source_frame = working_df.loc[a1n_mask].copy()
+    if a1n_source_frame.empty:
         missing_warnings.append(
             f"A1n ALL source '{a1n_source_key}' is not present in the active normalized g1/F1 DataFrame."
         )
@@ -321,8 +333,8 @@ def select_nachtmann_display_subset(
 
     # Q2_labels are created for the full normalized analysis frame.  Resolve
     # requested display bins against that same structure (including the high
-    # Q2 A1n bin near 7.5 GeV^2), then retain only E01-012 rows when plotting
-    # the spin-duality overlay.
+    # Q2 A1n bin near 7.5 GeV^2), then retain A1n and E01-012 rows only from
+    # those same bins for a like-for-like comparison with the fit curves.
     binned_spin_frame, spin_bin_stats = _spin_q2_bin_stats(spin_frame)
     _binned_display_frame, all_bin_stats = _spin_q2_bin_stats(working_df)
     resolved_bin_matches = _resolve_requested_q2_bins(
@@ -330,6 +342,14 @@ def select_nachtmann_display_subset(
         requested_values,
         match_tolerance,
     )
+    selected_a1n_frames = [
+        _select_resolved_a1n_bin_rows(
+            a1n_source_frame,
+            match["resolved_label"],
+            a1n_source_key=a1n_source_key,
+        )
+        for match in resolved_bin_matches
+    ]
     selected_spin_frames = [
         _select_resolved_spin_bin_rows(
             binned_spin_frame,
@@ -338,9 +358,20 @@ def select_nachtmann_display_subset(
         )
         for match in resolved_bin_matches
     ]
+    a1n_frame = pd.concat(selected_a1n_frames, ignore_index=True)
     selected_spin_frame = pd.concat(selected_spin_frames, ignore_index=True)
     spin_stats_by_label = {item["label"]: item for item in spin_bin_stats}
-    for match, selected_spin_bin_frame in zip(resolved_bin_matches, selected_spin_frames):
+    for match, selected_a1n_bin_frame, selected_spin_bin_frame in zip(
+        resolved_bin_matches,
+        selected_a1n_frames,
+        selected_spin_frames,
+    ):
+        match["a1n_all_n_points"] = int(len(selected_a1n_bin_frame))
+        if selected_a1n_bin_frame.empty:
+            missing_warnings.append(
+                "Normalized Q2 bin "
+                f"'{match['resolved_label']}' has no {a1n_source_key} rows."
+            )
         spin_bin_stats_item = spin_stats_by_label.get(match["resolved_label"])
         match["spin_duality_n_points"] = int(len(selected_spin_bin_frame))
         if spin_bin_stats_item is not None:
@@ -358,6 +389,7 @@ def select_nachtmann_display_subset(
     metadata = {
         "generated_at": datetime.now().astimezone().isoformat(),
         "a1n_all_source_key": a1n_source_key,
+        "a1n_all_total_points": int(len(a1n_source_frame)),
         "a1n_all_points": int(len(a1n_frame)),
         "spin_duality_source_key": spin_source_key,
         "requested_data_q2_values": requested_values,
@@ -442,7 +474,10 @@ def create_nachtmann_data_only_outputs(
     selected_df.loc[:, export_columns].to_csv(csv_path, index=False)
 
     print(f"[{mode_label}] Stage: Nachtmann data-only comparison")
-    print(f"[{mode_label}] A1n ALL points selected: {metadata['a1n_all_points']}")
+    print(
+        f"[{mode_label}] A1n ALL points selected in matched bins: "
+        f"{metadata['a1n_all_points']} of {metadata['a1n_all_total_points']}"
+    )
     print(f"[{mode_label}] Spin-duality source: {metadata['spin_duality_source_key']}")
     print(f"[{mode_label}] Requested normalized Q2 values: {metadata['requested_data_q2_values']}")
     print(f"[{mode_label}] Resolved normalized Q2 bins: {metadata['selected_bin_labels'] or 'none'}")

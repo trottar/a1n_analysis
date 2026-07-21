@@ -110,15 +110,18 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
-# Requested E01-012/Solvignon spin-duality Q2-bin values in GeV^2.
+# Requested normalized display-bin Q2 values in GeV^2.  Matching uses the
+# global Q2_labels structure (including the high-Q2 bin near 7.5 GeV^2),
+# while only psolv_e01012_g1g2 rows are plotted as the spin-duality overlay.
 # Any nonempty number of values is allowed and their order is preserved.
 NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
-# E01-012 Q2-label bin mean.
-NACHTMANN_Q2_MATCH_TOLERANCE = 0.20
+# normalized Q2-label-bin mean.  The labels are range-derived, so a 0.60
+# GeV^2 tolerance accepts the configured nearby high-Q2 bin values.
+NACHTMANN_Q2_MATCH_TOLERANCE = 0.60
 
-# None reuses the resolved E01-012 bin means above. An explicit list uses
+# None reuses the resolved normalized-bin means above. An explicit list uses
 # those exact values, in order, for the complete-fit curves.
 NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
 

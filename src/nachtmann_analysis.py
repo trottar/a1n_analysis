@@ -219,10 +219,11 @@ def _available_spin_bin_summary(all_bin_stats):
     )
 
 
-def _resolve_requested_spin_bins(all_bin_stats, requested_q2_values, q2_match_tolerance):
+def _resolve_requested_q2_bins(all_bin_stats, requested_q2_values, q2_match_tolerance):
+    """Resolve requested Q2 values against the normalized analysis-bin structure."""
     requested_values = _normalize_requested_q2_values(requested_q2_values, "NACHTMANN_Q2_VALUES")
     if not all_bin_stats:
-        raise ValueError("No E01-012 Q2-label bins are available for Nachtmann matching.")
+        raise ValueError("No normalized Q2-label bins are available for Nachtmann matching.")
 
     available_summary = _available_spin_bin_summary(all_bin_stats)
     matches = []
@@ -259,8 +260,8 @@ def _resolve_requested_spin_bins(all_bin_stats, requested_q2_values, q2_match_to
     if unmatched_values:
         requested_text = ", ".join(f"{value:.12g}" for value in unmatched_values)
         raise ValueError(
-            "Unmatched requested E01-012 Q2 value(s): "
-            f"{requested_text}. Available E01-012 bin means and labels: {available_summary}. "
+            "Unmatched requested normalized Q2 value(s): "
+            f"{requested_text}. Available normalized bin means and labels: {available_summary}. "
             f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
         )
     if duplicate_match_values:
@@ -269,8 +270,8 @@ def _resolve_requested_spin_bins(all_bin_stats, requested_q2_values, q2_match_to
             for requested_value, label, mean_q2 in duplicate_match_values
         )
         raise ValueError(
-            "NACHTMANN_Q2_VALUES cannot be matched one-to-one to E01-012 bins: "
-            f"{collision_text}. Available E01-012 bin means and labels: {available_summary}. "
+            "NACHTMANN_Q2_VALUES cannot be matched one-to-one to normalized Q2 bins: "
+            f"{collision_text}. Available normalized bin means and labels: {available_summary}. "
             f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
         )
     return matches
@@ -318,8 +319,13 @@ def select_nachtmann_display_subset(
             "cannot resolve NACHTMANN_Q2_VALUES."
         )
 
-    binned_spin_frame, all_bin_stats = _spin_q2_bin_stats(spin_frame)
-    resolved_bin_matches = _resolve_requested_spin_bins(
+    # Q2_labels are created for the full normalized analysis frame.  Resolve
+    # requested display bins against that same structure (including the high
+    # Q2 A1n bin near 7.5 GeV^2), then retain only E01-012 rows when plotting
+    # the spin-duality overlay.
+    binned_spin_frame, spin_bin_stats = _spin_q2_bin_stats(spin_frame)
+    _binned_display_frame, all_bin_stats = _spin_q2_bin_stats(working_df)
+    resolved_bin_matches = _resolve_requested_q2_bins(
         all_bin_stats,
         requested_values,
         match_tolerance,
@@ -333,6 +339,19 @@ def select_nachtmann_display_subset(
         for match in resolved_bin_matches
     ]
     selected_spin_frame = pd.concat(selected_spin_frames, ignore_index=True)
+    spin_stats_by_label = {item["label"]: item for item in spin_bin_stats}
+    for match, selected_spin_bin_frame in zip(resolved_bin_matches, selected_spin_frames):
+        spin_bin_stats_item = spin_stats_by_label.get(match["resolved_label"])
+        match["spin_duality_n_points"] = int(len(selected_spin_bin_frame))
+        if spin_bin_stats_item is not None:
+            match["spin_duality_mean_q2"] = float(spin_bin_stats_item["mean_q2"])
+        else:
+            match["spin_duality_mean_q2"] = None
+            missing_warnings.append(
+                "Normalized Q2 bin "
+                f"'{match['resolved_label']}' has no {spin_source_key} rows; "
+                "A1n ALL points remain included without a spin-duality overlay for that bin."
+            )
     selected_df = pd.concat([a1n_frame, selected_spin_frame], ignore_index=True)
     selected_df = selected_df.replace([np.inf, -np.inf], np.nan)
 
@@ -346,7 +365,8 @@ def select_nachtmann_display_subset(
         "resolved_data_bin_matches": resolved_bin_matches,
         "selected_bin_labels": [match["resolved_label"] for match in resolved_bin_matches],
         "selected_spin_duality_bin_stats": resolved_bin_matches,
-        "all_spin_duality_bin_stats": all_bin_stats,
+        "all_normalized_q2_bin_stats": all_bin_stats,
+        "all_spin_duality_bin_stats": spin_bin_stats,
         "selected_spin_duality_points": int(len(selected_spin_frame)),
         "mass_used_gev": NACHTMANN_MASS_GEV,
         "missing_source_warnings": missing_warnings,
@@ -424,8 +444,8 @@ def create_nachtmann_data_only_outputs(
     print(f"[{mode_label}] Stage: Nachtmann data-only comparison")
     print(f"[{mode_label}] A1n ALL points selected: {metadata['a1n_all_points']}")
     print(f"[{mode_label}] Spin-duality source: {metadata['spin_duality_source_key']}")
-    print(f"[{mode_label}] Requested E01-012 Q2 values: {metadata['requested_data_q2_values']}")
-    print(f"[{mode_label}] Resolved E01-012 bins: {metadata['selected_bin_labels'] or 'none'}")
+    print(f"[{mode_label}] Requested normalized Q2 values: {metadata['requested_data_q2_values']}")
+    print(f"[{mode_label}] Resolved normalized Q2 bins: {metadata['selected_bin_labels'] or 'none'}")
 
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
@@ -474,17 +494,21 @@ def create_nachtmann_data_only_outputs(
                 if bin_frame.empty:
                     continue
                 requested_value = bin_match["requested_q2"]
-                resolved_mean = bin_match["resolved_mean_q2"]
-                if f"{requested_value:.3f}" == f"{resolved_mean:.3f}":
+                normalized_bin_mean = bin_match["resolved_mean_q2"]
+                spin_mean = bin_match.get("spin_duality_mean_q2")
+                if spin_mean is None:
+                    continue
+                if f"{requested_value:.3f}" == f"{normalized_bin_mean:.3f}":
                     legend_label = (
                         "E01-012 spin duality: "
-                        f"$\\langle Q^2 \\rangle$={resolved_mean:.3f} GeV$^2$"
+                        f"$\\langle Q^2 \\rangle$={spin_mean:.3f} GeV$^2$"
                     )
                 else:
                     legend_label = (
                         "E01-012 spin duality: "
                         f"requested $Q^2$={requested_value:.3f}, "
-                        f"$\\langle Q^2 \\rangle$={resolved_mean:.3f} GeV$^2$"
+                        f"$\\langle Q^2 \\rangle_{{\\mathrm{{E01-012}}}}$={spin_mean:.3f} GeV$^2$ "
+                        f"(normalized bin={normalized_bin_mean:.3f})"
                     )
                 color = color_map(idx)
                 ax.errorbar(

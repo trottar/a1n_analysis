@@ -7,6 +7,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 from complete_fit_helpers import evaluate_complete_fit_from_x
 from functions import nachtmann_x, quad_nucl_curve_k, x_to_W
@@ -331,8 +332,8 @@ def select_nachtmann_display_subset(
             "cannot resolve NACHTMANN_Q2_VALUES."
         )
 
-    # Resolve against the configured normalized display bins, then retain A1n
-    # and E01-012 rows from the corresponding labels.
+    # Resolve the configured normalized display bins, then retain E01-012 rows
+    # from their corresponding labels alongside the full A1n ALL sample.
     binned_spin_frame, spin_bin_stats = _spin_q2_bin_stats(spin_frame)
     _binned_display_frame, all_bin_stats = _spin_q2_bin_stats(working_df)
     resolved_bin_matches = _resolve_requested_q2_bins(
@@ -340,6 +341,9 @@ def select_nachtmann_display_subset(
         requested_values,
         match_tolerance,
     )
+    # A1n ALL is deliberately a complete comparison sample.  The configured
+    # Q2 values select the E01-012 overlay bins (and the complete-fit curves),
+    # not which A1n ALL measurements are visible.
     selected_a1n_frames = [
         _select_resolved_a1n_bin_rows(
             a1n_source_frame,
@@ -356,7 +360,7 @@ def select_nachtmann_display_subset(
         )
         for match in resolved_bin_matches
     ]
-    a1n_frame = pd.concat(selected_a1n_frames, ignore_index=True)
+    a1n_frame = a1n_source_frame.copy()
     selected_spin_frame = pd.concat(selected_spin_frames, ignore_index=True)
     spin_stats_by_label = {item["label"]: item for item in spin_bin_stats}
     for match, selected_a1n_bin_frame, selected_spin_bin_frame in zip(
@@ -482,6 +486,7 @@ def create_nachtmann_data_only_outputs(
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
+    legend_handles = []
 
     if plot_df.empty:
         ax.text(
@@ -496,38 +501,39 @@ def create_nachtmann_data_only_outputs(
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(-0.05, 0.05)
     else:
+        a1n_mask = _source_key_mask(plot_df, metadata["a1n_all_source_key"])
+        if not bool(a1n_mask.any()):
+            a1n_mask = _label_mask(plot_df, "A1n all")
+        a1n_frame = plot_df.loc[a1n_mask].copy()
+        if not a1n_frame.empty:
+            ax.errorbar(
+                a1n_frame["Nachtmann_x"],
+                a1n_frame["G1F1"],
+                yerr=np.abs(a1n_frame["G1F1.err"]),
+                fmt="o",
+                linestyle="none",
+                color="#17becf",
+                ecolor="#17becf",
+                capsize=2,
+                linewidth=1.0,
+                markersize=5,
+                label="_nolegend_",
+            )
+            legend_handles.append(
+                Line2D([], [], marker="o", linestyle="none", color="#17becf", label="A1n ALL")
+            )
+
         if "Q2_labels" in plot_df.columns:
             resolved_bin_matches = metadata["resolved_data_bin_matches"]
             color_map = plt.get_cmap("turbo", max(len(resolved_bin_matches), 1))
             for idx, bin_match in enumerate(resolved_bin_matches):
-                a1n_bin_frame = _select_resolved_a1n_bin_rows(
-                    plot_df,
-                    bin_match["resolved_label"],
-                    a1n_source_key=metadata["a1n_all_source_key"],
-                )
                 spin_bin_frame = _select_resolved_spin_bin_rows(
                     plot_df,
                     bin_match["resolved_label"],
                     spin_source_key=metadata["spin_duality_source_key"],
                 )
                 color = color_map(idx)
-                legend_label = f"$Q^2={bin_match['requested_q2']:.1f}$ GeV$^2$"
-                label_drawn = False
-                if not a1n_bin_frame.empty:
-                    ax.errorbar(
-                        a1n_bin_frame["Nachtmann_x"],
-                        a1n_bin_frame["G1F1"],
-                        yerr=np.abs(a1n_bin_frame["G1F1.err"]),
-                        fmt="o",
-                        linestyle="none",
-                        color=color,
-                        ecolor=color,
-                        capsize=2,
-                        linewidth=1.0,
-                        markersize=5,
-                        label=legend_label,
-                    )
-                    label_drawn = True
+                legend_label = f"E01-012,  $Q^2={bin_match['requested_q2']:.1f}$ GeV$^2$"
                 if not spin_bin_frame.empty:
                     ax.errorbar(
                         spin_bin_frame["Nachtmann_x"],
@@ -540,11 +546,17 @@ def create_nachtmann_data_only_outputs(
                         capsize=2,
                         linewidth=1.0,
                         markersize=6,
-                        label="_nolegend_" if label_drawn else legend_label,
+                        label="_nolegend_",
                     )
-                    label_drawn = True
-                if not label_drawn:
-                    ax.plot([], [], marker="o", linestyle="none", color=color, label=legend_label)
+                legend_handles.append(
+                    Line2D(
+                        [], [],
+                        marker=_SPIN_BIN_MARKERS[idx % len(_SPIN_BIN_MARKERS)],
+                        linestyle="none",
+                        color=color,
+                        label=legend_label,
+                    )
+                )
 
         ax.set_xlim(
             max(0.0, float(np.min(plot_df["Nachtmann_x"])) - 0.02),
@@ -563,9 +575,8 @@ def create_nachtmann_data_only_outputs(
     ax.set_xlabel(r"Nachtmann $\xi$")
     ax.set_ylabel(r"$g_1^{3\mathrm{He}}/F_1^{3\mathrm{He}}$")
     ax.grid(True, linestyle="--", alpha=0.35)
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        ax.legend(loc="best", frameon=False, fontsize=9)
+    if legend_handles:
+        ax.legend(handles=legend_handles, loc="best", frameon=False, fontsize=9)
     fig.tight_layout()
 
     fig.savefig(pdf_path, bbox_inches="tight")

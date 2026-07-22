@@ -211,30 +211,30 @@ def _spin_source_mask(df, source_key=SPIN_DUALITY_SOURCE_KEY):
     return _label_mask(df, "Solvg. E01-012")
 
 
-def _available_e01012_bin_summary(e01012_bin_stats):
-    """Summarize only the source-safe E01-012 matching candidates."""
-    if not e01012_bin_stats:
+def _available_display_bin_summary(display_bin_stats):
+    """Summarize the global normalized Q2-label candidates used for matching."""
+    if not display_bin_stats:
         return "none"
     return "; ".join(
-        f"E01-012 {item['label']} (mean={item['mean_q2']:.6g} GeV^2)"
-        for item in e01012_bin_stats
+        f"{item['label']} (mean={item['mean_q2']:.6g} GeV^2)"
+        for item in display_bin_stats
     )
 
 
-def _resolve_requested_q2_bins(e01012_bin_stats, requested_q2_values, q2_match_tolerance):
-    """Resolve requested Q2 values against source-safe E01-012 bin statistics."""
+def _resolve_requested_q2_bins(display_bin_stats, requested_q2_values, q2_match_tolerance):
+    """Resolve requested Q2 values against global normalized Q2-label bins."""
     requested_values = _normalize_requested_q2_values(requested_q2_values, "NACHTMANN_Q2_VALUES")
-    if not e01012_bin_stats:
-        raise ValueError("No E01-012 Q2-label bins are available for Nachtmann matching.")
+    if not display_bin_stats:
+        raise ValueError("No normalized Q2-label bins are available for Nachtmann matching.")
 
-    available_summary = _available_e01012_bin_summary(e01012_bin_stats)
+    available_summary = _available_display_bin_summary(display_bin_stats)
     matches = []
     unmatched_values = []
     matched_labels = set()
     duplicate_match_values = []
     for requested_value in requested_values:
         nearest_bin = min(
-            e01012_bin_stats,
+            display_bin_stats,
             key=lambda item: abs(requested_value - item["mean_q2"]),
         )
         absolute_difference = abs(requested_value - nearest_bin["mean_q2"])
@@ -262,8 +262,8 @@ def _resolve_requested_q2_bins(e01012_bin_stats, requested_q2_values, q2_match_t
     if unmatched_values:
         requested_text = ", ".join(f"{value:.12g}" for value in unmatched_values)
         raise ValueError(
-            "Unmatched requested E01-012 Q2 value(s): "
-            f"{requested_text}. Available E01-012 bin means and labels: {available_summary}. "
+            "Unmatched requested normalized Q2 value(s): "
+            f"{requested_text}. Available normalized bin means and labels: {available_summary}. "
             f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
         )
     if duplicate_match_values:
@@ -272,8 +272,8 @@ def _resolve_requested_q2_bins(e01012_bin_stats, requested_q2_values, q2_match_t
             for requested_value, label, mean_q2 in duplicate_match_values
         )
         raise ValueError(
-            "NACHTMANN_Q2_VALUES cannot be matched one-to-one to E01-012 Q2 bins: "
-            f"{collision_text}. Available E01-012 bin means and labels: {available_summary}. "
+            "NACHTMANN_Q2_VALUES cannot be matched one-to-one to normalized Q2 bins: "
+            f"{collision_text}. Available normalized bin means and labels: {available_summary}. "
             f"Configured NACHTMANN_Q2_MATCH_TOLERANCE={q2_match_tolerance:.12g} GeV^2."
         )
     return matches
@@ -302,7 +302,7 @@ def _select_resolved_a1n_bin_rows(plot_df, resolved_bin_label, a1n_source_key=A1
 
 
 def _e01012_legend_label(bin_match):
-    """Describe a selected E01-012 bin without concealing Q2 matching offsets."""
+    """Describe a selected E01-012 overlay bin without concealing Q2 offsets."""
     requested_q2 = float(bin_match["requested_q2"])
     resolved_mean_q2 = float(bin_match["resolved_mean_q2"])
     if f"{requested_q2:.2f}" == f"{resolved_mean_q2:.2f}":
@@ -313,17 +313,18 @@ def _e01012_legend_label(bin_match):
     )
 
 
-def _print_e01012_q2_mapping(mode_label, bin_matches):
+def _print_display_q2_mapping(mode_label, bin_matches):
     for bin_match in bin_matches:
         print(f"[{mode_label}] Requested Q2={bin_match['requested_q2']:.3f} GeV^2")
-        print(f"  -> E01-012 label: {bin_match['resolved_label']}")
-        print(f"  -> resolved mean Q2={bin_match['resolved_mean_q2']:.3f} GeV^2")
+        print(f"  -> normalized Q2 label: {bin_match['resolved_label']}")
+        print(f"  -> resolved normalized-bin mean Q2={bin_match['resolved_mean_q2']:.3f} GeV^2")
         print(
             "  -> range="
             f"[{bin_match['min_q2']:.3f}, {bin_match['max_q2']:.3f}] GeV^2"
         )
         print(f"  -> |delta Q2|={bin_match['absolute_difference']:.3f} GeV^2")
-        print(f"  -> points={bin_match['n_points']}")
+        print(f"  -> normalized-bin points={bin_match['n_points']}")
+        print(f"  -> E01-012 overlay points={bin_match.get('spin_duality_n_points', 0)}")
 
 
 def select_nachtmann_display_subset(
@@ -358,11 +359,13 @@ def select_nachtmann_display_subset(
             "cannot resolve NACHTMANN_Q2_VALUES."
         )
 
-    # Resolve requested display values against E01-012 alone, then retain those
-    # source-safe rows alongside the full A1n ALL comparison sample.
+    # Resolve requested display values against the shared normalized Q2-label
+    # structure, then retain only source-safe E01-012 overlay rows alongside
+    # the full A1n ALL comparison sample.
     binned_spin_frame, spin_bin_stats = _spin_q2_bin_stats(spin_frame)
+    _binned_display_frame, display_bin_stats = _spin_q2_bin_stats(working_df)
     resolved_bin_matches = _resolve_requested_q2_bins(
-        spin_bin_stats,
+        display_bin_stats,
         requested_values,
         match_tolerance,
     )
@@ -419,14 +422,15 @@ def select_nachtmann_display_subset(
         "a1n_all_total_points": int(len(a1n_source_frame)),
         "a1n_all_points": int(len(a1n_frame)),
         "spin_duality_source_key": spin_source_key,
-        "matching_source_key": spin_source_key,
+        "matching_source": "global_normalized_q2_labels",
         "requested_data_q2_values": requested_values,
         "q2_match_tolerance": match_tolerance,
         "resolved_data_bin_matches": resolved_bin_matches,
         "selected_bin_labels": [match["resolved_label"] for match in resolved_bin_matches],
         "selected_spin_duality_bin_stats": resolved_bin_matches,
+        "global_normalized_q2_bin_stats": display_bin_stats,
         "e01012_q2_bin_stats": spin_bin_stats,
-        "e01012_available_bin_summary": _available_e01012_bin_summary(spin_bin_stats),
+        "available_display_bin_summary": _available_display_bin_summary(display_bin_stats),
         "selected_spin_duality_points": int(len(selected_spin_frame)),
         "mass_used_gev": NACHTMANN_MASS_GEV,
         "missing_source_warnings": missing_warnings,
@@ -505,7 +509,7 @@ def create_nachtmann_data_only_outputs(
     print(f"[{mode_label}] A1n ALL points included: {metadata['a1n_all_points']}")
     print(f"[{mode_label}] E01-012 points included: {metadata['selected_spin_duality_points']}")
     print(f"[{mode_label}] E01-012 source: {metadata['spin_duality_source_key']}")
-    _print_e01012_q2_mapping(mode_label, metadata["resolved_data_bin_matches"])
+    _print_display_q2_mapping(mode_label, metadata["resolved_data_bin_matches"])
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.axhline(0.0, color="0.4", linestyle="--", linewidth=1.0, alpha=0.8)
@@ -646,7 +650,7 @@ def resolve_nachtmann_complete_fit_q2_values(selection_result, q2_override=None)
         raise ValueError(
             "No resolved bins are available for the complete-fit Nachtmann comparison."
         )
-    return [float(match["resolved_mean_q2"]) for match in resolved_matches]
+    return [float(value) for value in selection_result["metadata"]["requested_data_q2_values"]]
 
 
 def build_nachtmann_complete_fit_curve_frame(
@@ -837,7 +841,7 @@ def create_nachtmann_complete_fit_outputs(
         "q2_match_tolerance": selection_result["metadata"]["q2_match_tolerance"],
         "resolved_data_bin_matches": selection_result["metadata"]["resolved_data_bin_matches"],
         "complete_fit_q2_source": (
-            "explicit_override" if q2_override is not None else "resolved_e01012_bin_means"
+            "explicit_override" if q2_override is not None else "requested_display_bin_values"
         ),
         "complete_fit_q2_values": q2_values,
         "nonfinite_curve_rows_by_q2": curve_df.attrs.get("curve_row_counts", []),

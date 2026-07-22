@@ -110,9 +110,9 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
-# Requested E01-012 display-bin Q2 values in GeV^2. The data page selects
-# matching E01-012 Q2_labels bins; default complete-fit curves use their
-# resolved E01-012 means. Any nonempty number of values is allowed.
+# Requested normalized display-bin Q2 values in GeV^2. The data page selects
+# matching global Q2_labels bins; default complete-fit curves use these exact
+# values in the same order. Any nonempty number of values is allowed.
 NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
@@ -120,7 +120,7 @@ NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 # point-weighted means can be displaced from the requested bin values.
 NACHTMANN_Q2_MATCH_TOLERANCE = 0.80
 
-# None reuses the resolved E01-012 bin means above. An explicit list uses
+# None reuses the requested display-bin values above. An explicit list uses
 # those exact values, in order, for the complete-fit curves.
 NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
 

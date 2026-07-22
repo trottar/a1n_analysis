@@ -110,9 +110,9 @@ DIS_FIT_MODEL = "fullx"
 # ANALYSIS_SCOPE = "dis"
 ANALYSIS_SCOPE = "full"
 
-# Requested normalized display-bin Q2 values in GeV^2.  These values are used
-# directly for the complete-fit curves; the data page selects their matching
-# normalized Q2_labels bins. Any nonempty number of values is allowed.
+# Requested E01-012 display-bin Q2 values in GeV^2. The data page selects
+# matching E01-012 Q2_labels bins; default complete-fit curves use their
+# resolved E01-012 means. Any nonempty number of values is allowed.
 NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 
 # Maximum allowed difference between a requested value and an existing
@@ -120,7 +120,7 @@ NACHTMANN_Q2_VALUES = [3.2, 4.5, 7.5]
 # point-weighted means can be displaced from the requested bin values.
 NACHTMANN_Q2_MATCH_TOLERANCE = 0.80
 
-# None reuses the resolved normalized-bin means above. An explicit list uses
+# None reuses the resolved E01-012 bin means above. An explicit list uses
 # those exact values, in order, for the complete-fit curves.
 NACHTMANN_COMPLETE_FIT_Q2_VALUES = None
 
@@ -733,17 +733,18 @@ def run_analysis(analysis_scope):
         # Plot dis fit vs x
         plot_dis_x(x, dis_fit_curve, quad_fit_err, dis_fit_params, dis_df, pdf)
 
+        # Keep the data-only Nachtmann page directly with the DIS outputs and
+        # retain the selection for the complete-fit comparison after transition fitting.
+        nachtmann_data_result = create_nachtmann_data_only_outputs(
+            g1f1_df,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            requested_q2_values=NACHTMANN_Q2_VALUES,
+            q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
+        )
+
         if analysis_scope == "dis_only":
-            # Keep the standalone Nachtmann data page as the final DIS-only
-            # PDF page, after every regular DIS output.
-            create_nachtmann_data_only_outputs(
-                g1f1_df,
-                ANALYSIS_TAG,
-                pdf,
-                mode_label,
-                requested_q2_values=NACHTMANN_Q2_VALUES,
-                q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
-            )
             print(
                 f"[{mode_label}] Skipping Nachtmann complete-fit comparison in dis_only scope "
                 "because the resonance and transition stages were not executed."
@@ -892,7 +893,31 @@ def run_analysis(analysis_scope):
                                                 w_lims,
                                                 pdf,
                                                 dataset_tag=ANALYSIS_TAG,
-                                                quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
+        )
+
+        # The complete-fit Nachtmann page belongs immediately after the
+        # transition stage that defines its central-value curve.
+        create_nachtmann_complete_fit_outputs(
+            nachtmann_data_result,
+            ANALYSIS_TAG,
+            pdf,
+            mode_label,
+            dis_fit_params,
+            dis_transition_fit,
+            bw_fit_params["k params"]["nucl_par"],
+            bw_fit_params["k params"]["nucl_curve_err"],
+            bw_fit_params["gamma params"]["nucl_par"],
+            bw_fit_params["gamma params"]["nucl_curve_err"],
+            bw_fit_params["mass params"]["nucl_par"],
+            bw_fit_params["mass params"]["nucl_curve_err"],
+            bw_fit_params["k params"]["P_vals"],
+            bw_fit_params["gamma params"]["P_vals"],
+            bw_fit_params["mass params"]["P_vals"],
+            full_w_max=full_w_max,
+            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
+            w_min=w_min,
+            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
         )
 
         print(f"[{mode_label}] Stage: Combined W-fit pages")
@@ -936,38 +961,6 @@ def run_analysis(analysis_scope):
                          dataset_tag=ANALYSIS_TAG,
                           quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
             )
-
-        # Append both standalone Nachtmann pages only after every established
-        # fit/grid page so they remain the final pages of g1f1_fits.pdf.
-        nachtmann_data_result = create_nachtmann_data_only_outputs(
-            g1f1_df,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            requested_q2_values=NACHTMANN_Q2_VALUES,
-            q2_match_tolerance=NACHTMANN_Q2_MATCH_TOLERANCE,
-        )
-        create_nachtmann_complete_fit_outputs(
-            nachtmann_data_result,
-            ANALYSIS_TAG,
-            pdf,
-            mode_label,
-            dis_fit_params,
-            dis_transition_fit,
-            bw_fit_params["k params"]["nucl_par"],
-            bw_fit_params["k params"]["nucl_curve_err"],
-            bw_fit_params["gamma params"]["nucl_par"],
-            bw_fit_params["gamma params"]["nucl_curve_err"],
-            bw_fit_params["mass params"]["nucl_par"],
-            bw_fit_params["mass params"]["nucl_curve_err"],
-            bw_fit_params["k params"]["P_vals"],
-            bw_fit_params["gamma params"]["P_vals"],
-            bw_fit_params["mass params"]["P_vals"],
-            full_w_max=full_w_max,
-            q2_override=NACHTMANN_COMPLETE_FIT_Q2_VALUES,
-            w_min=w_min,
-            quad_nucl_curve_k_func=BW_K_CURVE_FUNC,
-        )
 
     return outputpdf
 

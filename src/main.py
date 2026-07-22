@@ -102,7 +102,7 @@ BW_K_CURVE_MODEL = "fixed_zero"
 # DIS_FIT_MODEL = "quad"
 # DIS_FIT_MODEL = "cubic"
 # DIS_FIT_MODEL = "all"
-DIS_FIT_MODEL = "fullx"
+DIS_FIT_MODEL = "quad_alpha"
 
 # Analysis scope variants:
 # ANALYSIS_SCOPE = "full"
